@@ -106,9 +106,16 @@ export const MainContent: React.FC<MainContentProps> = ({
                                     key={node.id}
                                     className="list-item folder-list-item"
                                     onClick={() => onNavigate(node.id)}
+                                    onContextMenu={(e) => onContextMenu(e, node)}
                                 >
                                     <Folder size={20} className="list-folder-icon" />
                                     <span className="list-item-title">{node.title}</span>
+                                    <div className="more-options-btn" onClick={(e) => {
+                                        e.stopPropagation();
+                                        onContextMenu(e, node);
+                                    }}>
+                                        <MoreVertical size={16} />
+                                    </div>
                                 </div>
                             );
                         }

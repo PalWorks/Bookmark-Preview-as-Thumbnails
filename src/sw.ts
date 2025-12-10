@@ -106,7 +106,8 @@ async function processBatchCapture(urls: string[]) {
             chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED', url }).catch(() => { });
 
             // Navigate the existing tab to the new URL
-            await chrome.tabs.update(captureTabId, { url, active: true, muted: true });
+            // Do NOT set active: true, as it brings the window to front
+            await chrome.tabs.update(captureTabId, { url, muted: true });
 
             // Wait for tab to load
             await new Promise<void>((resolve) => {

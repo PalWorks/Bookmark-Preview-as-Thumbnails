@@ -282,10 +282,11 @@ function App() {
     const isCapturing = loadingUrls.size > 0 || queuedUrls.size > 0;
 
     const handleUpdateThumbnails = () => {
-        // Manual trigger to re-capture MISSING thumbnails in current folder (Resume)
-        if (currentFolder && currentFolder.children) {
+        // Manual trigger to re-capture MISSING thumbnails in current view (Resume)
+        // Use displayedNodes to respect current Sort Order and Filter
+        if (displayedNodes && displayedNodes.length > 0) {
             // Filter out URLs that already have a thumbnail loaded
-            const urls = currentFolder.children
+            const urls = displayedNodes
                 .map(n => n.url)
                 .filter(u => u && !thumbnails[u]) as string[];
 
