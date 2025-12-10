@@ -7,6 +7,7 @@ export interface ThumbnailRecord {
     width: number;
     height: number;
     sizeBytes: number;
+    filename?: string;
 }
 
 export interface HandleRecord {

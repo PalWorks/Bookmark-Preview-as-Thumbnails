@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload } from 'lucide-react';
 import './TopBar.css';
 
 interface TopBarProps {
@@ -16,6 +16,8 @@ interface TopBarProps {
     onUpdateThumbnails: () => void;
     onStopCapture: () => void;
     isCapturing: boolean;
+    onExportBackup: () => void;
+    onImportBackup: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -31,7 +33,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     onSortChange,
     onUpdateThumbnails,
     onStopCapture,
-    isCapturing
+    isCapturing,
+    onExportBackup,
+    onImportBackup
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -213,6 +217,32 @@ export const TopBar: React.FC<TopBarProps> = ({
                                     Note: Incognito mode cannot capture sites that require login (e.g. Gmail, Notion).
                                     You must also allow this extension in Incognito settings.
                                 </span>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item" onClick={() => {
+                                onExportBackup();
+                                setIsMenuOpen(false);
+                            }}>
+                                <Download size={16} className="menu-icon" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Export Backup</div>
+                                    <div className="menu-desc">Save settings & data</div>
+                                </div>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item" onClick={() => {
+                                onImportBackup();
+                                setIsMenuOpen(false);
+                            }}>
+                                <Upload size={16} className="menu-icon" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Import Backup</div>
+                                    <div className="menu-desc">Restore from file</div>
+                                </div>
                             </div>
                         </div>
                     )}

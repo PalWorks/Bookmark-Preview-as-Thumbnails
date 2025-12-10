@@ -214,7 +214,25 @@ async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
         // This ensures that if the page redirected, we still store/update the thumbnail for the original requested URL
         const id = overrideUrl || tab.url;
 
-        // Save to IndexedDB
+        // Try to save to disk if directory handle is available
+        let status: 'saved_indexeddb' | 'saved_disk' = 'saved_indexeddb';
+        let savedFilename: string | undefined;
+
+        try {
+            const hasHandle = await fsAccess.restoreHandle();
+            if (hasHandle) {
+                // Sanitize filename
+                const filename = `${tab.title?.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${Date.now()}.webp`;
+                await fsAccess.writeFile(filename, result.blob);
+                status = 'saved_disk';
+                savedFilename = filename;
+            }
+        } catch (fsError) {
+            console.warn('Failed to save to disk:', fsError);
+            // Fallback to indexeddb status, which is already set
+        }
+
+        // Save to IndexedDB (update with filename if available)
         await db.putThumbnail({
             id,
             url: tab.url, // Keep actual URL for reference
@@ -224,22 +242,8 @@ async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
             width: result.width,
             height: result.height,
             sizeBytes: result.sizeBytes,
+            filename: savedFilename
         });
-
-        // Try to save to disk if directory handle is available
-        let status: 'saved_indexeddb' | 'saved_disk' = 'saved_indexeddb';
-        try {
-            const hasHandle = await fsAccess.restoreHandle();
-            if (hasHandle) {
-                // Sanitize filename
-                const filename = `${tab.title?.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'untitled'}_${Date.now()}.webp`;
-                await fsAccess.writeFile(filename, result.blob);
-                status = 'saved_disk';
-            }
-        } catch (fsError) {
-            console.warn('Failed to save to disk:', fsError);
-            // Fallback to indexeddb status, which is already set
-        }
 
         // Save metadata
         await storageIndex.set({

@@ -5,6 +5,8 @@ import { Sidebar } from '../components/Sidebar';
 import { MainContent } from '../components/MainContent';
 import { TopBar } from '../components/TopBar';
 import { ContextMenu } from '../components/ContextMenu';
+import { storageManager } from '../lib/storage_manager';
+import { backupManager } from '../lib/backup_manager';
 
 function App() {
     const [bookmarkTree, setBookmarkTree] = useState<chrome.bookmarks.BookmarkTreeNode[]>([]);
@@ -141,14 +143,19 @@ function App() {
         try {
             // Dynamically import fsAccess to avoid issues if not supported
             const { fsAccess } = await import('../lib/fsaccess');
-            await fsAccess.chooseDirectory();
-            alert('Folder connected successfully! Future thumbnails will be saved to disk.');
-        } catch (err) {
-            console.error('Error connecting folder:', err);
-            // Ignore abort error
-            if ((err as Error).name !== 'AbortError') {
-                alert('Error connecting folder. See console for details.');
+            const result = await fsAccess.chooseDirectory();
+            if (result.success) {
+                let msg = 'Folder connected successfully! Future thumbnails will be saved to disk.';
+                if (result.count > 0) {
+                    msg += `\n\nFound and re-linked ${result.count} existing thumbnails from this folder.`;
+                }
+                alert(msg);
+                // Reload to reflect changes if needed, or just state update
+                // window.location.reload();
             }
+        } catch (error) {
+            console.error('Failed to connect folder:', error);
+            alert('Failed to connect folder. Please try again.');
         }
     };
 
@@ -156,14 +163,7 @@ function App() {
     // We can hook this into the MainContent or here. 
     // Let's pass a callback to MainContent to set loading state.
 
-    const handleBatchCaptureTrigger = (urls: string[]) => {
-        setQueuedUrls(prev => {
-            const next = new Set(prev);
-            urls.forEach(url => next.add(url));
-            return next;
-        });
-        chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls });
-    };
+    // handleBatchCaptureTrigger is defined below with storage check
 
     const [useIncognito, setUseIncognito] = useState(false);
 
@@ -476,6 +476,93 @@ function App() {
         }
     };
 
+    const [storageWarning, setStorageWarning] = useState<{ level: 'none' | 'warning' | 'critical', message: string }>({ level: 'none', message: '' });
+
+    // Check storage usage
+    const checkStorage = async () => {
+        const { percentage, usage, quota } = await storageManager.getEstimate();
+        if (percentage > 0.95) {
+            setStorageWarning({
+                level: 'critical',
+                message: `Critical Storage: ${storageManager.formatBytes(usage)} / ${storageManager.formatBytes(quota)} used. Captures paused. Please connect a folder to save space.`
+            });
+        } else if (percentage > 0.8) {
+            setStorageWarning({
+                level: 'warning',
+                message: `Low Storage: ${storageManager.formatBytes(usage)} / ${storageManager.formatBytes(quota)} used. Consider connecting a folder.`
+            });
+        } else {
+            setStorageWarning({ level: 'none', message: '' });
+        }
+    };
+
+    useEffect(() => {
+        checkStorage();
+        // Check periodically
+        const interval = setInterval(checkStorage, 60000); // Every minute
+        return () => clearInterval(interval);
+    }, []);
+
+    // Also check after captures
+    useEffect(() => {
+        if (!isCapturing) {
+            checkStorage();
+        }
+    }, [isCapturing]);
+
+    const handleBatchCaptureTrigger = async (urls: string[]) => {
+        // Block if critical
+        if (storageWarning.level === 'critical') {
+            alert('Storage is full! Please connect a folder to continue capturing thumbnails.');
+            return;
+        }
+
+        setQueuedUrls(prev => {
+            const next = new Set(prev);
+            urls.forEach(url => next.add(url));
+            return next;
+        });
+        chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls });
+    };
+
+    const handleExportBackup = async () => {
+        try {
+            const blob = await backupManager.createBackup();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bookmarks_thumbnails_backup_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Export failed:', err);
+            alert('Failed to create backup.');
+        }
+    };
+
+    const handleImportBackup = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (file) {
+                try {
+                    const result = await backupManager.importBackup(file);
+                    alert(`Backup imported successfully! Restored metadata for ${result.count} thumbnails.\n\nIf you have an external folder with images, please "Connect Folder" now to link them.`);
+                    // Reload to reflect changes
+                    window.location.reload();
+                } catch (err) {
+                    console.error('Import failed:', err);
+                    alert('Failed to import backup. Invalid file?');
+                }
+            }
+        };
+        input.click();
+    };
+
     return (
         <div className="app-container">
             <TopBar
@@ -492,7 +579,19 @@ function App() {
                 onUpdateThumbnails={handleUpdateThumbnails}
                 onStopCapture={handleStopCapture}
                 isCapturing={isCapturing}
+                onExportBackup={handleExportBackup}
+                onImportBackup={handleImportBackup}
             />
+            {storageWarning.level !== 'none' && (
+                <div className={`storage-warning ${storageWarning.level}`}>
+                    {storageWarning.message}
+                    {storageWarning.level === 'critical' && (
+                        <button onClick={handleConnectFolder} className="connect-folder-btn-inline">
+                            Connect Folder
+                        </button>
+                    )}
+                </div>
+            )}
             <div className="content-wrapper">
                 <Sidebar
                     folders={bookmarkTree}
