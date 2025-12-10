@@ -512,12 +512,10 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-right: 12px;
-    padding: 4px 8px;
+    padding: 3px 8px;
     border: 1px solid rgba(255, 255, 255, 0.3);
     /* Thin white border */
     border-radius: 4px;
-    height: 32px;
 }
 
 .capture-label {
