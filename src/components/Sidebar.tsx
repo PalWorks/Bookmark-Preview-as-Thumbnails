@@ -5,10 +5,11 @@ interface SidebarProps {
     folders: chrome.bookmarks.BookmarkTreeNode[];
     selectedFolderId: string;
     onSelectFolder: (id: string) => void;
-    onUpdateThumbnails: () => void;
+    onUpdateThumbnails?: () => void;
+    onStopCapture?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onSelectFolder, onUpdateThumbnails }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onSelectFolder, onUpdateThumbnails, onStopCapture }) => {
     const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(new Set(['1'])); // Default expand Bookmarks Bar
 
     const toggleExpand = (e: React.MouseEvent, folderId: string) => {
@@ -64,9 +65,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
         <div className="sidebar">
             <div className="sidebar-header">
                 <div>Folders</div>
-                <button className="update-btn" onClick={onUpdateThumbnails} title="Update missing thumbnails">
-                    ↻
-                </button>
+                {onUpdateThumbnails && (
+                    <div className="sidebar-actions">
+                        <button className="icon-btn start-btn" onClick={onUpdateThumbnails} title="Start capture">
+                            <img src="/icons/PlayButton.svg" alt="Start" />
+                        </button>
+                        <button className="icon-btn stop-btn" onClick={onStopCapture} title="Stop capture">
+                            <img src="/icons/StopButton.svg" alt="Stop" />
+                        </button>
+                    </div>
+                )}
             </div>
             <div className="sidebar-content">
                 {renderTree(folders)}

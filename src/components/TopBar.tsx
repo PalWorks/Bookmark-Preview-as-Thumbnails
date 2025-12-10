@@ -1,12 +1,13 @@
 import React from 'react';
-import { Search } from 'lucide-react';
+import { Search, Settings } from 'lucide-react';
 import './TopBar.css';
 
 interface TopBarProps {
     onSearch: (query: string) => void;
+    onConnectFolder: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onSearch }) => {
+export const TopBar: React.FC<TopBarProps> = ({ onSearch, onConnectFolder }) => {
     return (
         <div className="top-bar">
             <div className="logo-section">
@@ -24,7 +25,9 @@ export const TopBar: React.FC<TopBarProps> = ({ onSearch }) => {
                 </div>
             </div>
             <div className="actions-section">
-                {/* Placeholder for future actions like "Add Bookmark" */}
+                <button className="icon-btn" onClick={onConnectFolder} title="Connect Local Folder for Storage">
+                    <Settings size={20} />
+                </button>
             </div>
         </div>
     );

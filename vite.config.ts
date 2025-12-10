@@ -11,10 +11,13 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, 'index.html'),
         sw: resolve(__dirname, 'src/sw.ts'),
+        content: resolve(__dirname, 'src/content/capture.ts'),
       },
       output: {
         entryFileNames: (chunkInfo) => {
-          return chunkInfo.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js';
+          if (chunkInfo.name === 'sw') return 'sw.js';
+          if (chunkInfo.name === 'content') return 'content-script.js';
+          return 'assets/[name]-[hash].js';
         },
       },
     },

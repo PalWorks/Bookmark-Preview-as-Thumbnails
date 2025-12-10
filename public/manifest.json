@@ -9,7 +9,11 @@
         "tabs",
         "activeTab",
         "downloads",
-        "bookmarks"
+        "bookmarks",
+        "scripting"
+    ],
+    "host_permissions": [
+        "<all_urls>"
     ],
     "action": {
         "default_icon": {

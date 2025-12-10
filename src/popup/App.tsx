@@ -68,43 +68,167 @@ function App() {
         loadThumbs();
     }, [currentFolder]);
 
-    const handleUpdateThumbnails = async () => {
-        // Collect all URLs from the current folder that are missing thumbnails
-        // In a real implementation, this should probably traverse the whole tree or let user select
-        // For now, let's just update the current folder's missing thumbnails
-        if (!currentFolder || !currentFolder.children) return;
+    const [queuedUrls, setQueuedUrls] = useState<Set<string>>(new Set());
+    const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
 
-        const urlsToCapture: string[] = [];
-        for (const node of currentFolder.children) {
-            if (node.url && !thumbnails[node.url]) {
-                urlsToCapture.push(node.url);
+    // Listen for thumbnail updates
+    useEffect(() => {
+        const listener = (message: any) => {
+            if (message.type === 'CAPTURE_STARTED' && message.url) {
+                // Move from queued to loading
+                setQueuedUrls(prev => {
+                    const next = new Set(prev);
+                    next.delete(message.url);
+                    return next;
+                });
+                setLoadingUrls(prev => {
+                    const next = new Set(prev);
+                    next.add(message.url);
+                    return next;
+                });
+            } else if (message.type === 'THUMBNAIL_UPDATED' && message.url) {
+                // Update thumbnail in state
+                db.getThumbnail(message.url).then(thumb => {
+                    if (thumb && thumb.blob) {
+                        setThumbnails(prev => ({
+                            ...prev,
+                            [message.url]: URL.createObjectURL(thumb.blob)
+                        }));
+                        // Remove from loading
+                        setLoadingUrls(prev => {
+                            const next = new Set(prev);
+                            next.delete(message.url);
+                            return next;
+                        });
+                    }
+                });
+            } else if (message.type === 'CAPTURE_FAILED' && message.url) {
+                // Remove from loading if failed
+                setLoadingUrls(prev => {
+                    const next = new Set(prev);
+                    next.delete(message.url);
+                    return next;
+                });
+                console.warn('Capture failed for', message.url, message.error);
+                console.log('Removed from loadingUrls:', message.url);
+            }
+        };
+        chrome.runtime.onMessage.addListener(listener);
+        return () => chrome.runtime.onMessage.removeListener(listener);
+    }, []);
+
+    // Load thumbnails when folder changes, then trigger capture for missing ones
+    useEffect(() => {
+        const loadThumbsAndCapture = async () => {
+            if (!currentFolder || !currentFolder.children) return;
+
+            // 1. Load existing thumbnails
+            const newThumbs: Record<string, string> = {};
+            const existingUrls = new Set<string>();
+
+            for (const node of currentFolder.children) {
+                if (node.url) {
+                    const thumb = await db.getThumbnail(node.url);
+                    if (thumb && thumb.blob) {
+                        newThumbs[node.url] = URL.createObjectURL(thumb.blob);
+                        existingUrls.add(node.url);
+                    }
+                }
+            }
+            setThumbnails(prev => ({ ...prev, ...newThumbs }));
+
+            // 2. Identify missing thumbnails
+            // Only auto-capture if we haven't tried recently or if explicitly requested?
+            // For now, let's just capture what's missing from DB.
+            const missingUrls: string[] = [];
+            for (const node of currentFolder.children) {
+                if (node.url && !existingUrls.has(node.url)) {
+                    // Check if already queued or loading to avoid duplicates
+                    if (!loadingUrls.has(node.url) && !queuedUrls.has(node.url)) {
+                        missingUrls.push(node.url);
+                    }
+                }
+            }
+
+            // 3. Trigger batch capture if needed
+            // 3. Trigger batch capture if needed
+            if (missingUrls.length > 0) {
+                console.log('Found missing thumbnails:', missingUrls);
+                // Auto-capture DISABLED. User must manually trigger.
+                // We could optionally update some state to show a "Capture Needed" badge.
+            }
+        };
+
+        loadThumbsAndCapture();
+    }, [currentFolder]); // Only run when folder changes
+
+    const handleConnectFolder = async () => {
+        try {
+            // Dynamically import fsAccess to avoid issues if not supported
+            const { fsAccess } = await import('../lib/fsaccess');
+            await fsAccess.chooseDirectory();
+            alert('Folder connected successfully! Future thumbnails will be saved to disk.');
+        } catch (err) {
+            console.error('Error connecting folder:', err);
+            // Ignore abort error
+            if ((err as Error).name !== 'AbortError') {
+                alert('Error connecting folder. See console for details.');
             }
         }
+    };
 
-        if (urlsToCapture.length === 0) {
-            alert('No missing thumbnails in this folder.');
-            return;
-        }
+    // Auto-trigger batch capture (optional, but requested implicitly by "whenever I click a folder")
+    // We can hook this into the MainContent or here. 
+    // Let's pass a callback to MainContent to set loading state.
 
-        if (confirm(`Update ${urlsToCapture.length} thumbnails? This will open tabs in the background.`)) {
-            chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls: urlsToCapture });
-        }
+    const handleBatchCaptureTrigger = (urls: string[]) => {
+        setQueuedUrls(prev => {
+            const next = new Set(prev);
+            urls.forEach(url => next.add(url));
+            return next;
+        });
+        chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls });
     };
 
     return (
         <div className="app-container">
-            <TopBar onSearch={(q) => console.log('Search:', q)} />
+            <TopBar
+                onSearch={(q) => console.log('Search:', q)}
+                onConnectFolder={handleConnectFolder}
+            />
             <div className="content-wrapper">
                 <Sidebar
                     folders={bookmarkTree}
                     selectedFolderId={selectedFolderId}
                     onSelectFolder={setSelectedFolderId}
-                    onUpdateThumbnails={handleUpdateThumbnails}
+                    onUpdateThumbnails={() => {
+                        // Manual trigger to re-capture MISSING thumbnails in current folder (Resume)
+                        if (currentFolder && currentFolder.children) {
+                            // Filter out URLs that already have a thumbnail loaded
+                            const urls = currentFolder.children
+                                .map(n => n.url)
+                                .filter(u => u && !thumbnails[u]) as string[];
+
+                            if (urls.length > 0) {
+                                handleBatchCaptureTrigger(urls);
+                            } else {
+                                console.log('All thumbnails already captured');
+                            }
+                        }
+                    }}
+                    onStopCapture={() => {
+                        setLoadingUrls(new Set());
+                        setQueuedUrls(new Set());
+                        chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' });
+                    }}
                 />
                 <MainContent
                     folder={currentFolder}
                     thumbnails={thumbnails}
+                    loadingUrls={loadingUrls}
+                    queuedUrls={queuedUrls}
                     onNavigate={setSelectedFolderId}
+                    onTriggerBatchCapture={handleBatchCaptureTrigger}
                 />
             </div>
         </div>

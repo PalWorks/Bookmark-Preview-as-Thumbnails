@@ -72,3 +72,25 @@
 .search-input-wrapper:focus-within .search-input::placeholder {
     color: #5f6368;
 }
+
+.actions-section {
+    margin-left: auto;
+    /* Push to the right */
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.icon-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}

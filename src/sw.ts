@@ -28,6 +28,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'STOP_CAPTURE') {
+        stopBatchCapture = true;
+        sendResponse({ status: 'stopping' });
+        return true;
+    }
+
     if (message.type === 'PING') {
         sendResponse({ status: 'ok' });
     }
@@ -35,58 +41,110 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // Keep channel open for async response
 });
 
+let isBatchCapturing = false;
+let stopBatchCapture = false;
+
 async function processBatchCapture(urls: string[]) {
+    if (isBatchCapturing) {
+        console.log('Batch capture already in progress');
+        return;
+    }
+    isBatchCapturing = true;
+    stopBatchCapture = false;
     console.log('Starting batch capture for', urls.length, 'URLs');
 
-    for (const url of urls) {
-        try {
-            // Create a tab but don't make it active (to minimize disruption)
-            // Cast options to any to allow 'muted' property
-            const tab = await chrome.tabs.create({ url, active: false, muted: true } as any) as chrome.tabs.Tab;
+    // Create a window to perform captures without disrupting the user
+    let captureWindow: chrome.windows.Window | undefined;
+    try {
+        // Create normal but unfocused window
+        captureWindow = await chrome.windows.create({
+            focused: false,
+            state: 'normal',
+            width: 1024,
+            height: 768
+        });
 
-            if (!tab || !tab.id) continue;
+        // Move off-screen immediately
+        if (captureWindow && captureWindow.id) {
+            chrome.windows.update(captureWindow.id, { left: -10000, top: -10000 }).catch(() => { });
+        }
+    } catch (e) {
+        console.error('Failed to create capture window', e);
+        isBatchCapturing = false;
+        return;
+    }
+
+    if (!captureWindow || !captureWindow.id) {
+        isBatchCapturing = false;
+        return;
+    }
+
+    // Get the initial tab from the capture window
+    const tabs = await chrome.tabs.query({ windowId: captureWindow.id });
+    if (tabs.length === 0 || !tabs[0].id) {
+        console.error('No tab found in capture window');
+        await chrome.windows.remove(captureWindow.id);
+        isBatchCapturing = false;
+        return;
+    }
+    const captureTabId = tabs[0].id;
+
+    for (const url of urls) {
+        if (stopBatchCapture) {
+            console.log('Batch capture stopped by user');
+            break;
+        }
+
+        try {
+            chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED', url }).catch(() => { });
+
+            // Navigate the existing tab to the new URL
+            await chrome.tabs.update(captureTabId, { url, active: true, muted: true });
 
             // Wait for tab to load
             await new Promise<void>((resolve) => {
                 const listener = (tabId: number, changeInfo: any) => {
-                    if (tabId === tab.id && changeInfo.status === 'complete') {
+                    if (tabId === captureTabId && changeInfo.status === 'complete') {
                         chrome.tabs.onUpdated.removeListener(listener);
                         resolve();
                     }
                 };
                 chrome.tabs.onUpdated.addListener(listener);
-
-                // Timeout fallback (e.g. 15 seconds)
+                // Timeout after 30s
                 setTimeout(() => {
                     chrome.tabs.onUpdated.removeListener(listener);
                     resolve();
-                }, 15000);
+                }, 30000);
             });
 
-            // Wait a bit more for rendering
-            await new Promise(r => setTimeout(r, 2000));
+            // Wait for rendering (1s) - Optimized from 2s
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // Capture
-            // Note: captureVisibleTab captures the *active* tab in the window.
-            // If we opened the tab in the background (active: false), we might not be able to capture it 
-            // unless we make it active momentarily or use a different window.
-            // Chrome API limitation: captureVisibleTab requires the tab to be visible (active).
-            // So we MUST make it active to capture.
+            if (stopBatchCapture) {
+                break;
+            }
 
-            await chrome.tabs.update(tab.id, { active: true });
-            // Wait for switch
-            await new Promise(r => setTimeout(r, 500));
+            // Capture using unified method
+            await handleCapture(captureTabId, url);
 
-            await handleCapture();
-
-            // Close tab
-            await chrome.tabs.remove(tab.id);
-
-        } catch (err) {
-            console.error('Failed to capture', url, err);
+        } catch (error: any) {
+            console.error('Failed to capture', url, error);
+            // Notify UI of failure so it doesn't get stuck loading
+            chrome.runtime.sendMessage({
+                type: 'CAPTURE_FAILED',
+                url,
+                error: error.message
+            }).catch(() => { });
         }
     }
+
+    // Close the capture window
+    if (captureWindow && captureWindow.id) {
+        await chrome.windows.remove(captureWindow.id);
+    }
     console.log('Batch capture complete');
+    isBatchCapturing = false;
+    stopBatchCapture = false;
 }
 
 // Auto-capture when a bookmark is created
@@ -112,22 +170,46 @@ import { db } from './lib/indexeddb';
 import { storageIndex } from './lib/storage_index';
 import { fsAccess } from './lib/fsaccess';
 
-async function handleCapture() {
+async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
     try {
-        const dataUrl = await captureManager.captureVisibleTab(undefined); // undefined windowId means current window
+        let tabId: number;
+
+        if (tabIdOrWindowId) {
+            // Check if it's a tab ID or Window ID
+            // Since we passed tab.id in processBatchCapture, we treat it as tabId if possible.
+            // But handleCapture was originally designed for windowId (from active tab).
+            // Let's try to determine.
+            try {
+                const tab = await chrome.tabs.get(tabIdOrWindowId);
+                tabId = tab.id!;
+            } catch {
+                // Not a tab, assume window ID and get active tab
+                const tabs = await chrome.tabs.query({ windowId: tabIdOrWindowId, active: true });
+                if (!tabs[0]?.id) throw new Error('No active tab in window');
+                tabId = tabs[0].id;
+            }
+        } else {
+            // No ID provided, get active tab of current window
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tabs[0]?.id) throw new Error('No active tab found');
+            tabId = tabs[0].id;
+        }
+
+        const tab = await chrome.tabs.get(tabId);
+        if (!tab.url) throw new Error('Tab has no URL');
+
+        // Use unified capture method
+        const dataUrl = await captureManager.capture(tabId);
         const result = await captureManager.resizeAndCompress(dataUrl, 600, 0.8); // 600px width
 
-        // Get tab info to store metadata
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const tab = tabs[0];
-        if (!tab || !tab.id || !tab.url) throw new Error('No active tab found');
-
-        const id = tab.url; // Use URL as ID for simplicity, or generate UUID
+        // Use overrideUrl as ID if provided, otherwise use tab.url
+        // This ensures that if the page redirected, we still store/update the thumbnail for the original requested URL
+        const id = overrideUrl || tab.url;
 
         // Save to IndexedDB
         await db.putThumbnail({
             id,
-            url: tab.url,
+            url: tab.url, // Keep actual URL for reference
             mime: 'image/webp',
             blob: result.blob,
             updatedAt: Date.now(),
@@ -158,6 +240,15 @@ async function handleCapture() {
             title: tab.title || 'Untitled',
             status,
             lastCaptureAt: Date.now(),
+        });
+
+        // Broadcast update using the ID (which matches the requested URL)
+        chrome.runtime.sendMessage({
+            type: 'THUMBNAIL_UPDATED',
+            url: id,
+            id
+        }).catch(() => {
+            // Ignore if no listeners (e.g. popup closed)
         });
 
         return { success: true, id, dataUrl: result.dataUrl };

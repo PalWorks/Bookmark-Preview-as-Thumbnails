@@ -5,13 +5,17 @@ import ThumbnailTile from '../popup/components/ThumbnailTile';
 interface MainContentProps {
     folder: chrome.bookmarks.BookmarkTreeNode | null;
     thumbnails: Record<string, string>; // Map URL -> Blob URL
+    loadingUrls: Set<string>;
+    queuedUrls: Set<string>;
     onNavigate: (id: string) => void;
+    onTriggerBatchCapture: (urls: string[]) => void;
 }
 
-export const MainContent: React.FC<MainContentProps> = ({ folder, thumbnails, onNavigate }) => {
-    if (!folder) return <div className="main-empty">Select a folder</div>;
+export const MainContent: React.FC<MainContentProps> = ({ folder, thumbnails, loadingUrls, queuedUrls, onNavigate }) => {
+    // Logic for triggering capture is now handled in App.tsx to avoid race conditions
+    // and ensure thumbnails are loaded first.
 
-    console.log('Rendering folder:', folder.title, 'Children:', folder.children?.length);
+    if (!folder) return <div className="main-empty">Select a folder</div>;
 
     return (
         <div className="main-content">
@@ -40,6 +44,8 @@ export const MainContent: React.FC<MainContentProps> = ({ folder, thumbnails, on
                                         title: node.title,
                                         thumbnailUrl: thumbnails[node.url]
                                     }}
+                                    isLoading={loadingUrls.has(node.url)}
+                                    isQueued={queuedUrls.has(node.url)}
                                 />
                             );
                         } else {

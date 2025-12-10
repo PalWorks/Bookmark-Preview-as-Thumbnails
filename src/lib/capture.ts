@@ -7,19 +7,56 @@ export interface CaptureResult {
 }
 
 export class CaptureManager {
+    async capture(tabId: number): Promise<string> {
+        try {
+            const tab = await chrome.tabs.get(tabId);
+            if (tab.active) {
+                try {
+                    return await this.captureVisibleTab(tab.windowId);
+                } catch (e) {
+                    console.warn('Visible capture failed, falling back to background capture', e);
+                }
+            }
+            return await this.captureBackgroundTab(tabId);
+        } catch (error) {
+            console.error('Capture failed:', error);
+            throw error;
+        }
+    }
+
     async captureVisibleTab(windowId?: number): Promise<string> {
         return new Promise((resolve, reject) => {
-            // @ts-expect-error - windowId can be undefined but type definition might be strict
+            // @ts-expect-error - windowId can be undefined
             chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, (dataUrl) => {
                 if (chrome.runtime.lastError) {
-                    // If capture fails, we could try to get og:image via content script
-                    // For now, let's just reject, and the caller can handle fallback or retry.
-                    // Or we can return a placeholder data URL.
-                    console.warn('Capture failed, using fallback:', chrome.runtime.lastError.message);
                     reject(chrome.runtime.lastError);
                 } else {
                     resolve(dataUrl);
                 }
+            });
+        });
+    }
+
+    async captureBackgroundTab(tabId: number): Promise<string> {
+        return new Promise((resolve, reject) => {
+            chrome.scripting.executeScript({
+                target: { tabId },
+                files: ['content-script.js']
+            }, () => {
+                if (chrome.runtime.lastError) {
+                    return reject(chrome.runtime.lastError);
+                }
+
+                chrome.tabs.sendMessage(tabId, { action: 'CAPTURE_TAB' }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        return reject(chrome.runtime.lastError);
+                    }
+                    if (response && response.success) {
+                        resolve(response.dataUrl);
+                    } else {
+                        reject(new Error(response?.error || 'Unknown capture error'));
+                    }
+                });
             });
         });
     }

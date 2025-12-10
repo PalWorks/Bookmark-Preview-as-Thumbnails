@@ -10,11 +10,17 @@ interface BookmarkItem {
 
 interface ThumbnailTileProps {
     bookmark: BookmarkItem;
+    isLoading?: boolean;
+    isQueued?: boolean;
 }
 
-const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark }) => {
+const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQueued }) => {
+    const handleClick = () => {
+        chrome.tabs.create({ url: bookmark.url, active: true });
+    };
+
     return (
-        <div className="tile" tabIndex={0}>
+        <div className="tile" tabIndex={0} onClick={handleClick} onKeyDown={(e) => e.key === 'Enter' && handleClick()}>
             <div className="preview">
                 {bookmark.thumbnailUrl ? (
                     <img
@@ -24,6 +30,16 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark }) => {
                     />
                 ) : (
                     <span className="no-preview">No Preview</span>
+                )}
+                {isLoading && (
+                    <div className="loading-overlay">
+                        <div className="loading-bar"></div>
+                    </div>
+                )}
+                {isQueued && !isLoading && (
+                    <div className="queued-overlay">
+                        <span className="queued-text">Waiting...</span>
+                    </div>
                 )}
             </div>
             <div className="info">
