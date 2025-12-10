@@ -10,7 +10,8 @@
         "activeTab",
         "downloads",
         "bookmarks",
-        "scripting"
+        "scripting",
+        "management"
     ],
     "host_permissions": [
         "<all_urls>"

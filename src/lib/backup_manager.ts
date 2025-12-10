@@ -24,6 +24,15 @@ export interface BackupData {
 }
 
 export class BackupManager {
+    private blobToBase64(blob: Blob): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
     async createBackup(): Promise<Blob> {
         // 1. Get Settings
         const settings = await chrome.storage.sync.get(null);
@@ -31,14 +40,24 @@ export class BackupManager {
         // 2. Get Thumbnails Metadata
         const thumbnails = await db.getAllThumbnails();
 
-        // Map to export format (exclude blob to save space, unless we want to support internal restore?)
-        // User strategy: "Connect Folder" is primary backup for images.
-        // So we export metadata.
-        const exportThumbnails = thumbnails.map(t => ({
-            id: t.id,
-            url: t.url,
-            filename: t.filename, // Export filename for re-linking
-            title: '',
+        // 3. Prepare export data
+        // We now include the image data as Base64 to ensure full restoration
+        const exportThumbnails = await Promise.all(thumbnails.map(async t => {
+            let data = '';
+            if (t.blob) {
+                try {
+                    data = await this.blobToBase64(t.blob);
+                } catch (e) {
+                    console.warn(`Failed to convert blob for ${t.id}`, e);
+                }
+            }
+            return {
+                id: t.id,
+                url: t.url,
+                filename: t.filename,
+                title: '',
+                image_data: data // Include Base64 image data
+            };
         }));
 
         const backupData: BackupData = {
@@ -62,32 +81,39 @@ export class BackupManager {
 
             let count = 0;
             if (data.thumbnails && Array.isArray(data.thumbnails)) {
-                // Restore metadata
-                // We insert them into DB. 
-                // IMPORTANT: We don't have the blob!
-                // So we insert a record WITHOUT blob? Or with a placeholder?
-                // If we insert without blob, the UI will try to load it and fail.
-                // But this is "Sync & Restore".
-                // The goal is: Import Metadata -> Connect Folder -> Extension matches Metadata to Files in Folder -> Updates DB with Blobs.
-
-                // So we need a way to store "Pending" thumbnails?
-                // Or we just store them as is (missing blob) and the "Connect Folder" logic handles the rest.
-                // Let's store them. The UI checks `if (thumb && thumb.blob)`.
-                // So if blob is missing, it won't show. That's fine.
-
                 for (const t of data.thumbnails) {
-                    // We check if it exists to avoid overwriting existing valid blobs
+                    // Check if we have image data to restore
+                    let blob: Blob | null = null;
+                    if ((t as any).image_data) {
+                        try {
+                            const res = await fetch((t as any).image_data);
+                            blob = await res.blob();
+                        } catch (e) {
+                            console.warn(`Failed to restore blob for ${t.id}`, e);
+                        }
+                    }
+
+                    // If we have a blob, we can fully restore.
+                    // If not, we restore metadata and hope for "Connect Folder" linking.
+
+                    // Check existing to avoid overwriting if we don't have better data
                     const existing = await db.getThumbnail(t.id);
-                    if (!existing) {
+
+                    // We overwrite if:
+                    // 1. No existing record
+                    // 2. Existing record has no blob, but we have one
+                    // 3. We are forcing a restore (usually yes for import)
+
+                    if (!existing || (!existing.blob && blob)) {
                         await db.putThumbnail({
                             id: t.id,
                             url: t.url,
-                            mime: 'image/webp', // Assumed
-                            blob: null as any, // Placeholder
+                            mime: blob ? blob.type : 'image/webp',
+                            blob: blob as Blob, // Might be null, but type says Blob. We should probably allow null in DB type if we want metadata only support.
                             updatedAt: Date.now(),
                             width: 0,
                             height: 0,
-                            sizeBytes: 0,
+                            sizeBytes: blob ? blob.size : 0,
                             filename: t.filename
                         });
                         count++;

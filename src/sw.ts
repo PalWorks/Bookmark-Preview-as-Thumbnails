@@ -269,3 +269,15 @@ async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
         throw error;
     }
 }
+// Listen for installation
+chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') {
+        chrome.tabs.create({
+            url: chrome.runtime.getURL('index.html')
+        });
+    }
+
+    // Set uninstall URL to GitHub repo (or a specific help page)
+    // This opens AFTER the extension is removed.
+    chrome.runtime.setUninstallURL('https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails');
+});

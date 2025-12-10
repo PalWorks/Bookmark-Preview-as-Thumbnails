@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2 } from 'lucide-react';
 import './TopBar.css';
 
 interface TopBarProps {
@@ -18,6 +18,7 @@ interface TopBarProps {
     isCapturing: boolean;
     onExportBackup: () => void;
     onImportBackup: () => void;
+    onUninstall: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -35,7 +36,8 @@ export const TopBar: React.FC<TopBarProps> = ({
     onStopCapture,
     isCapturing,
     onExportBackup,
-    onImportBackup
+    onImportBackup,
+    onUninstall
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -228,7 +230,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <Download size={16} className="menu-icon" />
                                 <div className="menu-text">
                                     <div className="menu-title">Export Backup</div>
-                                    <div className="menu-desc">Save settings & data</div>
+                                    <div className="menu-desc">Save settings & images</div>
                                 </div>
                             </div>
 
@@ -239,9 +241,22 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 setIsMenuOpen(false);
                             }}>
                                 <Upload size={16} className="menu-icon" />
-                                <div className="menu-text">
+                                <div>
                                     <div className="menu-title">Import Backup</div>
                                     <div className="menu-desc">Restore from file</div>
+                                </div>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item" onClick={() => {
+                                onUninstall();
+                                setIsMenuOpen(false);
+                            }}>
+                                <Trash2 size={16} className="menu-icon" style={{ color: '#d93025' }} />
+                                <div>
+                                    <div className="menu-title" style={{ color: '#d93025' }}>Uninstall Extension</div>
+                                    <div className="menu-desc">Auto-backup & Remove</div>
                                 </div>
                             </div>
                         </div>

@@ -5,6 +5,7 @@ import { Sidebar } from '../components/Sidebar';
 import { MainContent } from '../components/MainContent';
 import { TopBar } from '../components/TopBar';
 import { ContextMenu } from '../components/ContextMenu';
+import { WelcomeModal } from '../components/WelcomeModal';
 import { storageManager } from '../lib/storage_manager';
 import { backupManager } from '../lib/backup_manager';
 
@@ -450,9 +451,97 @@ function App() {
         return `Open ${suffix}`;
     };
 
+    const [clipboard, setClipboard] = useState<{
+        mode: 'cut' | 'copy';
+        node: chrome.bookmarks.BookmarkTreeNode;
+    } | null>(null);
+
+    const handleCut = () => {
+        const id = contextMenu.targetId;
+        chrome.bookmarks.get(id, (results) => {
+            if (results && results.length > 0) {
+                setClipboard({ mode: 'cut', node: results[0] });
+            }
+        });
+    };
+
+    const handleCopy = () => {
+        const id = contextMenu.targetId;
+        // We need to fetch the FULL tree for the node if it's a folder, to copy children
+        // chrome.bookmarks.getSubTree returns the node with all children
+        chrome.bookmarks.getSubTree(id, (results) => {
+            if (results && results.length > 0) {
+                setClipboard({ mode: 'copy', node: results[0] });
+            }
+        });
+    };
+
+    const copyNodeRecursively = (node: chrome.bookmarks.BookmarkTreeNode, parentId: string) => {
+        chrome.bookmarks.create({
+            parentId,
+            title: node.title,
+            url: node.url
+        }, (newNode) => {
+            if (node.children) {
+                node.children.forEach(child => {
+                    copyNodeRecursively(child, newNode.id);
+                });
+            }
+        });
+    };
+
+    const handlePaste = () => {
+        if (!clipboard) return;
+
+        // Determine target parent
+        // If right-clicked on a folder, paste inside it.
+        // If right-clicked on a bookmark, paste in the current view (selectedFolderId).
+        const targetParentId = contextMenu.type === 'folder' ? contextMenu.targetId : selectedFolderId;
+
+        if (clipboard.mode === 'cut') {
+            chrome.bookmarks.move(clipboard.node.id, { parentId: targetParentId }, () => {
+                setClipboard(null); // Clear after move
+                // Refresh
+                chrome.bookmarks.getTree((tree) => {
+                    setBookmarkTree(tree[0].children || []);
+                });
+                // Update current folder if needed
+                if (currentFolder && currentFolder.id === selectedFolderId) {
+                    chrome.bookmarks.getSubTree(selectedFolderId, (results) => {
+                        if (results && results.length > 0) {
+                            setCurrentFolder(results[0]);
+                        }
+                    });
+                }
+            });
+        } else if (clipboard.mode === 'copy') {
+            copyNodeRecursively(clipboard.node, targetParentId);
+            // Refresh (might need a slight delay or callback chain, but create is async. 
+            // copyNodeRecursively is fire-and-forget for children, but the root create is the first step.
+            // We should probably wait? But recursive copy is complex to wait for without Promises.
+            // For now, let's just trigger a refresh after a short timeout to allow operations to start/finish
+            setTimeout(() => {
+                chrome.bookmarks.getTree((tree) => {
+                    setBookmarkTree(tree[0].children || []);
+                });
+                if (currentFolder && currentFolder.id === selectedFolderId) {
+                    chrome.bookmarks.getSubTree(selectedFolderId, (results) => {
+                        if (results && results.length > 0) {
+                            setCurrentFolder(results[0]);
+                        }
+                    });
+                }
+            }, 500);
+        }
+    };
+
     const menuItems = [
         { label: 'Rename', action: handleRename },
         { label: 'Delete', action: handleDelete, danger: true },
+        { separator: true, label: '', action: () => { } },
+        { label: 'Cut', action: handleCut },
+        { label: 'Copy', action: handleCopy },
+        { label: 'Paste', action: handlePaste, disabled: !clipboard },
         { separator: true, label: '', action: () => { } },
         { label: getOpenLabel('in new tab'), action: () => handleOpen('tab') },
         { label: getOpenLabel('in new window'), action: () => handleOpen('window') },
@@ -478,9 +567,9 @@ function App() {
 
     const [storageWarning, setStorageWarning] = useState<{ level: 'none' | 'warning' | 'critical', message: string }>({ level: 'none', message: '' });
 
-    // Check storage usage
     const checkStorage = async () => {
-        const { percentage, usage, quota } = await storageManager.getEstimate();
+        const { usage, quota, percentage } = await storageManager.getEstimate();
+
         if (percentage > 0.95) {
             setStorageWarning({
                 level: 'critical',
@@ -496,12 +585,27 @@ function App() {
         }
     };
 
+    const [showWelcome, setShowWelcome] = useState(false);
+
     useEffect(() => {
         checkStorage();
         // Check periodically
         const interval = setInterval(checkStorage, 60000); // Every minute
+
+        // Check welcome status
+        chrome.storage.local.get('hasSeenWelcome', (result) => {
+            if (!result.hasSeenWelcome) {
+                setShowWelcome(true);
+            }
+        });
+
         return () => clearInterval(interval);
     }, []);
+
+    const handleCloseWelcome = () => {
+        chrome.storage.local.set({ hasSeenWelcome: true });
+        setShowWelcome(false);
+    };
 
     // Also check after captures
     useEffect(() => {
@@ -563,6 +667,27 @@ function App() {
         input.click();
     };
 
+    const handleUninstall = async () => {
+        // 1. Auto-backup
+        try {
+            await handleExportBackup();
+            // Give it a moment to start download
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (e) {
+            console.error('Backup failed during uninstall', e);
+            if (!confirm('Backup failed! Do you want to proceed with uninstall anyway? All data will be lost.')) {
+                return;
+            }
+        }
+
+        // 2. Trigger native uninstall
+        if (chrome.management && chrome.management.uninstallSelf) {
+            chrome.management.uninstallSelf({ showConfirmDialog: true });
+        } else {
+            alert('Uninstall API not available. Please remove the extension manually from chrome://extensions');
+        }
+    };
+
     return (
         <div className="app-container">
             <TopBar
@@ -581,7 +706,9 @@ function App() {
                 isCapturing={isCapturing}
                 onExportBackup={handleExportBackup}
                 onImportBackup={handleImportBackup}
+                onUninstall={handleUninstall}
             />
+
             {storageWarning.level !== 'none' && (
                 <div className={`storage-warning ${storageWarning.level}`}>
                     {storageWarning.message}
@@ -592,6 +719,7 @@ function App() {
                     )}
                 </div>
             )}
+
             <div className="content-wrapper">
                 <Sidebar
                     folders={bookmarkTree}
@@ -614,6 +742,7 @@ function App() {
                     onContextMenu={handleContextMenu}
                 />
             </div>
+
             {contextMenu.visible && (
                 <ContextMenu
                     position={{ x: contextMenu.x, y: contextMenu.y }}
@@ -621,6 +750,8 @@ function App() {
                     onClose={closeContextMenu}
                 />
             )}
+
+            {showWelcome && <WelcomeModal onClose={handleCloseWelcome} />}
         </div>
     );
 }

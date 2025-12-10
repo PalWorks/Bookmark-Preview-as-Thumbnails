@@ -208,7 +208,13 @@
     color: #5f6368;
     display: flex;
     gap: 8px;
-    border-top: 1px solid #dadce0;
+}
+
+.menu-info.warning {
+    background-color: #fce8e6;
+    color: #c5221f;
+    border-top: none;
+    border-bottom: 1px solid #dadce0;
 }
 
 .info-icon {

@@ -1,0 +1,147 @@
+.welcome-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.welcome-modal {
+    background: white;
+    width: 500px;
+    max-width: 90vw;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+}
+
+.welcome-content {
+    padding: 40px;
+    text-align: center;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.welcome-icon-wrapper {
+    width: 80px;
+    height: 80px;
+    background-color: #e8f0fe;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    color: #1a73e8;
+}
+
+.welcome-title {
+    font-size: 24px;
+    font-weight: 500;
+    color: #202124;
+    margin-bottom: 12px;
+}
+
+.welcome-desc {
+    font-size: 16px;
+    color: #5f6368;
+    line-height: 1.5;
+    max-width: 380px;
+}
+
+.welcome-footer {
+    padding: 20px 40px;
+    border-top: 1px solid #f1f3f4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #fff;
+}
+
+.step-indicators {
+    display: flex;
+    gap: 8px;
+}
+
+.step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #dadce0;
+    transition: background-color 0.3s;
+}
+
+.step-dot.active {
+    background-color: #1a73e8;
+}
+
+.nav-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-secondary {
+    background: none;
+    border: none;
+    color: #5f6368;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.btn-secondary:hover {
+    background-color: #f1f3f4;
+    color: #202124;
+}
+
+.btn-primary {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 8px 24px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+    background-color: #1557b0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
