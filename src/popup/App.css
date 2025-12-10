@@ -591,8 +591,14 @@
 .list-container {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    /* Reduced gap */
+    gap: 0;
+    /* Remove gap since we have borders */
+    max-width: 800px;
+    /* Restrict width for better readability */
+    margin: 0 auto;
+    /* Center the container */
+    width: 100%;
+    /* Ensure it takes full width up to max-width */
     padding: 10px;
     /* Reduced padding */
     overflow-y: auto;
