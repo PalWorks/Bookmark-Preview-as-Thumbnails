@@ -5,9 +5,10 @@ interface SidebarProps {
     folders: chrome.bookmarks.BookmarkTreeNode[];
     selectedFolderId: string;
     onSelectFolder: (id: string) => void;
+    onContextMenu: (e: React.MouseEvent, node: chrome.bookmarks.BookmarkTreeNode) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onSelectFolder }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onSelectFolder, onContextMenu }) => {
     const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(new Set(['1'])); // Default expand Bookmarks Bar
 
     const toggleExpand = (e: React.MouseEvent, folderId: string) => {
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
                 <div key={node.id}>
                     <div
                         className={`sidebar-item ${isSelected ? 'selected' : ''}`}
+                        title={node.title}
                         style={{ '--depth': depth } as React.CSSProperties}
                         onClick={() => {
                             onSelectFolder(node.id);
@@ -53,12 +55,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
                                 setExpandedFolders(newExpanded);
                             }
                         }}
+                        onContextMenu={(e) => onContextMenu(e, node)}
                     >
                         <div
                             className={`arrow-container ${hasChildren ? 'visible' : ''}`}
                             onClick={(e) => {
                                 e.stopPropagation(); // Prevent double triggering
-                                hasChildren && toggleExpand(e, node.id);
+                                if (hasChildren) toggleExpand(e, node.id);
                             }}
                         >
                             {hasChildren && (

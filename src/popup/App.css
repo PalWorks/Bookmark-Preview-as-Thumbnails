@@ -704,6 +704,8 @@
     /* Enforce exact height */
     display: flex;
     align-items: center;
+    justify-content: flex-start;
+    /* Force left alignment */
     padding: 0 16px;
     /* Unified padding */
     border-bottom: 1px solid #e0e0e0;
@@ -716,6 +718,7 @@
     /* Unified color */
     box-sizing: border-box;
     /* Include padding/border in height */
+    gap: 8px;
 }
 
 .main-header h2 {
@@ -724,4 +727,122 @@
     font-weight: 500;
     color: #5f6368;
     margin: 0;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.5;
+    /* Ensure consistent line height */
+}
+
+.sidebar-header div {
+    line-height: 1.5;
+    /* Match main header */
+}
+
+.back-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    /* Remove padding, use width/height */
+    margin: 0;
+    color: #5f6368;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    /* Fixed size for perfect circle */
+}
+
+.back-button:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Context Menu */
+.context-menu {
+    position: fixed;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 4px 0;
+    min-width: 160px;
+    z-index: 1000;
+    font-size: 13px;
+    color: #202124;
+}
+
+.menu-item {
+    padding: 6px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.menu-item:hover {
+    background-color: #f1f3f4;
+}
+
+.menu-item.disabled {
+    color: #bdc1c6;
+    cursor: default;
+}
+
+.menu-item.disabled:hover {
+    background-color: transparent;
+}
+
+.menu-item.danger {
+    color: #d93025;
+}
+
+.menu-separator {
+    height: 1px;
+    background-color: #e8eaed;
+    margin: 4px 0;
+}
+
+/* More Options Button */
+.more-options-btn {
+    padding: 4px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #5f6368;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background-color: transparent;
+    opacity: 1;
+    /* Always visible */
+    z-index: 20;
+}
+
+.more-options-btn:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Adjust list item for more options */
+.list-item {
+    position: relative;
+    padding-right: 40px;
+    /* Make room for the button */
+}
+
+.list-item .more-options-btn {
+    top: 50%;
+    transform: translateY(-50%);
+    right: 8px;
+    background-color: transparent;
+}
+
+.folder-tile {
+    position: relative;
 }

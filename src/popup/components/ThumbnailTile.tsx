@@ -8,19 +8,34 @@ interface BookmarkItem {
     thumbnailUrl?: string;
 }
 
+import { MoreVertical } from 'lucide-react';
+
 interface ThumbnailTileProps {
     bookmark: BookmarkItem;
     isLoading?: boolean;
     isQueued?: boolean;
+    onContextMenu?: (e: React.MouseEvent, bookmark: BookmarkItem) => void;
 }
 
-const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQueued }) => {
+const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQueued, onContextMenu }) => {
     const handleClick = () => {
         chrome.tabs.create({ url: bookmark.url, active: true });
     };
 
+    const handleContextMenu = (e: React.MouseEvent) => {
+        if (onContextMenu) {
+            onContextMenu(e, bookmark);
+        }
+    };
+
     return (
-        <div className="tile" tabIndex={0} onClick={handleClick} onKeyDown={(e) => e.key === 'Enter' && handleClick()}>
+        <div
+            className="tile"
+            tabIndex={0}
+            onClick={handleClick}
+            onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+            onContextMenu={handleContextMenu}
+        >
             <div className="preview">
                 {bookmark.thumbnailUrl ? (
                     <img
@@ -55,6 +70,12 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQu
                 >
                     {bookmark.url}
                 </div>
+            </div>
+            <div className="more-options-btn" onClick={(e) => {
+                e.stopPropagation();
+                handleContextMenu(e);
+            }}>
+                <MoreVertical size={16} />
             </div>
         </div>
     );

@@ -4,6 +4,7 @@ import { db } from '../lib/indexeddb';
 import { Sidebar } from '../components/Sidebar';
 import { MainContent } from '../components/MainContent';
 import { TopBar } from '../components/TopBar';
+import { ContextMenu } from '../components/ContextMenu';
 
 function App() {
     const [bookmarkTree, setBookmarkTree] = useState<chrome.bookmarks.BookmarkTreeNode[]>([]);
@@ -307,6 +308,173 @@ function App() {
         setSearchQuery(''); // Clear search on navigation
     };
 
+    const [contextMenu, setContextMenu] = useState<{
+        visible: boolean;
+        x: number;
+        y: number;
+        targetId: string;
+        type: 'folder' | 'bookmark';
+        itemCount?: number;
+    }>({ visible: false, x: 0, y: 0, targetId: '', type: 'bookmark' });
+
+    const handleContextMenu = (e: React.MouseEvent, node: chrome.bookmarks.BookmarkTreeNode) => {
+        e.preventDefault();
+        const type = node.url ? 'bookmark' : 'folder';
+
+        if (type === 'folder') {
+            chrome.bookmarks.getChildren(node.id, (children) => {
+                // Count only bookmarks (nodes with URLs) for "Open all"
+                const count = children.filter(c => c.url).length;
+                setContextMenu({
+                    visible: true,
+                    x: e.clientX,
+                    y: e.clientY,
+                    targetId: node.id,
+                    type: 'folder',
+                    itemCount: count
+                });
+            });
+        } else {
+            setContextMenu({
+                visible: true,
+                x: e.clientX,
+                y: e.clientY,
+                targetId: node.id,
+                type: 'bookmark'
+            });
+        }
+    };
+
+    const closeContextMenu = () => {
+        setContextMenu(prev => ({ ...prev, visible: false }));
+    };
+
+    const handleRename = () => {
+        const id = contextMenu.targetId;
+        chrome.bookmarks.get(id, (results) => {
+            if (results && results.length > 0) {
+                const node = results[0];
+                const newTitle = prompt('Rename to:', node.title);
+                if (newTitle !== null && newTitle !== node.title) {
+                    chrome.bookmarks.update(id, { title: newTitle }, () => {
+                        // Refresh tree or current folder
+                        // Since we don't have a granular refresh, let's just trigger a full tree reload for now
+                        // or rely on the fact that we might need to update local state if we want instant feedback without reload
+                        // But for now, let's just reload the tree which is simple
+                        chrome.bookmarks.getTree((tree) => {
+                            setBookmarkTree(tree[0].children || []);
+                        });
+                        // Also update current folder if needed
+                        if (currentFolder && currentFolder.id === selectedFolderId) {
+                            chrome.bookmarks.getSubTree(selectedFolderId, (results) => {
+                                if (results && results.length > 0) {
+                                    setCurrentFolder(results[0]);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        });
+    };
+
+    const handleDelete = () => {
+        const id = contextMenu.targetId;
+        if (confirm('Are you sure you want to delete this item?')) {
+            if (contextMenu.type === 'folder') {
+                chrome.bookmarks.removeTree(id, () => {
+                    // Refresh
+                    chrome.bookmarks.getTree((tree) => {
+                        setBookmarkTree(tree[0].children || []);
+                    });
+                    if (currentFolder) {
+                        chrome.bookmarks.getSubTree(selectedFolderId, (results) => {
+                            if (results && results.length > 0) {
+                                setCurrentFolder(results[0]);
+                            }
+                        });
+                    }
+                });
+            } else {
+                chrome.bookmarks.remove(id, () => {
+                    // Refresh
+                    if (currentFolder) {
+                        chrome.bookmarks.getSubTree(selectedFolderId, (results) => {
+                            if (results && results.length > 0) {
+                                setCurrentFolder(results[0]);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+    };
+
+    const handleOpen = (mode: 'tab' | 'window' | 'incognito') => {
+        const id = contextMenu.targetId;
+        chrome.bookmarks.get(id, (results) => {
+            if (results && results.length > 0) {
+                const node = results[0];
+                if (node.url) {
+                    if (mode === 'tab') {
+                        chrome.tabs.create({ url: node.url });
+                    } else if (mode === 'window') {
+                        chrome.windows.create({ url: node.url });
+                    } else if (mode === 'incognito') {
+                        chrome.windows.create({ url: node.url, incognito: true });
+                    }
+                } else {
+                    // Open all in folder
+                    chrome.bookmarks.getChildren(id, (children) => {
+                        const urls = children.filter(c => c.url).map(c => c.url!);
+                        if (urls.length > 0) {
+                            if (mode === 'tab') {
+                                urls.forEach(url => chrome.tabs.create({ url }));
+                            } else if (mode === 'window') {
+                                chrome.windows.create({ url: urls });
+                            } else if (mode === 'incognito') {
+                                chrome.windows.create({ url: urls, incognito: true });
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    };
+
+    const getOpenLabel = (suffix: string) => {
+        if (contextMenu.type === 'folder' && contextMenu.itemCount !== undefined && contextMenu.itemCount > 0) {
+            return `Open all (${contextMenu.itemCount}) ${suffix}`;
+        }
+        return `Open ${suffix}`;
+    };
+
+    const menuItems = [
+        { label: 'Rename', action: handleRename },
+        { label: 'Delete', action: handleDelete, danger: true },
+        { separator: true, label: '', action: () => { } },
+        { label: getOpenLabel('in new tab'), action: () => handleOpen('tab') },
+        { label: getOpenLabel('in new window'), action: () => handleOpen('window') },
+        { label: getOpenLabel('in Incognito window'), action: () => handleOpen('incognito') },
+    ];
+
+    const handleNavigateBack = () => {
+        if (currentFolder && currentFolder.parentId && currentFolder.parentId !== '0') {
+            chrome.bookmarks.getSubTree(currentFolder.parentId, (results) => {
+                if (results && results.length > 0) {
+                    // If parent is root ('0'), we might want to select the first child (usually Bookmarks Bar '1')
+                    // But usually getSubTree('0') returns the root node which contains '1', '2', etc.
+                    // Let's just set the parent as current.
+                    // Wait, if we are at '1' (Bookmarks Bar), parent is '0'. Do we want to go to '0'?
+                    // '0' is the invisible root. Usually we don't want to show '0'.
+                    // So if parentId is '0', we probably can't go back further in this UI view.
+                    setCurrentFolder(results[0]);
+                    setSelectedFolderId(results[0].id);
+                }
+            });
+        }
+    };
+
     return (
         <div className="app-container">
             <TopBar
@@ -329,6 +497,7 @@ function App() {
                     folders={bookmarkTree}
                     selectedFolderId={selectedFolderId}
                     onSelectFolder={handleNavigate}
+                    onContextMenu={handleContextMenu}
                 />
                 <MainContent
                     folder={currentFolder}
@@ -339,10 +508,19 @@ function App() {
                     loadingUrls={loadingUrls}
                     queuedUrls={queuedUrls}
                     onNavigate={handleNavigate}
+                    onNavigateBack={handleNavigateBack}
                     onTriggerBatchCapture={handleBatchCaptureTrigger}
                     viewMode={viewMode}
+                    onContextMenu={handleContextMenu}
                 />
             </div>
+            {contextMenu.visible && (
+                <ContextMenu
+                    position={{ x: contextMenu.x, y: contextMenu.y }}
+                    items={menuItems}
+                    onClose={closeContextMenu}
+                />
+            )}
         </div>
     );
 }
