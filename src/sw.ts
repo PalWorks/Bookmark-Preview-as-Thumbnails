@@ -56,13 +56,20 @@ async function processBatchCapture(urls: string[]) {
     // Create a window to perform captures without disrupting the user
     let captureWindow: chrome.windows.Window | undefined;
     try {
+        // Check for incognito setting
+        const settings = await chrome.storage.sync.get(['useIncognito']);
+        const incognito = settings.useIncognito || false;
+
         // Create normal but unfocused window
-        captureWindow = await chrome.windows.create({
+        const createOptions: any = {
             focused: false,
             state: 'normal',
             width: 1024,
-            height: 768
-        });
+            height: 768,
+            incognito: !!incognito
+        };
+
+        captureWindow = await chrome.windows.create(createOptions);
 
         // Move off-screen immediately
         if (captureWindow && captureWindow.id) {

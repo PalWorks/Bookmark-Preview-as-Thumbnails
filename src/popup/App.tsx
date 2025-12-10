@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import './App.css';
 import { db } from '../lib/indexeddb';
-import { storageIndex } from '../lib/storage_index';
 import { Sidebar } from '../components/Sidebar';
 import { MainContent } from '../components/MainContent';
 import { TopBar } from '../components/TopBar';
@@ -40,33 +39,8 @@ function App() {
         });
     }, [selectedFolderId]);
 
-    // Load thumbnails for the current folder
-    useEffect(() => {
-        if (!currentFolder || !currentFolder.children) return;
+    // Load thumbnails for the current folder is handled in the next useEffect
 
-        const loadThumbs = async () => {
-            const newThumbnails: Record<string, string> = {};
-            const metadata = await storageIndex.getAll();
-
-            for (const node of currentFolder.children || []) {
-                if (node.url) {
-                    // Check if we have a thumbnail for this URL
-                    // We use URL as ID in our storage currently
-                    // Find meta by URL (inefficient, but our storage ID is URL)
-                    const meta = metadata[node.url];
-                    if (meta && (meta.status === 'saved_indexeddb' || meta.status === 'saved_disk')) {
-                        const thumb = await db.getThumbnail(node.url);
-                        if (thumb && thumb.blob) {
-                            newThumbnails[node.url] = URL.createObjectURL(thumb.blob);
-                        }
-                    }
-                }
-            }
-            setThumbnails(newThumbnails);
-        };
-
-        loadThumbs();
-    }, [currentFolder]);
 
     const [queuedUrls, setQueuedUrls] = useState<Set<string>>(new Set());
     const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -190,45 +164,183 @@ function App() {
         chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls });
     };
 
+    const [useIncognito, setUseIncognito] = useState(false);
+
+    // Load settings
+    useEffect(() => {
+        chrome.storage.sync.get(['useIncognito'], (result) => {
+            setUseIncognito(!!result.useIncognito);
+        });
+    }, []);
+
+    const handleToggleIncognito = (value: boolean) => {
+        if (value) {
+            chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
+                if (!isAllowed) {
+                    // Open extensions page
+                    chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+                    alert("Please enable 'Allow in Incognito' for this extension to capture private screenshots.\n\nNote: Chrome prevents us from highlighting the specific setting, but it's usually near the bottom.");
+                    // We still allow setting the state, as the user might be about to enable it.
+                    // Or we could choose to NOT set it until they enable it.
+                    // Let's set it, so the UI reflects their intent, but it won't work until they enable it.
+                }
+                setUseIncognito(value);
+                chrome.storage.sync.set({ useIncognito: value });
+            });
+        } else {
+            setUseIncognito(value);
+            chrome.storage.sync.set({ useIncognito: value });
+        }
+    };
+
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterType, setFilterType] = useState<'all' | 'folders' | 'bookmarks'>('all');
+    const [sortOrder, setSortOrder] = useState<'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc'>('name-asc');
+    const [searchResults, setSearchResults] = useState<chrome.bookmarks.BookmarkTreeNode[]>([]);
+
+    // Search Effect
+    useEffect(() => {
+        if (searchQuery.length > 2) {
+            chrome.bookmarks.search(searchQuery, (results) => {
+                setSearchResults(results);
+            });
+        } else {
+            setSearchResults([]);
+        }
+    }, [searchQuery]);
+
+    // Helper to extract domain
+    const getDomain = (url?: string) => {
+        if (!url) return '';
+        try {
+            const hostname = new URL(url).hostname;
+            return hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+        } catch {
+            return '';
+        }
+    };
+
+    // Filter and Sort Logic
+    const displayedNodes = useMemo(() => {
+        let nodes: chrome.bookmarks.BookmarkTreeNode[] = [];
+
+        if (searchQuery.length > 2) {
+            nodes = searchResults;
+        } else if (currentFolder && currentFolder.children) {
+            nodes = currentFolder.children;
+        }
+
+        // Filter
+        if (filterType === 'folders') {
+            nodes = nodes.filter(node => !node.url);
+        } else if (filterType === 'bookmarks') {
+            nodes = nodes.filter(node => node.url);
+        }
+
+        // Sort
+        return [...nodes].sort((a, b) => {
+            const aIsFolder = !a.url;
+            const bIsFolder = !b.url;
+
+            // Folders always first for Name and Domain sorts
+            if (sortOrder.startsWith('name') || sortOrder.startsWith('domain')) {
+                if (aIsFolder && !bIsFolder) return -1;
+                if (!aIsFolder && bIsFolder) return 1;
+            }
+
+            switch (sortOrder) {
+                case 'name-asc':
+                    return a.title.localeCompare(b.title);
+                case 'name-desc':
+                    return b.title.localeCompare(a.title);
+                case 'date-newest':
+                    return (b.dateAdded || 0) - (a.dateAdded || 0);
+                case 'date-oldest':
+                    return (a.dateAdded || 0) - (b.dateAdded || 0);
+                case 'domain-asc': {
+                    if (aIsFolder) return a.title.localeCompare(b.title); // Sort folders by title
+                    const domainA = getDomain(a.url);
+                    const domainB = getDomain(b.url);
+                    if (domainA === domainB) return a.title.localeCompare(b.title); // Fallback to title
+                    return domainA.localeCompare(domainB);
+                }
+                case 'domain-desc': {
+                    if (aIsFolder) return b.title.localeCompare(a.title);
+                    const domainADesc = getDomain(a.url);
+                    const domainBDesc = getDomain(b.url);
+                    if (domainADesc === domainBDesc) return b.title.localeCompare(a.title);
+                    return domainBDesc.localeCompare(domainADesc);
+                }
+                default:
+                    return 0;
+            }
+        });
+    }, [currentFolder, searchResults, searchQuery, filterType, sortOrder]);
+
+    const isCapturing = loadingUrls.size > 0 || queuedUrls.size > 0;
+
+    const handleUpdateThumbnails = () => {
+        // Manual trigger to re-capture MISSING thumbnails in current folder (Resume)
+        if (currentFolder && currentFolder.children) {
+            // Filter out URLs that already have a thumbnail loaded
+            const urls = currentFolder.children
+                .map(n => n.url)
+                .filter(u => u && !thumbnails[u]) as string[];
+
+            if (urls.length > 0) {
+                handleBatchCaptureTrigger(urls);
+            } else {
+                console.log('All thumbnails already captured');
+            }
+        }
+    };
+
+    const handleStopCapture = () => {
+        setLoadingUrls(new Set());
+        setQueuedUrls(new Set());
+        chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' });
+    };
+
+    const handleNavigate = (id: string) => {
+        setSelectedFolderId(id);
+        setSearchQuery(''); // Clear search on navigation
+    };
+
     return (
         <div className="app-container">
             <TopBar
-                onSearch={(q) => console.log('Search:', q)}
+                onSearch={setSearchQuery}
                 onConnectFolder={handleConnectFolder}
+                useIncognito={useIncognito}
+                onToggleIncognito={handleToggleIncognito}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                filterType={filterType}
+                onFilterChange={setFilterType}
+                sortOrder={sortOrder}
+                onSortChange={setSortOrder}
+                onUpdateThumbnails={handleUpdateThumbnails}
+                onStopCapture={handleStopCapture}
+                isCapturing={isCapturing}
             />
             <div className="content-wrapper">
                 <Sidebar
                     folders={bookmarkTree}
                     selectedFolderId={selectedFolderId}
-                    onSelectFolder={setSelectedFolderId}
-                    onUpdateThumbnails={() => {
-                        // Manual trigger to re-capture MISSING thumbnails in current folder (Resume)
-                        if (currentFolder && currentFolder.children) {
-                            // Filter out URLs that already have a thumbnail loaded
-                            const urls = currentFolder.children
-                                .map(n => n.url)
-                                .filter(u => u && !thumbnails[u]) as string[];
-
-                            if (urls.length > 0) {
-                                handleBatchCaptureTrigger(urls);
-                            } else {
-                                console.log('All thumbnails already captured');
-                            }
-                        }
-                    }}
-                    onStopCapture={() => {
-                        setLoadingUrls(new Set());
-                        setQueuedUrls(new Set());
-                        chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' });
-                    }}
+                    onSelectFolder={handleNavigate}
                 />
                 <MainContent
                     folder={currentFolder}
+                    displayedNodes={displayedNodes}
+                    isSearching={searchQuery.length > 2}
+                    searchQuery={searchQuery}
                     thumbnails={thumbnails}
                     loadingUrls={loadingUrls}
                     queuedUrls={queuedUrls}
-                    onNavigate={setSelectedFolderId}
+                    onNavigate={handleNavigate}
                     onTriggerBatchCapture={handleBatchCaptureTrigger}
+                    viewMode={viewMode}
                 />
             </div>
         </div>

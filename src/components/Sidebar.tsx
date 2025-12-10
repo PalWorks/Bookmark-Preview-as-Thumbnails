@@ -5,11 +5,9 @@ interface SidebarProps {
     folders: chrome.bookmarks.BookmarkTreeNode[];
     selectedFolderId: string;
     onSelectFolder: (id: string) => void;
-    onUpdateThumbnails?: () => void;
-    onStopCapture?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onSelectFolder, onUpdateThumbnails, onStopCapture }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onSelectFolder }) => {
     const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(new Set(['1'])); // Default expand Bookmarks Bar
 
     const toggleExpand = (e: React.MouseEvent, folderId: string) => {
@@ -23,6 +21,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
         setExpandedFolders(newExpanded);
     };
 
+    const getBookmarkCount = (node: chrome.bookmarks.BookmarkTreeNode) => {
+        if (!node.children) return 0;
+        return node.children.filter(child => child.url).length;
+    };
+
     const renderTree = (nodes: chrome.bookmarks.BookmarkTreeNode[], depth = 0) => {
         return nodes.map((node) => {
             // Only show folders in sidebar
@@ -31,17 +34,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
             const isSelected = node.id === selectedFolderId;
             const hasChildren = node.children && node.children.some(child => !child.url); // Only care if it has sub-folders
             const isExpanded = expandedFolders.has(node.id);
+            const count = getBookmarkCount(node);
 
             return (
                 <div key={node.id}>
                     <div
                         className={`sidebar-item ${isSelected ? 'selected' : ''}`}
                         style={{ '--depth': depth } as React.CSSProperties}
-                        onClick={() => onSelectFolder(node.id)}
+                        onClick={() => {
+                            onSelectFolder(node.id);
+                            if (hasChildren) {
+                                const newExpanded = new Set(expandedFolders);
+                                if (newExpanded.has(node.id)) {
+                                    newExpanded.delete(node.id);
+                                } else {
+                                    newExpanded.add(node.id);
+                                }
+                                setExpandedFolders(newExpanded);
+                            }
+                        }}
                     >
                         <div
                             className={`arrow-container ${hasChildren ? 'visible' : ''}`}
-                            onClick={(e) => hasChildren && toggleExpand(e, node.id)}
+                            onClick={(e) => {
+                                e.stopPropagation(); // Prevent double triggering
+                                hasChildren && toggleExpand(e, node.id);
+                            }}
                         >
                             {hasChildren && (
                                 <svg viewBox="0 0 20 20" className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>
@@ -51,9 +69,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
                         </div>
 
                         <div className="folder-icon-wrapper">
-                            <Folder size={18} fill={isSelected ? "currentColor" : "none"} />
+                            <Folder size={16} fill={isSelected ? "currentColor" : "none"} />
                         </div>
                         <span className="folder-name">{node.title || 'Root'}</span>
+                        {count > 0 && <span className="folder-count">{count}</span>}
                     </div>
                     {hasChildren && isExpanded && node.children && renderTree(node.children, depth + 1)}
                 </div>
@@ -65,16 +84,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
         <div className="sidebar">
             <div className="sidebar-header">
                 <div>Folders</div>
-                {onUpdateThumbnails && (
-                    <div className="sidebar-actions">
-                        <button className="icon-btn start-btn" onClick={onUpdateThumbnails} title="Start capture">
-                            <img src="/icons/PlayButton.svg" alt="Start" />
-                        </button>
-                        <button className="icon-btn stop-btn" onClick={onStopCapture} title="Stop capture">
-                            <img src="/icons/StopButton.svg" alt="Stop" />
-                        </button>
-                    </div>
-                )}
             </div>
             <div className="sidebar-content">
                 {renderTree(folders)}
