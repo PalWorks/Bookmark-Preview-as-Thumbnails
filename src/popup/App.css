@@ -152,16 +152,18 @@
     overflow: hidden;
     background-color: white;
     /* Main content also white */
-    margin: 16px 24px 24px 0;
-    /* Card-like spacing if we want, or full bleed */
-    border-radius: 16px;
-    /* Rounded corners for main area */
-    box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+    margin: 0;
+    /* Remove margin for full bleed */
+    border-radius: 0;
+    /* Remove rounded corners */
+    box-shadow: none;
+    /* Remove shadow */
 }
 
 .main-header {
     padding: 16px 24px;
-    border-bottom: 1px solid #f1f3f4;
+    border-bottom: none;
+    /* Chrome doesn't have a strong border here usually, maybe subtle */
     display: flex;
     justify-content: space-between;
     align-items: center;
