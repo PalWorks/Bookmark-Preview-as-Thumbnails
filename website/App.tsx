@@ -112,10 +112,6 @@ function App() {
         {currentPage === 'terms' && <TermsAndConditions />}
         {currentPage === 'contact' && (
           <div className="pt-24 pb-12">
-            <div className="container mx-auto px-4 mb-12 text-center">
-              <h1 className="text-4xl font-bold mb-4">Get in Touch</h1>
-              <p className="text-slate-600">We'd love to hear from you.</p>
-            </div>
             <TallyForm />
           </div>
         )}
