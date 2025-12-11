@@ -646,6 +646,11 @@ function App() {
         chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls });
     };
 
+    const handleSetTheme = (newTheme: 'light' | 'dark' | 'system') => {
+        setTheme(newTheme);
+        chrome.storage.sync.set({ theme: newTheme });
+    };
+
     const handleExportBackup = async () => {
         try {
             const blob = await backupManager.createBackup();
@@ -770,7 +775,7 @@ function App() {
                 />
             )}
 
-            {showWelcome && <WelcomeModal onClose={handleCloseWelcome} />}
+            {showWelcome && <WelcomeModal onClose={handleCloseWelcome} theme={theme} onSetTheme={handleSetTheme} />}
         </div>
     );
 }

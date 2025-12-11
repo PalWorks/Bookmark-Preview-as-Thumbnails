@@ -1043,3 +1043,62 @@
 .theme-dark .status-loading {
     color: #8ab4f8;
 }
+
+/* Dark Mode Styles for Context Menu */
+.theme-dark .context-menu {
+    background-color: #292a2d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
+    color: #e8eaed;
+}
+
+.theme-dark .menu-item {
+    color: #e8eaed;
+}
+
+.theme-dark .menu-item:hover {
+    background-color: #3c4043;
+}
+
+.theme-dark .menu-item.disabled {
+    color: #5f6368;
+}
+
+.theme-dark .menu-item.disabled:hover {
+    background-color: transparent;
+}
+
+.theme-dark .menu-item.danger {
+    color: #f28b82;
+}
+
+.theme-dark .menu-separator {
+    background-color: #3c4043;
+}
+
+/* Dark Mode Scrollbars */
+.theme-dark ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.theme-dark ::-webkit-scrollbar-track {
+    background: #202124;
+}
+
+.theme-dark ::-webkit-scrollbar-thumb {
+    background: #5f6368;
+    border-radius: 4px;
+}
+
+.theme-dark ::-webkit-scrollbar-thumb:hover {
+    background: #9aa0a6;
+}
+
+/* Dark Mode Icons */
+.theme-dark .more-options-btn {
+    color: #e8eaed;
+}
+
+.theme-dark .more-options-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}

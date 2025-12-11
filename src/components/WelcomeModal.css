@@ -145,3 +145,33 @@
         opacity: 1;
     }
 }
+
+/* Theme Chooser Styles */
+.theme-options {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.theme-option-btn {
+    padding: 8px 16px;
+    border: 1px solid #dadce0;
+    border-radius: 20px;
+    background: white;
+    color: #5f6368;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.theme-option-btn:hover {
+    background-color: #f1f3f4;
+    color: #202124;
+}
+
+.theme-option-btn.active {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    border-color: #1a73e8;
+}
