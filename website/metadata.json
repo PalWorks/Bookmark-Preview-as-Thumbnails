@@ -1,0 +1,5 @@
+{
+  "name": "Bookmarks as Thumbnails",
+  "description": "A landing page for a Chrome Extension that transforms text bookmarks into a visual gallery with auto-generated thumbnails and privacy-focused local storage.",
+  "requestFramePermissions": []
+}
