@@ -167,11 +167,15 @@ function App() {
     // handleBatchCaptureTrigger is defined below with storage check
 
     const [useIncognito, setUseIncognito] = useState(false);
+    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
 
     // Load settings
     useEffect(() => {
-        chrome.storage.sync.get(['useIncognito'], (result) => {
+        chrome.storage.sync.get(['useIncognito', 'theme'], (result) => {
             setUseIncognito(!!result.useIncognito);
+            if (result.theme) {
+                setTheme(result.theme as 'light' | 'dark' | 'system');
+            }
         });
     }, []);
 
@@ -182,9 +186,6 @@ function App() {
                     // Open extensions page
                     chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
                     alert("Please enable 'Allow in Incognito' for this extension to capture private screenshots.\n\nNote: Chrome prevents us from highlighting the specific setting, but it's usually near the bottom.");
-                    // We still allow setting the state, as the user might be about to enable it.
-                    // Or we could choose to NOT set it until they enable it.
-                    // Let's set it, so the UI reflects their intent, but it won't work until they enable it.
                 }
                 setUseIncognito(value);
                 chrome.storage.sync.set({ useIncognito: value });
@@ -194,6 +195,22 @@ function App() {
             chrome.storage.sync.set({ useIncognito: value });
         }
     };
+
+    const handleToggleTheme = () => {
+        const modes: ('light' | 'dark' | 'system')[] = ['light', 'dark', 'system'];
+        const nextIndex = (modes.indexOf(theme) + 1) % modes.length;
+        const newTheme = modes[nextIndex];
+        setTheme(newTheme);
+        chrome.storage.sync.set({ theme: newTheme });
+    };
+
+    // Calculate effective theme for class application
+    const effectiveTheme = useMemo(() => {
+        if (theme === 'system') {
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        return theme;
+    }, [theme]);
 
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
@@ -689,7 +706,7 @@ function App() {
     };
 
     return (
-        <div className="app-container">
+        <div className={`app-container theme-${effectiveTheme}`}>
             <TopBar
                 onSearch={setSearchQuery}
                 onConnectFolder={handleConnectFolder}
@@ -707,6 +724,8 @@ function App() {
                 onExportBackup={handleExportBackup}
                 onImportBackup={handleImportBackup}
                 onUninstall={handleUninstall}
+                theme={theme}
+                onToggleTheme={handleToggleTheme}
             />
 
             {storageWarning.level !== 'none' && (

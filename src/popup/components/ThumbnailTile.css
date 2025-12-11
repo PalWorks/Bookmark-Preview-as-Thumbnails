@@ -117,3 +117,51 @@
     color: #5f6368;
     font-weight: 500;
 }
+
+/* Dark Mode Styles for Thumbnail Tile */
+.theme-dark .tile {
+    background-color: #292a2d;
+    border-color: #3c4043;
+}
+
+.theme-dark .tile:hover {
+    border-color: transparent;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+}
+
+.theme-dark .preview {
+    background-color: #3c4043;
+}
+
+.theme-dark .info {
+    background-color: #292a2d;
+    border-top-color: #3c4043;
+}
+
+.theme-dark .tile-title {
+    color: #e8eaed;
+}
+
+.theme-dark .tile-url {
+    color: #9aa0a6;
+}
+
+.theme-dark .no-preview {
+    color: #5f6368;
+}
+
+.theme-dark .loading-overlay {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.theme-dark .loading-bar {
+    background-color: #8ab4f8;
+}
+
+.theme-dark .queued-overlay {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.theme-dark .queued-text {
+    color: #9aa0a6;
+}

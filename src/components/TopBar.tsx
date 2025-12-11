@@ -19,6 +19,8 @@ interface TopBarProps {
     onExportBackup: () => void;
     onImportBackup: () => void;
     onUninstall: () => void;
+    theme: 'light' | 'dark' | 'system';
+    onToggleTheme: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -37,7 +39,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     isCapturing,
     onExportBackup,
     onImportBackup,
-    onUninstall
+    onUninstall,
+    theme,
+    onToggleTheme
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -83,6 +87,14 @@ export const TopBar: React.FC<TopBarProps> = ({
             case 'domain-asc': return 'Domain (A-Z)';
             case 'domain-desc': return 'Domain (Z-A)';
             default: return 'Sort';
+        }
+    };
+
+    const getThemeIconTitle = () => {
+        switch (theme) {
+            case 'light': return 'Light Mode';
+            case 'dark': return 'Dark Mode';
+            case 'system': return 'System Theme';
         }
     };
 
@@ -178,6 +190,14 @@ export const TopBar: React.FC<TopBarProps> = ({
                 </div>
 
                 <div className="settings-wrapper" ref={menuRef}>
+                    <button
+                        className="icon-btn"
+                        onClick={onToggleTheme}
+                        title={`Theme: ${getThemeIconTitle()}`}
+                        style={{ marginRight: '4px' }}
+                    >
+                        <img src="/icons/DarkThemeIcon.svg" alt="Toggle Theme" style={{ width: '20px', height: '20px', filter: 'brightness(0) invert(1)' }} />
+                    </button>
                     <button
                         className={`icon-btn ${isMenuOpen ? 'active' : ''}`}
                         onClick={() => setIsMenuOpen(!isMenuOpen)}

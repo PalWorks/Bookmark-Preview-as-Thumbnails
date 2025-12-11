@@ -882,3 +882,164 @@
 .folder-tile {
     position: relative;
 }
+
+/* Dark Mode Styles for Sidebar */
+.theme-dark .sidebar {
+    background-color: #202124;
+    border-right: 1px solid #3c4043;
+}
+
+.theme-dark .sidebar-header {
+    background-color: #202124;
+    color: #e8eaed;
+    border-bottom-color: #3c4043;
+}
+
+.theme-dark .sidebar-item {
+    color: #e8eaed;
+}
+
+.theme-dark .sidebar-item:hover {
+    background-color: #3c4043;
+}
+
+.theme-dark .sidebar-item.selected {
+    background-color: #174ea6;
+    color: #8ab4f8;
+}
+
+.theme-dark .sidebar-item.selected .folder-icon-wrapper {
+    color: #8ab4f8;
+}
+
+.theme-dark .folder-icon-wrapper {
+    color: #9aa0a6;
+}
+
+.theme-dark .folder-count {
+    color: #9aa0a6;
+}
+
+.theme-dark .arrow-container {
+    color: #9aa0a6;
+}
+
+.theme-dark .arrow-container:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-dark .update-btn {
+    color: #9aa0a6;
+}
+
+.theme-dark .update-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Scrollbar for Sidebar in Dark Mode */
+.theme-dark .sidebar-content::-webkit-scrollbar-thumb {
+    background-color: #5f6368;
+}
+
+/* Dark Mode Styles for Main Content */
+.theme-dark .main-content {
+    background-color: #202124;
+}
+
+.theme-dark .main-header {
+    background-color: #202124;
+    border-bottom-color: #3c4043;
+}
+
+.theme-dark .main-header h2 {
+    color: #e8eaed;
+}
+
+.theme-dark .back-button {
+    color: #e8eaed;
+}
+
+.theme-dark .back-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-dark .grid {
+    background-color: #202124;
+}
+
+.theme-dark .folder-tile {
+    background-color: #292a2d;
+    border-color: #3c4043;
+}
+
+.theme-dark .folder-tile:hover {
+    background-color: #3c4043;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+}
+
+.theme-dark .folder-icon {
+    color: #9aa0a6;
+}
+
+.theme-dark .folder-label {
+    color: #e8eaed;
+}
+
+.theme-dark .empty-state {
+    color: #9aa0a6;
+}
+
+.theme-dark .sub-text {
+    color: #5f6368;
+}
+
+/* Dark Mode Styles for List View */
+.theme-dark .list-view {
+    background-color: #202124;
+}
+
+.theme-dark .list-item {
+    background-color: #202124;
+    border-bottom-color: #3c4043;
+}
+
+.theme-dark .list-item:hover {
+    background-color: #292a2d;
+}
+
+.theme-dark .list-item-title {
+    color: #e8eaed;
+}
+
+.theme-dark .list-item-title:hover {
+    color: #8ab4f8;
+}
+
+.theme-dark .list-item-url {
+    color: #9aa0a6;
+}
+
+.theme-dark .list-folder-icon {
+    color: #9aa0a6;
+}
+
+.theme-dark .folder-list-item:hover .list-folder-icon {
+    color: #8ab4f8;
+}
+
+.theme-dark .list-item-thumb {
+    background-color: #292a2d;
+    border-color: #3c4043;
+}
+
+.theme-dark .list-thumb-placeholder {
+    background-color: #3c4043;
+}
+
+.theme-dark .status-queued {
+    color: #9aa0a6;
+}
+
+.theme-dark .status-loading {
+    color: #8ab4f8;
+}
