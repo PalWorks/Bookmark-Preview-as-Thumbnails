@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HeroSection } from './components/HeroSection';
 import { FeaturesSection } from './components/FeaturesSection';
 import { PrivacySection } from './components/PrivacySection';
 import { PricingSection } from './components/PricingSection';
 import { Footer } from './components/Footer';
 import { TallyForm } from './components/TallyForm';
-import { PrivacyPolicy, TermsAndConditions, GetInTouch } from './components/Legal';
+import { Testimonials } from './components/Testimonials';
+import { PrivacyPolicy, TermsAndConditions } from './components/Legal';
 import { Chrome } from 'lucide-react';
 import { Button } from './components/Button';
 
@@ -20,19 +21,19 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <button onClick={() => onNavigate('home')} className="flex items-center gap-2 font-bold text-lg text-slate-900 hover:opacity-80 transition-opacity">
-           <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white">
-             <Chrome size={18} />
-           </div>
-           <span>Bookmarks as Thumbnails</span>
+          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white">
+            <Chrome size={18} />
+          </div>
+          <span>Bookmarks as Thumbnails</span>
         </button>
-        
+
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-           <button onClick={() => { onNavigate('home'); setTimeout(() => document.getElementById('features')?.scrollIntoView({behavior: 'smooth'}), 100)}} className="hover:text-brand-600 transition-colors">Features</button>
-           <button onClick={() => { onNavigate('home'); setTimeout(() => document.getElementById('how-it-works')?.scrollIntoView({behavior: 'smooth'}), 100)}} className="hover:text-brand-600 transition-colors">How it works</button>
-           <button onClick={() => { onNavigate('home'); setTimeout(() => document.getElementById('pricing')?.scrollIntoView({behavior: 'smooth'}), 100)}} className="hover:text-brand-600 transition-colors">Pricing</button>
+          <button onClick={() => { onNavigate('home'); setTimeout(() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }), 100) }} className="hover:text-brand-600 transition-colors">Features</button>
+          <button onClick={() => { onNavigate('home'); setTimeout(() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' }), 100) }} className="hover:text-brand-600 transition-colors">How it works</button>
+          <button onClick={() => { onNavigate('home'); setTimeout(() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }), 100) }} className="hover:text-brand-600 transition-colors">Pricing</button>
         </div>
 
-        <Button size="sm">Download</Button>
+        <Button size="sm">Add to Chrome</Button>
       </div>
     </nav>
   );
@@ -59,13 +60,27 @@ const CTASection: React.FC = () => {
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash === 'privacy') setCurrentPage('privacy');
+      else if (hash === 'terms') setCurrentPage('terms');
+      else if (hash === 'contact') setCurrentPage('contact');
+      else setCurrentPage('home');
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Initial check
+    handleHashChange();
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const handleNavigate = (page: Page) => {
-    setCurrentPage(page);
-    scrollToTop();
+    if (page === 'home') window.location.hash = '';
+    else window.location.hash = page;
   };
 
   return (
@@ -76,24 +91,34 @@ function App() {
           <>
             <HeroSection />
             <div id="features">
-               <FeaturesSection />
+              <FeaturesSection />
             </div>
-            
+
             <div id="how-it-works">
-                {/* Using Privacy Section as part of explaining "How it works" / Tech Stack */}
-                <PrivacySection />
+              {/* Using Privacy Section as part of explaining "How it works" / Tech Stack */}
+              <PrivacySection />
             </div>
 
             <PricingSection />
-            
+
+            <Testimonials />
+
             <TallyForm />
             <CTASection />
           </>
         )}
-        
+
         {currentPage === 'privacy' && <PrivacyPolicy />}
         {currentPage === 'terms' && <TermsAndConditions />}
-        {currentPage === 'contact' && <GetInTouch />}
+        {currentPage === 'contact' && (
+          <div className="pt-24 pb-12">
+            <div className="container mx-auto px-4 mb-12 text-center">
+              <h1 className="text-4xl font-bold mb-4">Get in Touch</h1>
+              <p className="text-slate-600">We'd love to hear from you.</p>
+            </div>
+            <TallyForm />
+          </div>
+        )}
       </main>
       <Footer onNavigate={handleNavigate} />
     </div>
