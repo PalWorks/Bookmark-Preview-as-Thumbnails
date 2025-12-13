@@ -9,10 +9,14 @@ chrome.runtime.onInstalled.addListener(() => {
 // Listen for extension icon click
 // Listen for extension icon click
 chrome.action.onClicked.addListener((tab) => {
-    chrome.tabs.create({
-        url: 'index.html',
-        windowId: tab.windowId
-    });
+    const url = chrome.runtime.getURL('index.html');
+    const createProperties: chrome.tabs.CreateProperties = { url };
+
+    if (tab && tab.windowId) {
+        createProperties.windowId = tab.windowId;
+    }
+
+    chrome.tabs.create(createProperties);
 });
 
 // Listen for messages from popup or content scripts
