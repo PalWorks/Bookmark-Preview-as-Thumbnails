@@ -7,8 +7,12 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Listen for extension icon click
-chrome.action.onClicked.addListener(() => {
-    chrome.tabs.create({ url: 'index.html' });
+// Listen for extension icon click
+chrome.action.onClicked.addListener((tab) => {
+    chrome.tabs.create({
+        url: 'index.html',
+        windowId: tab.windowId
+    });
 });
 
 // Listen for messages from popup or content scripts
