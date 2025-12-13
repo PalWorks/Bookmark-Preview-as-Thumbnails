@@ -12,8 +12,10 @@ chrome.action.onClicked.addListener((tab) => {
     const url = chrome.runtime.getURL('index.html');
     const createProperties: chrome.tabs.CreateProperties = { url };
 
-    if (tab && tab.windowId) {
+    if (tab && tab.id && tab.windowId) {
         createProperties.windowId = tab.windowId;
+        createProperties.openerTabId = tab.id;
+        createProperties.index = tab.index + 1;
     }
 
     chrome.tabs.create(createProperties);
