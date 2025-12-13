@@ -16,6 +16,7 @@
     "host_permissions": [
         "<all_urls>"
     ],
+    "incognito": "split",
     "action": {
         "default_icon": {
             "16": "icons/icon16.png",

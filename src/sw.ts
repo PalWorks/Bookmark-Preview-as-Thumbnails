@@ -8,19 +8,10 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Listen for extension icon click
 // Listen for extension icon click
-chrome.action.onClicked.addListener(async (tab) => {
-    const url = chrome.runtime.getURL('index.html');
-
-    try {
-        if (tab && tab.windowId) {
-            await chrome.tabs.create({ url, windowId: tab.windowId });
-        } else {
-            await chrome.tabs.create({ url });
-        }
-    } catch (e) {
-        console.warn('Failed to open in target window, falling back to default', e);
-        chrome.tabs.create({ url });
-    }
+chrome.action.onClicked.addListener(() => {
+    chrome.tabs.create({
+        url: chrome.runtime.getURL('index.html')
+    });
 });
 
 // Listen for messages from popup or content scripts
