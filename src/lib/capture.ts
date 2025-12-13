@@ -10,7 +10,22 @@ export class CaptureManager {
     async capture(tabId: number): Promise<string> {
         try {
             const tab = await chrome.tabs.get(tabId);
-            if (tab.active) {
+
+            // Check if window is minimized or unfocused
+            let isMinimized = false;
+            let isFocused = false;
+            if (tab.windowId) {
+                try {
+                    const win = await chrome.windows.get(tab.windowId);
+                    isMinimized = win.state === 'minimized';
+                    isFocused = !!win.focused;
+                } catch (e) {
+                    console.warn('Could not get window state', e);
+                }
+            }
+
+            // Only use visible capture if active, not minimized, AND focused
+            if (tab.active && !isMinimized && isFocused) {
                 try {
                     return await this.captureVisibleTab(tab.windowId);
                 } catch (e) {
@@ -24,8 +39,14 @@ export class CaptureManager {
         }
     }
 
+    private timeout(ms: number): Promise<never> {
+        return new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`Capture timed out after ${ms}ms`)), ms);
+        });
+    }
+
     async captureVisibleTab(windowId?: number): Promise<string> {
-        return new Promise((resolve, reject) => {
+        const capturePromise = new Promise<string>((resolve, reject) => {
             // @ts-expect-error - windowId can be undefined
             chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, (dataUrl) => {
                 if (chrome.runtime.lastError) {
@@ -35,10 +56,12 @@ export class CaptureManager {
                 }
             });
         });
+
+        return Promise.race([capturePromise, this.timeout(5000)]);
     }
 
     async captureBackgroundTab(tabId: number): Promise<string> {
-        return new Promise((resolve, reject) => {
+        const capturePromise = new Promise<string>((resolve, reject) => {
             chrome.scripting.executeScript({
                 target: { tabId },
                 files: ['content-script.js']
@@ -59,6 +82,8 @@ export class CaptureManager {
                 });
             });
         });
+
+        return Promise.race([capturePromise, this.timeout(10000)]);
     }
 
     async resizeAndCompress(
