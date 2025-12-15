@@ -1,4 +1,5 @@
 import { db } from './indexeddb';
+import { thumbnailStorage } from './thumbnail_storage';
 
 export class FSAccess {
     private directoryHandle: FileSystemDirectoryHandle | null = null;
@@ -23,7 +24,7 @@ export class FSAccess {
 
             // Scan and Re-link Logic
             let count = 0;
-            const thumbnails = await db.getAllThumbnails();
+            const thumbnails = await thumbnailStorage.getAllThumbnails();
             const filenameMap = new Map<string, string>(); // filename -> id
             thumbnails.forEach(t => {
                 if (t.filename) {
@@ -38,11 +39,11 @@ export class FSAccess {
                         const fileHandle = entry as FileSystemFileHandle;
                         if (filenameMap.has(fileHandle.name)) {
                             const id = filenameMap.get(fileHandle.name)!;
-                            const thumb = await db.getThumbnail(id);
+                            const thumb = await thumbnailStorage.getThumbnail(id);
                             if (thumb && !thumb.blob) {
                                 const file = await fileHandle.getFile();
                                 thumb.blob = file;
-                                await db.putThumbnail(thumb);
+                                await thumbnailStorage.putThumbnail(thumb);
                                 count++;
                             }
                         }

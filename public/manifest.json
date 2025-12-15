@@ -11,7 +11,8 @@
         "downloads",
         "bookmarks",
         "scripting",
-        "management"
+        "management",
+        "unlimitedStorage"
     ],
     "host_permissions": [
         "<all_urls>"

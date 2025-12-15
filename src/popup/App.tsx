@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import './App.css';
-import { db } from '../lib/indexeddb';
+import { thumbnailStorage } from '../lib/thumbnail_storage';
 import { Sidebar } from '../components/Sidebar';
 import { MainContent } from '../components/MainContent';
 import { TopBar } from '../components/TopBar';
@@ -43,9 +43,6 @@ function App() {
         });
     }, [selectedFolderId]);
 
-    // Load thumbnails for the current folder is handled in the next useEffect
-
-
     const [queuedUrls, setQueuedUrls] = useState<Set<string>>(new Set());
     const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
 
@@ -53,7 +50,6 @@ function App() {
     useEffect(() => {
         const listener = (message: any) => {
             if (message.type === 'CAPTURE_STARTED' && message.url) {
-                // Move from queued to loading
                 setQueuedUrls(prev => {
                     const next = new Set(prev);
                     next.delete(message.url);
@@ -65,14 +61,13 @@ function App() {
                     return next;
                 });
             } else if (message.type === 'THUMBNAIL_UPDATED' && message.url) {
-                // Update thumbnail in state
-                db.getThumbnail(message.url).then(thumb => {
-                    if (thumb && thumb.blob) {
+                thumbnailStorage.getThumbnail(message.url).then(thumb => {
+                    const blob = thumb?.blob;
+                    if (blob) {
                         setThumbnails(prev => ({
                             ...prev,
-                            [message.url]: URL.createObjectURL(thumb.blob)
+                            [message.url]: URL.createObjectURL(blob)
                         }));
-                        // Remove from loading
                         setLoadingUrls(prev => {
                             const next = new Set(prev);
                             next.delete(message.url);
@@ -81,14 +76,11 @@ function App() {
                     }
                 });
             } else if (message.type === 'CAPTURE_FAILED' && message.url) {
-                // Remove from loading if failed
                 setLoadingUrls(prev => {
                     const next = new Set(prev);
                     next.delete(message.url);
                     return next;
                 });
-                console.warn('Capture failed for', message.url, message.error);
-                console.log('Removed from loadingUrls:', message.url);
             }
         };
         chrome.runtime.onMessage.addListener(listener);
@@ -106,7 +98,7 @@ function App() {
 
             for (const node of currentFolder.children) {
                 if (node.url) {
-                    const thumb = await db.getThumbnail(node.url);
+                    const thumb = await thumbnailStorage.getThumbnail(node.url);
                     if (thumb && thumb.blob) {
                         newThumbs[node.url] = URL.createObjectURL(thumb.blob);
                         existingUrls.add(node.url);
@@ -116,12 +108,9 @@ function App() {
             setThumbnails(prev => ({ ...prev, ...newThumbs }));
 
             // 2. Identify missing thumbnails
-            // Only auto-capture if we haven't tried recently or if explicitly requested?
-            // For now, let's just capture what's missing from DB.
             const missingUrls: string[] = [];
             for (const node of currentFolder.children) {
                 if (node.url && !existingUrls.has(node.url)) {
-                    // Check if already queued or loading to avoid duplicates
                     if (!loadingUrls.has(node.url) && !queuedUrls.has(node.url)) {
                         missingUrls.push(node.url);
                     }
@@ -129,16 +118,13 @@ function App() {
             }
 
             // 3. Trigger batch capture if needed
-            // 3. Trigger batch capture if needed
             if (missingUrls.length > 0) {
                 console.log('Found missing thumbnails:', missingUrls);
-                // Auto-capture DISABLED. User must manually trigger.
-                // We could optionally update some state to show a "Capture Needed" badge.
             }
         };
 
         loadThumbsAndCapture();
-    }, [currentFolder]); // Only run when folder changes
+    }, [currentFolder]);
 
     const handleConnectFolder = async () => {
         try {

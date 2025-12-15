@@ -48,7 +48,7 @@ export class CaptureManager {
     async captureVisibleTab(windowId?: number): Promise<string> {
         const capturePromise = new Promise<string>((resolve, reject) => {
             // @ts-expect-error - windowId can be undefined
-            chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, (dataUrl) => {
+            chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 80 }, (dataUrl) => {
                 if (chrome.runtime.lastError) {
                     reject(chrome.runtime.lastError);
                 } else {

@@ -1,4 +1,4 @@
-import { db } from './indexeddb';
+import { thumbnailStorage } from './thumbnail_storage';
 
 export interface BackupData {
     version: number;
@@ -9,17 +9,7 @@ export interface BackupData {
         url: string;
         filename?: string;
         title?: string;
-        // We do NOT export the blob to keep file size small.
-        // We rely on "Connect Folder" to restore the actual images if they are external.
-        // If they are internal blobs, they are lost in this lightweight backup unless we decide to include them.
-        // Given the user's context of "Connect Folder" being the backup, we export metadata.
-        // However, for a true "backup" of internal data, we might want to include base64 blobs?
-        // The user said "Connect folder will be used... when internal storage is exceeded".
-        // So internal storage IS the primary. If we uninstall, internal is lost.
-        // So we SHOULD export blobs if possible, or warn the user.
-        // But blobs can be huge (hundreds of MBs). JSON stringify might crash.
-        // Let's stick to metadata for now and assume "Connect Folder" is the way to persist images.
-        // We will explicitly tell the user: "This backup saves your settings and links. To save images, use Connect Folder."
+        image_data?: string; // Base64 image data
     }>;
 }
 
@@ -38,7 +28,7 @@ export class BackupManager {
         const settings = await chrome.storage.sync.get(null);
 
         // 2. Get Thumbnails Metadata
-        const thumbnails = await db.getAllThumbnails();
+        const thumbnails = await thumbnailStorage.getAllThumbnails();
 
         // 3. Prepare export data
         // We now include the image data as Base64 to ensure full restoration
@@ -84,9 +74,9 @@ export class BackupManager {
                 for (const t of data.thumbnails) {
                     // Check if we have image data to restore
                     let blob: Blob | null = null;
-                    if ((t as any).image_data) {
+                    if (t.image_data) {
                         try {
-                            const res = await fetch((t as any).image_data);
+                            const res = await fetch(t.image_data);
                             blob = await res.blob();
                         } catch (e) {
                             console.warn(`Failed to restore blob for ${t.id}`, e);
@@ -97,7 +87,7 @@ export class BackupManager {
                     // If not, we restore metadata and hope for "Connect Folder" linking.
 
                     // Check existing to avoid overwriting if we don't have better data
-                    const existing = await db.getThumbnail(t.id);
+                    const existing = await thumbnailStorage.getThumbnail(t.id);
 
                     // We overwrite if:
                     // 1. No existing record
@@ -105,11 +95,11 @@ export class BackupManager {
                     // 3. We are forcing a restore (usually yes for import)
 
                     if (!existing || (!existing.blob && blob)) {
-                        await db.putThumbnail({
+                        await thumbnailStorage.putThumbnail({
                             id: t.id,
                             url: t.url,
                             mime: blob ? blob.type : 'image/webp',
-                            blob: blob as Blob, // Might be null, but type says Blob. We should probably allow null in DB type if we want metadata only support.
+                            blob: blob || undefined,
                             updatedAt: Date.now(),
                             width: 0,
                             height: 0,

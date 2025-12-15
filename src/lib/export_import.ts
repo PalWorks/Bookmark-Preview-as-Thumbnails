@@ -1,4 +1,4 @@
-import { db } from './indexeddb';
+import { thumbnailStorage } from './thumbnail_storage';
 import { storageIndex } from './storage_index';
 import type { MetadataRecord } from './storage_index';
 
@@ -10,7 +10,7 @@ interface ExportItem extends MetadataRecord {
 export class ExportImportManager {
     async exportAllThumbnails(): Promise<void> {
         const metadata = await storageIndex.getAll();
-        const thumbnails = await db.getAllThumbnails(); // Need to implement getAllThumbnails in indexeddb.ts
+        const thumbnails = await thumbnailStorage.getAllThumbnails();
 
         // For simplicity, we will just download each file individually for now,
         // or create a zip if we had a zip library.
@@ -61,7 +61,7 @@ export class ExportImportManager {
             if (item.thumbnailBase64) {
                 const blob = await this.base64ToBlob(item.thumbnailBase64, item.mime);
 
-                await db.putThumbnail({
+                await thumbnailStorage.putThumbnail({
                     id: item.id,
                     url: item.url,
                     mime: item.mime,

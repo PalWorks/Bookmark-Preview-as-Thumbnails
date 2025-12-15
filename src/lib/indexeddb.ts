@@ -2,7 +2,7 @@ export interface ThumbnailRecord {
     id: string;
     url: string;
     mime: string;
-    blob: Blob;
+    blob?: Blob;
     updatedAt: number;
     width: number;
     height: number;

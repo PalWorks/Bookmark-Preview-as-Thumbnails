@@ -15,7 +15,7 @@ chrome.action.onClicked.addListener(() => {
 });
 
 // Listen for messages from popup or content scripts
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (message, _sender, sendResponse) => {
     console.log('Received message:', message);
 
     if (message.type === 'CAPTURE_THUMBNAIL') {
@@ -28,6 +28,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     if (message.type === 'BATCH_CAPTURE') {
         processBatchCapture(message.urls);
+        return true;
+    }
+
+    if (message.type === 'SAVE_THUMBNAIL') {
+        await thumbnailStorage.putThumbnail({
+            id: message.id,
+            url: message.url,
+            mime: 'image/jpeg',
+            blob: message.blob,
+            updatedAt: Date.now(),
+            width: message.width,
+            height: message.height,
+            sizeBytes: message.blob.size
+        });
+        sendResponse({ status: 'saved' });
         return true;
     }
 
@@ -89,65 +104,87 @@ async function processBatchCapture(urls: string[]) {
         return;
     }
 
-    // Get the initial tab from the capture window
+    // Prepare tab pool
+    const CONCURRENCY = 3;
+    const tabIds: number[] = [];
+
+    // Get the initial tab
     const tabs = await chrome.tabs.query({ windowId: captureWindow.id });
-    if (tabs.length === 0 || !tabs[0].id) {
-        console.error('No tab found in capture window');
+    if (tabs.length > 0 && tabs[0].id) {
+        tabIds.push(tabs[0].id);
+    }
+
+    // Create additional tabs up to CONCURRENCY
+    for (let i = tabIds.length; i < CONCURRENCY; i++) {
+        try {
+            const tab = await chrome.tabs.create({ windowId: captureWindow.id, active: false });
+            if (tab.id) {
+                tabIds.push(tab.id);
+            }
+        } catch (e) {
+            console.warn('Failed to create additional capture tab', e);
+        }
+    }
+
+    if (tabIds.length === 0) {
+        console.error('No tabs available for capture');
         await chrome.windows.remove(captureWindow.id);
         isBatchCapturing = false;
         return;
     }
-    const captureTabId = tabs[0].id;
 
-    for (const url of urls) {
-        if (stopBatchCapture) {
-            console.log('Batch capture stopped by user');
-            break;
-        }
+    // Process queue
+    let currentIndex = 0;
 
+    const captureSingleUrl = async (tabId: number, url: string) => {
         try {
             chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED', url }).catch(() => { });
 
-            // Navigate the existing tab to the new URL
-            // Do NOT set active: true, as it brings the window to front
-            await chrome.tabs.update(captureTabId, { url, muted: true });
+            // Navigate
+            await chrome.tabs.update(tabId, { url, muted: true });
 
-            // Wait for tab to load
+            // Wait for load
             await new Promise<void>((resolve) => {
-                const listener = (tabId: number, changeInfo: any) => {
-                    if (tabId === captureTabId && changeInfo.status === 'complete') {
+                const listener = (tid: number, changeInfo: any) => {
+                    if (tid === tabId && changeInfo.status === 'complete') {
                         chrome.tabs.onUpdated.removeListener(listener);
                         resolve();
                     }
                 };
                 chrome.tabs.onUpdated.addListener(listener);
-                // Timeout after 30s
                 setTimeout(() => {
                     chrome.tabs.onUpdated.removeListener(listener);
                     resolve();
                 }, 30000);
             });
 
-            // Wait for rendering (1s) - Optimized from 2s
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait for rendering (Optimized: 500ms)
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-            if (stopBatchCapture) {
-                break;
-            }
+            if (stopBatchCapture) return;
 
-            // Capture using unified method
-            await handleCapture(captureTabId, url);
+            // Capture
+            await handleCapture(tabId, url);
 
         } catch (error: any) {
             console.error('Failed to capture', url, error);
-            // Notify UI of failure so it doesn't get stuck loading
             chrome.runtime.sendMessage({
                 type: 'CAPTURE_FAILED',
                 url,
                 error: error.message
             }).catch(() => { });
         }
-    }
+    };
+
+    const worker = async (tabId: number) => {
+        while (currentIndex < urls.length && !stopBatchCapture) {
+            const url = urls[currentIndex++];
+            await captureSingleUrl(tabId, url);
+        }
+    };
+
+    // Start workers
+    await Promise.all(tabIds.map(id => worker(id)));
 
     // Close the capture window
     if (captureWindow && captureWindow.id) {
@@ -177,7 +214,7 @@ chrome.bookmarks.onCreated.addListener(async (_id, bookmark) => {
 });
 
 import { captureManager } from './lib/capture';
-import { db } from './lib/indexeddb';
+import { thumbnailStorage } from './lib/thumbnail_storage';
 import { storageIndex } from './lib/storage_index';
 import { fsAccess } from './lib/fsaccess';
 
@@ -235,8 +272,8 @@ async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
             // Fallback to indexeddb status, which is already set
         }
 
-        // Save to IndexedDB (update with filename if available)
-        await db.putThumbnail({
+        // Save to Shared Storage (update with filename if available)
+        await thumbnailStorage.putThumbnail({
             id,
             url: tab.url, // Keep actual URL for reference
             mime: 'image/webp',
