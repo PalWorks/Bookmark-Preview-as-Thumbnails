@@ -57,7 +57,17 @@ export const MainContent: React.FC<MainContentProps> = ({
                         if (viewMode === 'list') {
                             return (
                                 <div key={node.id} className="list-item" onContextMenu={(e) => onContextMenu(e, node)}>
-                                    <div className="list-item-thumb">
+                                    <div
+                                        className="list-item-thumb"
+                                        style={{ cursor: 'pointer' }}
+                                        onClick={() => chrome.tabs.create({ url: node.url, active: true })}
+                                        onAuxClick={(e) => {
+                                            if (e.button === 1) {
+                                                e.preventDefault();
+                                                chrome.tabs.create({ url: node.url, active: false });
+                                            }
+                                        }}
+                                    >
                                         {thumbnails[node.url] ? (
                                             <img src={thumbnails[node.url]} alt={node.title} />
                                         ) : (

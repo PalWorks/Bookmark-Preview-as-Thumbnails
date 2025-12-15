@@ -154,16 +154,27 @@ function App() {
 
     const [useIncognito, setUseIncognito] = useState(false);
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+    const [captureDelay, setCaptureDelay] = useState<number>(500);
 
     // Load settings
     useEffect(() => {
-        chrome.storage.sync.get(['useIncognito', 'theme'], (result) => {
+        chrome.storage.sync.get(['useIncognito', 'theme', 'captureDelay'], (result) => {
             setUseIncognito(!!result.useIncognito);
             if (result.theme) {
                 setTheme(result.theme as 'light' | 'dark' | 'system');
             }
+            if (result.captureDelay) {
+                setCaptureDelay(Number(result.captureDelay));
+            }
         });
     }, []);
+
+    const handleCaptureDelayChange = (value: number) => {
+        // Allow any value while typing, validation happens on use or blur if we added it
+        // But for now, just saving it is fine, we can clamp in usage
+        setCaptureDelay(value);
+        chrome.storage.sync.set({ captureDelay: value });
+    };
 
     const handleToggleIncognito = (value: boolean) => {
         if (value) {
@@ -172,9 +183,17 @@ function App() {
                     // Open extensions page
                     chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
                     alert("Please enable 'Allow in Incognito' for this extension to capture private screenshots.\n\nNote: Chrome prevents us from highlighting the specific setting, but it's usually near the bottom.");
+                } else {
+                    // Allowed, enable and open in Incognito
+                    setUseIncognito(value);
+                    chrome.storage.sync.set({ useIncognito: value });
+                    // Open extension in new Incognito window
+                    chrome.windows.create({
+                        url: chrome.runtime.getURL('index.html'),
+                        incognito: true,
+                        state: 'maximized'
+                    });
                 }
-                setUseIncognito(value);
-                chrome.storage.sync.set({ useIncognito: value });
             });
         } else {
             setUseIncognito(value);
@@ -717,6 +736,8 @@ function App() {
                 onUninstall={handleUninstall}
                 theme={theme}
                 onToggleTheme={handleToggleTheme}
+                captureDelay={captureDelay}
+                onCaptureDelayChange={handleCaptureDelayChange}
             />
 
             {storageWarning.level !== 'none' && (

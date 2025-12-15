@@ -28,11 +28,19 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQu
         }
     };
 
+    const handleAuxClick = (e: React.MouseEvent) => {
+        if (e.button === 1) {
+            e.preventDefault();
+            chrome.tabs.create({ url: bookmark.url, active: false });
+        }
+    };
+
     return (
         <div
             className="tile"
             tabIndex={0}
             onClick={handleClick}
+            onAuxClick={handleAuxClick}
             onKeyDown={(e) => e.key === 'Enter' && handleClick()}
             onContextMenu={handleContextMenu}
         >

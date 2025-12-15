@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2 } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock } from 'lucide-react';
 import './TopBar.css';
 
 interface TopBarProps {
@@ -21,6 +21,8 @@ interface TopBarProps {
     onUninstall: () => void;
     theme: 'light' | 'dark' | 'system';
     onToggleTheme: () => void;
+    captureDelay: number;
+    onCaptureDelayChange: (value: number) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -41,7 +43,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     onImportBackup,
     onUninstall,
     theme,
-    onToggleTheme
+    onToggleTheme,
+    captureDelay,
+    onCaptureDelayChange
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -239,6 +243,26 @@ export const TopBar: React.FC<TopBarProps> = ({
                                     Note: Incognito mode cannot capture sites that require login (e.g. Gmail, Notion).
                                     You must also allow this extension in Incognito settings.
                                 </span>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item" onClick={(e) => e.stopPropagation()} style={{ cursor: 'default' }}>
+                                <Clock size={16} className="menu-icon" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Screen Capture Delay</div>
+                                    <div className="menu-desc">Wait time (ms)</div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <input
+                                        type="number"
+                                        className="delay-input"
+                                        value={captureDelay}
+                                        onChange={(e) => onCaptureDelayChange(parseInt(e.target.value) || 0)}
+                                        min="100"
+                                        step="50"
+                                    />
+                                </div>
                             </div>
 
                             <div className="menu-divider"></div>

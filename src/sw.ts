@@ -158,8 +158,11 @@ async function processBatchCapture(urls: string[]) {
                 }, 30000);
             });
 
-            // Wait for rendering (Optimized: 500ms)
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Wait for rendering (Configurable, default 500ms, min 100ms)
+            const stored = await chrome.storage.sync.get(['captureDelay']);
+            const delayVal = Number(stored.captureDelay || 500);
+            const delay = Math.max(100, delayVal);
+            await new Promise(resolve => setTimeout(resolve, delay));
 
             if (stopBatchCapture) return;
 
