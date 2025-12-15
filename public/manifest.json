@@ -12,7 +12,8 @@
         "bookmarks",
         "scripting",
         "management",
-        "unlimitedStorage"
+        "unlimitedStorage",
+        "webNavigation"
     ],
     "host_permissions": [
         "<all_urls>"

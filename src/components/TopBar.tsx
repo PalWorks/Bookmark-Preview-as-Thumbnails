@@ -13,7 +13,7 @@ interface TopBarProps {
     onFilterChange: (type: 'all' | 'folders' | 'bookmarks') => void;
     sortOrder: 'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc';
     onSortChange: (order: 'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc') => void;
-    onUpdateThumbnails: () => void;
+    onUpdateThumbnails: (force?: boolean) => void;
     onStopCapture: () => void;
     isCapturing: boolean;
     onExportBackup: () => void;
@@ -124,8 +124,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <div className="capture-buttons">
                         <button
                             className={`icon-btn start-btn ${isCapturing ? 'capturing' : ''}`}
-                            onClick={onUpdateThumbnails}
-                            title="Generate thumbnail preview for URLs"
+                            onClick={(e) => onUpdateThumbnails(e.shiftKey)}
+                            title="Generate thumbnail preview for URLs (Shift+Click to force regenerate)"
                         >
                             <img src="/icons/PlayButton.svg" alt="Start" />
                         </button>
@@ -231,8 +231,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                             }}>
                                 {useIncognito ? <EyeOff size={16} className="menu-icon" /> : <Eye size={16} className="menu-icon" />}
                                 <div className="menu-text">
-                                    <div className="menu-title">Use Incognito Window</div>
-                                    <div className="menu-desc">Capture screenshots privately</div>
+                                    <div className="menu-title">Open in Incognito Window</div>
+                                    <div className="menu-desc">Re-opens extension in Incognito</div>
                                 </div>
                                 <div className={`toggle-switch ${useIncognito ? 'checked' : ''}`}></div>
                             </div>

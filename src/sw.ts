@@ -27,7 +27,8 @@ chrome.runtime.onMessage.addListener(async (message, _sender, sendResponse) => {
     }
 
     if (message.type === 'BATCH_CAPTURE') {
-        processBatchCapture(message.urls);
+        const incognito = _sender.tab?.incognito || false;
+        processBatchCapture(message.urls, incognito);
         return true;
     }
 
@@ -62,21 +63,23 @@ chrome.runtime.onMessage.addListener(async (message, _sender, sendResponse) => {
 let isBatchCapturing = false;
 let stopBatchCapture = false;
 
-async function processBatchCapture(urls: string[]) {
+async function processBatchCapture(urls: string[], incognitoContext: boolean = false) {
     if (isBatchCapturing) {
         console.log('Batch capture already in progress');
         return;
     }
     isBatchCapturing = true;
     stopBatchCapture = false;
-    console.log('Starting batch capture for', urls.length, 'URLs');
+    console.log('Starting batch capture for', urls.length, 'URLs', 'Incognito:', incognitoContext);
 
     // Create a window to perform captures without disrupting the user
     let captureWindow: chrome.windows.Window | undefined;
     try {
-        // Check for incognito setting
-        const settings = await chrome.storage.sync.get(['useIncognito']);
-        const incognito = settings.useIncognito || false;
+        // Use the context of the triggering window (incognitoContext)
+        // If triggered from Incognito, capture in Incognito.
+        // If triggered from Normal, capture in Normal (unless we wanted to enforce privacy setting, 
+        // but user requested "do everything within [current] interface").
+        const incognito = incognitoContext;
 
         // Create normal but unfocused window
         const createOptions: any = {
@@ -137,6 +140,15 @@ async function processBatchCapture(urls: string[]) {
     let currentIndex = 0;
 
     const captureSingleUrl = async (tabId: number, url: string) => {
+        let navError: string | null = null;
+
+        const errorListener = (details: any) => {
+            if (details.tabId === tabId && details.frameId === 0) {
+                navError = details.error;
+            }
+        };
+        chrome.webNavigation.onErrorOccurred.addListener(errorListener);
+
         try {
             chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED', url }).catch(() => { });
 
@@ -158,6 +170,9 @@ async function processBatchCapture(urls: string[]) {
                 }, 30000);
             });
 
+            // Cleanup listener
+            chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
+
             // Wait for rendering (Configurable, default 500ms, min 100ms)
             const stored = await chrome.storage.sync.get(['captureDelay']);
             const delayVal = Number(stored.captureDelay || 500);
@@ -166,16 +181,98 @@ async function processBatchCapture(urls: string[]) {
 
             if (stopBatchCapture) return;
 
-            // Capture
-            await handleCapture(tabId, url);
+            if (navError) {
+                console.log('Navigation error detected:', navError);
+                // Generate error thumbnail
+                const dataUrl = await generateErrorImage(navError, url);
+
+                // Save the error thumbnail directly
+                // We bypass handleCapture because it expects a valid tab to capture
+                // But we still want to use the storage logic.
+                // We can reuse the storage logic if we extract it or just call putThumbnail directly here.
+
+                // Let's reuse the storage logic by calling a modified handleCapture or just doing it here.
+                // Doing it here is safer to avoid messing with handleCapture's tab logic.
+
+                const id = url;
+
+                // Convert DataURL to Blob for storage
+                const res = await fetch(dataUrl);
+                const blob = await res.blob();
+
+                await thumbnailStorage.putThumbnail({
+                    id,
+                    url,
+                    mime: 'image/jpeg',
+                    blob,
+                    updatedAt: Date.now(),
+                    width: 600,
+                    height: 400,
+                    sizeBytes: blob.size
+                });
+
+                await storageIndex.set({
+                    id,
+                    url,
+                    title: 'Navigation Error',
+                    status: 'error',
+                    lastCaptureAt: Date.now(),
+                });
+
+                chrome.runtime.sendMessage({
+                    type: 'THUMBNAIL_UPDATED',
+                    url: id,
+                    id
+                }).catch(() => { });
+
+            } else {
+                // Capture normally
+                await handleCapture(tabId, url);
+            }
 
         } catch (error: any) {
+            chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
             console.error('Failed to capture', url, error);
-            chrome.runtime.sendMessage({
-                type: 'CAPTURE_FAILED',
-                url,
-                error: error.message
-            }).catch(() => { });
+
+            // If handleCapture failed (e.g. restricted URL), try to generate error image too
+            try {
+                const dataUrl = await generateErrorImage(error.message || 'Capture Failed', url);
+                const res = await fetch(dataUrl);
+                const blob = await res.blob();
+
+                await thumbnailStorage.putThumbnail({
+                    id: url,
+                    url,
+                    mime: 'image/jpeg',
+                    blob,
+                    updatedAt: Date.now(),
+                    width: 600,
+                    height: 400,
+                    sizeBytes: blob.size
+                });
+
+                await storageIndex.set({
+                    id: url,
+                    url,
+                    title: 'Capture Error',
+                    status: 'error',
+                    lastCaptureAt: Date.now(),
+                });
+
+                chrome.runtime.sendMessage({
+                    type: 'THUMBNAIL_UPDATED',
+                    url: url,
+                    id: url
+                }).catch(() => { });
+
+            } catch (e) {
+                console.error('Failed to generate error fallback', e);
+                chrome.runtime.sendMessage({
+                    type: 'CAPTURE_FAILED',
+                    url,
+                    error: error.message
+                }).catch(() => { });
+            }
         }
     };
 
@@ -220,6 +317,7 @@ import { captureManager } from './lib/capture';
 import { thumbnailStorage } from './lib/thumbnail_storage';
 import { storageIndex } from './lib/storage_index';
 import { fsAccess } from './lib/fsaccess';
+import { generateErrorImage } from './lib/error_generator';
 
 async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
     try {

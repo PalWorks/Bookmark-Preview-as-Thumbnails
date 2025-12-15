@@ -304,19 +304,28 @@ function App() {
 
     const isCapturing = loadingUrls.size > 0 || queuedUrls.size > 0;
 
-    const handleUpdateThumbnails = () => {
-        // Manual trigger to re-capture MISSING thumbnails in current view (Resume)
+    const handleUpdateThumbnails = (force: boolean = false) => {
+        // Manual trigger to re-capture thumbnails in current view (Resume)
         // Use displayedNodes to respect current Sort Order and Filter
         if (displayedNodes && displayedNodes.length > 0) {
-            // Filter out URLs that already have a thumbnail loaded
+            // Filter out URLs that already have a thumbnail loaded, unless forced
             const urls = displayedNodes
                 .map(n => n.url)
-                .filter(u => u && !thumbnails[u]) as string[];
+                .filter(u => u && (force || !thumbnails[u])) as string[];
 
             if (urls.length > 0) {
-                handleBatchCaptureTrigger(urls);
+                if (force) {
+                    if (confirm(`Are you sure you want to regenerate ${urls.length} thumbnails? This might take a while.`)) {
+                        handleBatchCaptureTrigger(urls);
+                    }
+                } else {
+                    handleBatchCaptureTrigger(urls);
+                }
             } else {
                 console.log('All thumbnails already captured');
+                if (force) {
+                    alert('No bookmarks found to regenerate in the current view.');
+                }
             }
         }
     };
