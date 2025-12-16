@@ -169,12 +169,7 @@ function App() {
         });
     }, []);
 
-    const handleCaptureDelayChange = (value: number) => {
-        // Allow any value while typing, validation happens on use or blur if we added it
-        // But for now, just saving it is fine, we can clamp in usage
-        setCaptureDelay(value);
-        chrome.storage.sync.set({ captureDelay: value });
-    };
+
 
     const handleToggleIncognito = (value: boolean) => {
         if (value) {
@@ -304,27 +299,54 @@ function App() {
 
     const isCapturing = loadingUrls.size > 0 || queuedUrls.size > 0;
 
-    const handleUpdateThumbnails = (force: boolean = false) => {
+    const handleUpdateThumbnails = async (force: boolean = false, regenerateFailed: boolean = false) => {
         // Manual trigger to re-capture thumbnails in current view (Resume)
         // Use displayedNodes to respect current Sort Order and Filter
         if (displayedNodes && displayedNodes.length > 0) {
-            // Filter out URLs that already have a thumbnail loaded, unless forced
-            const urls = displayedNodes
-                .map(n => n.url)
-                .filter(u => u && (force || !thumbnails[u])) as string[];
+            let urlsToCapture: string[] = [];
 
-            if (urls.length > 0) {
-                if (force) {
-                    if (confirm(`Are you sure you want to regenerate ${urls.length} thumbnails? This might take a while.`)) {
-                        handleBatchCaptureTrigger(urls);
+            if (regenerateFailed) {
+                // 1. Get all metadata to find failed ones
+                const allMeta = await import('../lib/storage_index').then(m => m.storageIndex.getAll());
+                const failedUrls = new Set<string>();
+                Object.values(allMeta).forEach(record => {
+                    if (record.status === 'error') {
+                        failedUrls.add(record.url);
                     }
-                } else {
-                    handleBatchCaptureTrigger(urls);
+                });
+
+                // 2. Filter displayed nodes that are in the failed set
+                urlsToCapture = displayedNodes
+                    .map(n => n.url)
+                    .filter(u => u && failedUrls.has(u)) as string[];
+
+                if (urlsToCapture.length === 0) {
+                    alert('No failed thumbnails found in the current view.');
+                    return;
+                }
+
+                if (confirm(`Found ${urlsToCapture.length} failed thumbnails. Regenerate them?`)) {
+                    handleBatchCaptureTrigger(urlsToCapture);
                 }
             } else {
-                console.log('All thumbnails already captured');
-                if (force) {
-                    alert('No bookmarks found to regenerate in the current view.');
+                // Filter out URLs that already have a thumbnail loaded, unless forced
+                urlsToCapture = displayedNodes
+                    .map(n => n.url)
+                    .filter(u => u && (force || !thumbnails[u])) as string[];
+
+                if (urlsToCapture.length > 0) {
+                    if (force) {
+                        if (confirm(`Are you sure you want to regenerate ${urlsToCapture.length} thumbnails? This might take a while.`)) {
+                            handleBatchCaptureTrigger(urlsToCapture);
+                        }
+                    } else {
+                        handleBatchCaptureTrigger(urlsToCapture);
+                    }
+                } else {
+                    console.log('All thumbnails already captured');
+                    if (force) {
+                        alert('No bookmarks found to regenerate in the current view.');
+                    }
                 }
             }
         }
@@ -566,9 +588,31 @@ function App() {
         }
     };
 
+    const handleRegenerate = () => {
+        const id = contextMenu.targetId;
+        chrome.bookmarks.get(id, (results) => {
+            if (results && results.length > 0) {
+                const node = results[0];
+                if (node.url) {
+                    handleBatchCaptureTrigger([node.url]);
+                } else {
+                    // For folders, we could regenerate all children, but user asked for "that link only"
+                    // So we might want to disable this for folders or implement folder regeneration
+                    // Let's implement folder regeneration as a bonus if it's easy, or just restrict to bookmarks
+                    // User said "selecting which will enable user to regenerate the screen capture preview for that link only"
+                    // So let's stick to bookmarks for now.
+                    alert('Regeneration is currently only supported for individual bookmarks.');
+                }
+            }
+        });
+        closeContextMenu();
+    };
+
     const menuItems = [
         { label: 'Rename', action: handleRename },
         { label: 'Delete', action: handleDelete, danger: true },
+        { separator: true, label: '', action: () => { } },
+        { label: 'Regenerate Preview', action: handleRegenerate, disabled: contextMenu.type === 'folder' },
         { separator: true, label: '', action: () => { } },
         { label: 'Cut', action: handleCut },
         { label: 'Copy', action: handleCopy },
@@ -746,7 +790,8 @@ function App() {
                 theme={theme}
                 onToggleTheme={handleToggleTheme}
                 captureDelay={captureDelay}
-                onCaptureDelayChange={handleCaptureDelayChange}
+                onCaptureDelayChange={setCaptureDelay}
+                onCaptureDelayCommit={(value) => chrome.storage.sync.set({ captureDelay: value })}
             />
 
             {storageWarning.level !== 'none' && (

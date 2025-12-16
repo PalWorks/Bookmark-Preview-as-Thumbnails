@@ -177,6 +177,7 @@ async function processBatchCapture(urls: string[], incognitoContext: boolean = f
             const stored = await chrome.storage.sync.get(['captureDelay']);
             const delayVal = Number(stored.captureDelay || 500);
             const delay = Math.max(100, delayVal);
+            console.log(`Using capture delay: ${delay}ms for ${url}`);
             await new Promise(resolve => setTimeout(resolve, delay));
 
             if (stopBatchCapture) return;

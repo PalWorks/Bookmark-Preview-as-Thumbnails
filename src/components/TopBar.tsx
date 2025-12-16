@@ -13,7 +13,7 @@ interface TopBarProps {
     onFilterChange: (type: 'all' | 'folders' | 'bookmarks') => void;
     sortOrder: 'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc';
     onSortChange: (order: 'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc') => void;
-    onUpdateThumbnails: (force?: boolean) => void;
+    onUpdateThumbnails: (force?: boolean, regenerateFailed?: boolean) => void;
     onStopCapture: () => void;
     isCapturing: boolean;
     onExportBackup: () => void;
@@ -23,6 +23,7 @@ interface TopBarProps {
     onToggleTheme: () => void;
     captureDelay: number;
     onCaptureDelayChange: (value: number) => void;
+    onCaptureDelayCommit: (value: number) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -45,7 +46,8 @@ export const TopBar: React.FC<TopBarProps> = ({
     theme,
     onToggleTheme,
     captureDelay,
-    onCaptureDelayChange
+    onCaptureDelayChange,
+    onCaptureDelayCommit
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -124,8 +126,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <div className="capture-buttons">
                         <button
                             className={`icon-btn start-btn ${isCapturing ? 'capturing' : ''}`}
-                            onClick={(e) => onUpdateThumbnails(e.shiftKey)}
-                            title="Generate thumbnail preview for URLs (Shift+Click to force regenerate)"
+                            onClick={(e) => onUpdateThumbnails(e.shiftKey, e.ctrlKey || e.metaKey)}
+                            title="Generate thumbnail preview for URLs (Shift+Click to force regenerate all, Ctrl+Click to regenerate failed)"
                         >
                             <img src="/icons/PlayButton.svg" alt="Start" />
                         </button>
@@ -259,6 +261,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                         className="delay-input"
                                         value={captureDelay}
                                         onChange={(e) => onCaptureDelayChange(parseInt(e.target.value) || 0)}
+                                        onBlur={(e) => onCaptureDelayCommit(parseInt(e.target.value) || 0)}
                                         min="100"
                                         step="50"
                                     />
