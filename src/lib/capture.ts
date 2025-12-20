@@ -7,7 +7,7 @@ export interface CaptureResult {
 }
 
 export class CaptureManager {
-    async capture(tabId: number): Promise<string> {
+    async capture(tabId: number, options?: { useActiveTabCapture?: boolean }): Promise<string> {
         try {
             const tab = await chrome.tabs.get(tabId);
 
@@ -21,6 +21,34 @@ export class CaptureManager {
                     isFocused = !!win.focused;
                 } catch (e) {
                     console.warn('Could not get window state', e);
+                }
+            }
+
+            // If active capture is requested, force activation
+            if (options?.useActiveTabCapture && tab.windowId) {
+                try {
+                    // 1. Get current active tab to restore later
+                    const [currentActive] = await chrome.tabs.query({ windowId: tab.windowId, active: true });
+                    const originalActiveId = currentActive?.id;
+
+                    // 2. Activate target tab
+                    await chrome.tabs.update(tabId, { active: true });
+
+                    // 3. Wait for render (short delay)
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    // 4. Capture
+                    const dataUrl = await this.captureVisibleTab(tab.windowId);
+
+                    // 5. Restore original tab (if different)
+                    if (originalActiveId && originalActiveId !== tabId) {
+                        await chrome.tabs.update(originalActiveId, { active: true });
+                    }
+
+                    return dataUrl;
+                } catch (e) {
+                    console.warn('Active capture failed, falling back to standard logic', e);
+                    // Fallthrough to standard logic
                 }
             }
 

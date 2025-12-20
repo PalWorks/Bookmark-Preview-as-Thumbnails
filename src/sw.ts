@@ -28,7 +28,7 @@ chrome.runtime.onMessage.addListener(async (message, _sender, sendResponse) => {
 
     if (message.type === 'BATCH_CAPTURE') {
         const incognito = _sender.tab?.incognito || false;
-        processBatchCapture(message.urls, incognito);
+        processBatchCapture(message.urls, incognito, message.useActiveTabCapture);
         return true;
     }
 
@@ -63,7 +63,7 @@ chrome.runtime.onMessage.addListener(async (message, _sender, sendResponse) => {
 let isBatchCapturing = false;
 let stopBatchCapture = false;
 
-async function processBatchCapture(urls: string[], incognitoContext: boolean = false) {
+async function processBatchCapture(urls: string[], incognitoContext: boolean = false, useActiveTabCapture: boolean = false) {
     if (isBatchCapturing) {
         console.log('Batch capture already in progress');
         return;
@@ -108,7 +108,8 @@ async function processBatchCapture(urls: string[], incognitoContext: boolean = f
     }
 
     // Prepare tab pool
-    const CONCURRENCY = 3;
+    // If using active tab capture, we must serialize (concurrency 1) to avoid fighting for focus
+    const CONCURRENCY = useActiveTabCapture ? 1 : 3;
     const tabIds: number[] = [];
 
     // Get the initial tab
@@ -228,7 +229,7 @@ async function processBatchCapture(urls: string[], incognitoContext: boolean = f
 
             } else {
                 // Capture normally
-                await handleCapture(tabId, url);
+                await handleCapture(tabId, url, useActiveTabCapture);
             }
 
         } catch (error: any) {
@@ -320,7 +321,7 @@ import { storageIndex } from './lib/storage_index';
 import { fsAccess } from './lib/fsaccess';
 import { generateErrorImage } from './lib/error_generator';
 
-async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
+async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string, useActiveTabCapture: boolean = false) {
     try {
         let tabId: number;
 
@@ -349,7 +350,7 @@ async function handleCapture(tabIdOrWindowId?: number, overrideUrl?: string) {
         if (!tab.url) throw new Error('Tab has no URL');
 
         // Use unified capture method
-        const dataUrl = await captureManager.capture(tabId);
+        const dataUrl = await captureManager.capture(tabId, { useActiveTabCapture });
         const result = await captureManager.resizeAndCompress(dataUrl, 600, 0.8); // 600px width
 
         // Use overrideUrl as ID if provided, otherwise use tab.url

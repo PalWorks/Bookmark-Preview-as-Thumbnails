@@ -24,6 +24,8 @@ interface TopBarProps {
     captureDelay: number;
     onCaptureDelayChange: (value: number) => void;
     onCaptureDelayCommit: (value: number) => void;
+    useActiveTabCapture: boolean;
+    onToggleActiveTabCapture: (value: boolean) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -47,7 +49,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     onToggleTheme,
     captureDelay,
     onCaptureDelayChange,
-    onCaptureDelayCommit
+    onCaptureDelayCommit,
+    useActiveTabCapture,
+    onToggleActiveTabCapture
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -244,6 +248,28 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <span>
                                     Note: Incognito mode cannot capture sites that require login (e.g. Gmail, Notion).
                                     You must also allow this extension in Incognito settings.
+                                </span>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item toggle-item" onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleActiveTabCapture(!useActiveTabCapture);
+                            }}>
+                                <LayoutGrid size={16} className="menu-icon" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Use Active Tab Capture</div>
+                                    <div className="menu-desc">Better quality, but flickers</div>
+                                </div>
+                                <div className={`toggle-switch ${useActiveTabCapture ? 'checked' : ''}`}></div>
+                            </div>
+
+                            <div className="menu-info">
+                                <Info size={14} className="info-icon" />
+                                <span>
+                                    Experimental: Temporarily activates tabs to capture them.
+                                    Fixes issues on sites like Reddit/GitHub.
                                 </span>
                             </div>
 

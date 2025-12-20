@@ -155,10 +155,11 @@ function App() {
     const [useIncognito, setUseIncognito] = useState(false);
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
     const [captureDelay, setCaptureDelay] = useState<number>(500);
+    const [useActiveTabCapture, setUseActiveTabCapture] = useState(false);
 
     // Load settings
     useEffect(() => {
-        chrome.storage.sync.get(['useIncognito', 'theme', 'captureDelay'], (result) => {
+        chrome.storage.sync.get(['useIncognito', 'theme', 'captureDelay', 'useActiveTabCapture'], (result) => {
             setUseIncognito(!!result.useIncognito);
             if (result.theme) {
                 setTheme(result.theme as 'light' | 'dark' | 'system');
@@ -166,6 +167,7 @@ function App() {
             if (result.captureDelay) {
                 setCaptureDelay(Number(result.captureDelay));
             }
+            setUseActiveTabCapture(!!result.useActiveTabCapture);
         });
     }, []);
 
@@ -701,7 +703,7 @@ function App() {
             urls.forEach(url => next.add(url));
             return next;
         });
-        chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls });
+        chrome.runtime.sendMessage({ type: 'BATCH_CAPTURE', urls, useActiveTabCapture });
     };
 
     const handleSetTheme = (newTheme: 'light' | 'dark' | 'system') => {
@@ -735,7 +737,7 @@ function App() {
             if (file) {
                 try {
                     const result = await backupManager.importBackup(file);
-                    alert(`Backup imported successfully! Restored metadata for ${result.count} thumbnails.\n\nIf you have an external folder with images, please "Connect Folder" now to link them.`);
+                    alert(`Successfully imported ${result.count} thumbnails.`);
                     // Reload to reflect changes
                     window.location.reload();
                 } catch (err) {
@@ -792,6 +794,11 @@ function App() {
                 captureDelay={captureDelay}
                 onCaptureDelayChange={setCaptureDelay}
                 onCaptureDelayCommit={(value) => chrome.storage.sync.set({ captureDelay: value })}
+                useActiveTabCapture={useActiveTabCapture}
+                onToggleActiveTabCapture={(value) => {
+                    setUseActiveTabCapture(value);
+                    chrome.storage.sync.set({ useActiveTabCapture: value });
+                }}
             />
 
             {storageWarning.level !== 'none' && (

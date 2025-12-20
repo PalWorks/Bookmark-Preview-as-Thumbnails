@@ -16,15 +16,20 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 });
 
 async function captureTab(): Promise<string> {
-    const canvas = await html2canvas(document.body, {
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        height: window.innerHeight,
-        width: window.innerWidth,
-        windowHeight: window.innerHeight,
-        windowWidth: window.innerWidth,
-    });
+    try {
+        const canvas = await html2canvas(document.body, {
+            useCORS: true,
+            allowTaint: false, // Changed to false to prevent security errors on cross-origin images
+            logging: true, // Enable logging to see what's happening
+            height: window.innerHeight,
+            width: window.innerWidth,
+            windowHeight: window.innerHeight,
+            windowWidth: window.innerWidth,
+        });
 
-    return canvas.toDataURL('image/webp', 0.8);
+        return canvas.toDataURL('image/webp', 0.8);
+    } catch (error) {
+        console.error('html2canvas capture failed:', error);
+        throw error;
+    }
 }
