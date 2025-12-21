@@ -7,7 +7,6 @@ import { Footer } from './components/Footer';
 import { TallyForm } from './components/TallyForm';
 import { Testimonials } from './components/Testimonials';
 import { PrivacyPolicy, TermsAndConditions } from './components/Legal';
-import { Chrome } from 'lucide-react';
 import { Button } from './components/Button';
 
 type Page = 'home' | 'privacy' | 'terms' | 'contact';
@@ -20,9 +19,15 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <button onClick={() => onNavigate('home')} className="flex items-center gap-2 font-bold text-lg text-slate-900 hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white">
-            <Chrome size={18} />
+        <button
+          onClick={() => {
+            onNavigate('home');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className="flex items-center gap-2 font-bold text-lg text-slate-900 hover:opacity-80 transition-opacity"
+        >
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+            <img src="logo.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <span>Bookmarks as Thumbnails</span>
         </button>
