@@ -95,7 +95,6 @@ export const PricingSection: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
-    </section >
+    </section>
   );
 };
