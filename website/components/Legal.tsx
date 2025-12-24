@@ -60,8 +60,8 @@ export const GetInTouch: React.FC = () => (
 
     <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200">
       <p className="font-medium text-slate-900 mb-2">Support Email</p>
-      <a href="mailto:support@bookmarks-thumbnails.com" className="text-2xl font-bold text-brand-600 hover:text-brand-700 transition-colors">
-        support@bookmarks-thumbnails.com
+      <a href="mailto:support@palworks.ai" className="text-2xl font-bold text-brand-600 hover:text-brand-700 transition-colors">
+        support@palworks.ai
       </a>
 
       <div className="my-8 h-px bg-slate-200 w-full" />
