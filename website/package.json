@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.559.0",

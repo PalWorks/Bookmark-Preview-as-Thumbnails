@@ -3,7 +3,7 @@
 // Service Worker for BookmarksThumbnails
 
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('BookmarksThumbnails extension installed');
+
 });
 
 // Listen for extension icon click
@@ -16,7 +16,7 @@ chrome.action.onClicked.addListener(() => {
 
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener(async (message, _sender, sendResponse) => {
-    console.log('Received message:', message);
+
 
     if (message.type === 'CAPTURE_THUMBNAIL') {
         handleCapture().then(sendResponse).catch((err) => {
@@ -65,12 +65,12 @@ let stopBatchCapture = false;
 
 async function processBatchCapture(urls: string[], incognitoContext: boolean = false, useActiveTabCapture: boolean = false) {
     if (isBatchCapturing) {
-        console.log('Batch capture already in progress');
+
         return;
     }
     isBatchCapturing = true;
     stopBatchCapture = false;
-    console.log('Starting batch capture for', urls.length, 'URLs', 'Incognito:', incognitoContext);
+
 
     // Create a window to perform captures without disrupting the user
     let captureWindow: chrome.windows.Window | undefined;
@@ -178,13 +178,13 @@ async function processBatchCapture(urls: string[], incognitoContext: boolean = f
             const stored = await chrome.storage.sync.get(['captureDelay']);
             const delayVal = Number(stored.captureDelay || 500);
             const delay = Math.max(100, delayVal);
-            console.log(`Using capture delay: ${delay}ms for ${url}`);
+
             await new Promise(resolve => setTimeout(resolve, delay));
 
             if (stopBatchCapture) return;
 
             if (navError) {
-                console.log('Navigation error detected:', navError);
+
                 // Generate error thumbnail
                 const dataUrl = await generateErrorImage(navError, url);
 
@@ -292,7 +292,7 @@ async function processBatchCapture(urls: string[], incognitoContext: boolean = f
     if (captureWindow && captureWindow.id) {
         await chrome.windows.remove(captureWindow.id);
     }
-    console.log('Batch capture complete');
+
     isBatchCapturing = false;
     stopBatchCapture = false;
 }
@@ -305,7 +305,7 @@ chrome.bookmarks.onCreated.addListener(async (_id, bookmark) => {
         const activeTab = tabs[0];
 
         if (activeTab && activeTab.url === bookmark.url) {
-            console.log('Bookmark created for active tab, capturing thumbnail...');
+
             try {
                 await handleCapture();
             } catch (err) {
@@ -422,5 +422,5 @@ chrome.runtime.onInstalled.addListener((details) => {
 
     // Set uninstall URL to GitHub repo (or a specific help page)
     // This opens AFTER the extension is removed.
-    chrome.runtime.setUninstallURL('https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails');
+    chrome.runtime.setUninstallURL('https://palworks.github.io/Bookmark-Preview-as-Thumbnails/uninstall-feedback.html');
 });

@@ -5,7 +5,7 @@ export const PrivacyPolicy: React.FC = () => (
     <h1 className="text-4xl font-bold text-slate-900 mb-8">Privacy Policy</h1>
     <div className="prose prose-slate max-w-none text-slate-600 space-y-6">
       <p>Last updated: {new Date().toLocaleDateString()}</p>
-      
+
       <h3 className="text-xl font-bold text-slate-900">1. Overview</h3>
       <p>Bookmarks as Thumbnails ("the Extension") is designed with a "Local First" architecture. We believe your browsing data is yours alone. We do not collect, store, or transmit your personal data, bookmark URLs, or generated thumbnails to any external servers.</p>
 
@@ -36,7 +36,11 @@ export const TermsAndConditions: React.FC = () => (
       <p>By installing and using the Bookmarks as Thumbnails extension, you agree to the following terms:</p>
 
       <h3 className="text-xl font-bold text-slate-900">1. Usage License</h3>
-      <p>You are granted a non-exclusive, revocable, personal license to use the Extension for personal or commercial purposes free of charge.</p>
+      <p>This software is dual-licensed:</p>
+      <ul className="list-disc pl-5 space-y-2">
+        <li><strong>Free/Open Source:</strong> You may use this software under the terms of the GNU Affero General Public License v3 (AGPLv3) for non-commercial or open-source purposes.</li>
+        <li><strong>Commercial:</strong> For proprietary or commercial use without the AGPLv3 restrictions, a commercial license must be purchased.</li>
+      </ul>
 
       <h3 className="text-xl font-bold text-slate-900">2. Disclaimer of Warranty</h3>
       <p>The Extension is provided "AS IS" without warranty of any kind. We make no guarantees that the software will be error-free, uninterrupted, or compatible with all systems. We are not responsible for any data loss associated with the use of this software (though we provide backup tools to mitigate this risk).</p>
@@ -59,9 +63,9 @@ export const GetInTouch: React.FC = () => (
       <a href="mailto:support@bookmarks-thumbnails.com" className="text-2xl font-bold text-brand-600 hover:text-brand-700 transition-colors">
         support@bookmarks-thumbnails.com
       </a>
-      
+
       <div className="my-8 h-px bg-slate-200 w-full" />
-      
+
       <p className="font-medium text-slate-900 mb-2">Social</p>
       <div className="flex justify-center gap-4">
         <a href="#" className="text-slate-500 hover:text-brand-600">Twitter / X</a>

@@ -8,10 +8,8 @@
         "storage",
         "tabs",
         "activeTab",
-        "downloads",
         "bookmarks",
         "scripting",
-        "management",
         "unlimitedStorage",
         "webNavigation"
     ],

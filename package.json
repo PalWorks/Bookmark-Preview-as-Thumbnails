@@ -1,15 +1,17 @@
 {
   "name": "bookmarks-thumbnails",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "zip": "npm run build && cd dist && zip -r ../extension.zip ."
   },
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "lucide-react": "^0.556.0",
     "react": "^19.2.0",

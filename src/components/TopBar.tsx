@@ -260,7 +260,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <LayoutGrid size={16} className="menu-icon" />
                                 <div className="menu-text">
                                     <div className="menu-title">Use Active Tab Capture</div>
-                                    <div className="menu-desc">Better quality, but flickers</div>
+
                                 </div>
                                 <div className={`toggle-switch ${useActiveTabCapture ? 'checked' : ''}`}></div>
                             </div>

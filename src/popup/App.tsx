@@ -119,7 +119,7 @@ function App() {
 
             // 3. Trigger batch capture if needed
             if (missingUrls.length > 0) {
-                console.log('Found missing thumbnails:', missingUrls);
+
             }
         };
 
@@ -345,7 +345,7 @@ function App() {
                         handleBatchCaptureTrigger(urlsToCapture);
                     }
                 } else {
-                    console.log('All thumbnails already captured');
+
                     if (force) {
                         alert('No bookmarks found to regenerate in the current view.');
                     }
