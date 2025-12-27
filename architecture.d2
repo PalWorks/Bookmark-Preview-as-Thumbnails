@@ -1,0 +1,132 @@
+title: Bookmarks Thumbnails Architecture
+direction: right
+
+classes: {
+  browser_component: {
+    style: {
+      stroke-dash: 3
+      fill: "#f0f8ff"
+    }
+  }
+}
+
+User: {
+  shape: person
+}
+
+Browser: {
+  style: {
+    fill: "#e6e6fa"
+  }
+  
+  Extension: {
+    class: browser_component
+    
+    Manifest: {
+      shape: page
+      tooltip: "manifest.json"
+    }
+    
+    ServiceWorker: {
+      shape: rectangle
+      tooltip: "Background logic (sw.ts)"
+    }
+    
+    ContentScript: {
+      shape: rectangle
+      tooltip: "Runs on web pages"
+    }
+    
+    Popup: {
+      shape: square
+      tooltip: "Extension UI"
+    }
+    
+    Storage: {
+      shape: cylinder
+      tooltip: "Local/Sync Storage"
+    }
+
+    Manifest -> ServiceWorker: Defines
+    Manifest -> ContentScript: Defines
+    Manifest -> Popup: Defines
+    
+    Popup -> ServiceWorker: Messages
+    ContentScript -> ServiceWorker: Messages
+    ServiceWorker -> Storage: Reads/Writes
+  }
+  
+  Website: {
+    class: browser_component
+    tooltip: "Landing Page / Docs"
+    
+    Frontend: {
+      shape: square
+      tooltip: "React App"
+    }
+  }
+}
+
+User -> Browser.Extension.Popup: Interacts
+User -> Browser.Website: Visits
+Browser.Extension.Popup -> Browser.Website: Links to (Help/Support)
+
+Deployment: {
+  style: {
+    fill: "#fff0f5"
+    stroke: "#333"
+  }
+
+  GitHub: {
+    shape: package
+    tooltip: "Source Code & CI/CD"
+    
+    Repository: {
+      shape: cylinder
+    }
+    
+    Actions: {
+      shape: callout
+      type: "CI/CD"
+      tooltip: ".github/workflows/deploy.yml"
+    }
+    
+    Repository -> Actions: Push to main
+  }
+
+  BuildEnv: {
+    label: "Build Environment (Ubuntu)"
+    shape: rectangle
+    style: {
+      stroke-dash: 3
+    }
+    
+    BuildWebsite: {
+      shape: package
+      label: "npm run build (Website)"
+    }
+    
+    BuildExtension: {
+      shape: package
+      label: "npm run build (Extension)"
+    }
+  }
+
+  Hosting: {
+    GitHubPages: {
+      shape: cloud
+      tooltip: "Website Hosting"
+    }
+    
+    ChromeWebStore: {
+      shape: cloud
+      tooltip: "Extension Distribution"
+    }
+  }
+
+  GitHub.Actions -> BuildEnv.BuildWebsite: Triggers
+  BuildEnv.BuildWebsite -> Hosting.GitHubPages: Deploys
+  
+  User -> BuildEnv.BuildExtension: Manual Build (Currently)
+  BuildEnv.BuildExtension -> Hosting.ChromeWebStore: Upload Zip
+}
