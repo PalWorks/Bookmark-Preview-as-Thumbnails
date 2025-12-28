@@ -50,7 +50,7 @@ export const PricingSection: React.FC = () => {
               ))}
             </div>
 
-            <Button className="w-full" icon={<Chrome size={18} />}>
+            <Button className="w-full" icon={<Chrome size={18} />} onClick={() => window.open('https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj?authuser=0&hl=en-GB', '_blank')}>
               Add to Chrome
             </Button>
             <p className="text-center text-xs text-slate-400 mt-4">

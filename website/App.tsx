@@ -38,7 +38,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
           <button onClick={() => { onNavigate('home'); setTimeout(() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }), 100) }} className="hover:text-brand-600 transition-colors">Pricing</button>
         </div>
 
-        <Button size="sm">Add to Chrome</Button>
+        <Button size="sm" onClick={() => window.open('https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj?authuser=0&hl=en-GB', '_blank')}>Add to Chrome</Button>
       </div>
     </nav>
   );
@@ -53,7 +53,7 @@ const CTASection: React.FC = () => {
         <p className="text-brand-200 text-xl mb-10 max-w-2xl mx-auto">
           Join thousands of users who have switched to a visual, private, and faster bookmarking experience.
         </p>
-        <Button size="lg" className="bg-white text-brand-900 hover:bg-brand-50 shadow-none hover:shadow-lg">
+        <Button size="lg" className="bg-white text-brand-900 hover:bg-brand-50 shadow-none hover:shadow-lg" onClick={() => window.open('https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj?authuser=0&hl=en-GB', '_blank')}>
           Add to Chrome - It's Free
         </Button>
         <p className="mt-4 text-brand-400 text-sm">Requires Chrome 88+ • No account needed</p>

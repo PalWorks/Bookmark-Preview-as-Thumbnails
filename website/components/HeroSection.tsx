@@ -44,7 +44,7 @@ export const HeroSection: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4"
           >
-            <Button size="lg" icon={<Chrome size={20} />} className="w-full sm:w-auto">
+            <Button size="lg" icon={<Chrome size={20} />} className="w-full sm:w-auto" onClick={() => window.open('https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj?authuser=0&hl=en-GB', '_blank')}>
               Add to Chrome - It's Free
             </Button>
             {/* Changelog button removed */}
