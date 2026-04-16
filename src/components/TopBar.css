@@ -473,3 +473,35 @@
 .theme-dark .delay-input:focus {
     border-color: #8ab4f8;
 }
+
+/* Theme toggle button */
+.theme-toggle-btn {
+    margin-right: 4px;
+}
+
+.theme-icon {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) invert(1);
+}
+
+/* Delay input flex wrapper */
+.delay-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Menu item with default cursor (non-interactive) */
+.menu-item--static {
+    cursor: default;
+}
+
+/* Danger color for destructive menu items */
+.menu-icon--danger {
+    color: #d93025;
+}
+
+.menu-title--danger {
+    color: #d93025;
+}

@@ -67,9 +67,11 @@ export class FSAccess {
 
         this.directoryHandle = record.handle;
 
-        // Verify permission
-        const permission = await this.verifyPermission(this.directoryHandle, true);
-        return permission;
+        // Only query permission — never request it from a non-gesture context (e.g. SW).
+        // requestPermission requires a user gesture and must be triggered from popup UI only (chooseDirectory).
+        const options: FileSystemHandlePermissionDescriptor = { mode: 'readwrite' };
+        const state = await this.directoryHandle.queryPermission(options);
+        return state === 'granted';
     }
 
     async verifyPermission(

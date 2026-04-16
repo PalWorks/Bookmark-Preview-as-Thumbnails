@@ -20,7 +20,7 @@ async function captureTab(): Promise<string> {
         const canvas = await html2canvas(document.body, {
             useCORS: true,
             allowTaint: false, // Changed to false to prevent security errors on cross-origin images
-            logging: true, // Enable logging to see what's happening
+            logging: false,
             height: window.innerHeight,
             width: window.innerWidth,
             windowHeight: window.innerHeight,

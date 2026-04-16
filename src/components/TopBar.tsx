@@ -201,12 +201,11 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                 <div className="settings-wrapper" ref={menuRef}>
                     <button
-                        className="icon-btn"
+                        className="icon-btn theme-toggle-btn"
                         onClick={onToggleTheme}
                         title={`Theme: ${getThemeIconTitle()}`}
-                        style={{ marginRight: '4px' }}
                     >
-                        <img src="/icons/DarkThemeIcon.svg" alt="Toggle Theme" style={{ width: '20px', height: '20px', filter: 'brightness(0) invert(1)' }} />
+                        <img src="/icons/DarkThemeIcon.svg" alt="Toggle Theme" className="theme-icon" />
                     </button>
                     <button
                         className={`icon-btn ${isMenuOpen ? 'active' : ''}`}
@@ -275,20 +274,26 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                             <div className="menu-divider"></div>
 
-                            <div className="menu-item" onClick={(e) => e.stopPropagation()} style={{ cursor: 'default' }}>
+                            <div className="menu-item menu-item--static" onClick={(e) => e.stopPropagation()}>
                                 <Clock size={16} className="menu-icon" />
                                 <div className="menu-text">
                                     <div className="menu-title">Screen Capture Delay</div>
                                     <div className="menu-desc">Wait time (ms)</div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div className="delay-input-wrapper">
                                     <input
                                         type="number"
                                         className="delay-input"
                                         value={captureDelay}
-                                        onChange={(e) => onCaptureDelayChange(parseInt(e.target.value) || 0)}
-                                        onBlur={(e) => onCaptureDelayCommit(parseInt(e.target.value) || 0)}
+                                        onChange={(e) => onCaptureDelayChange(parseInt(e.target.value, 10) || 0)}
+                                        onBlur={(e) => {
+                                            const raw = parseInt(e.target.value, 10);
+                                            const clamped = isNaN(raw) ? 500 : Math.max(100, Math.min(5000, raw));
+                                            onCaptureDelayChange(clamped);
+                                            onCaptureDelayCommit(clamped);
+                                        }}
                                         min="100"
+                                        max="5000"
                                         step="50"
                                     />
                                 </div>
@@ -326,9 +331,9 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 onUninstall();
                                 setIsMenuOpen(false);
                             }}>
-                                <Trash2 size={16} className="menu-icon" style={{ color: '#d93025' }} />
+                                <Trash2 size={16} className="menu-icon menu-icon--danger" />
                                 <div>
-                                    <div className="menu-title" style={{ color: '#d93025' }}>Uninstall Extension</div>
+                                    <div className="menu-title menu-title--danger">Uninstall Extension</div>
                                     <div className="menu-desc">Auto-backup & Remove</div>
                                 </div>
                             </div>

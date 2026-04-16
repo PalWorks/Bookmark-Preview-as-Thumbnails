@@ -1,4 +1,5 @@
 import { thumbnailStorage } from './thumbnail_storage';
+import { storageIndex } from './storage_index';
 
 export interface BackupData {
     version: number;
@@ -13,48 +14,53 @@ export interface BackupData {
     }>;
 }
 
-export class BackupManager {
-    private blobToBase64(blob: Blob): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-    }
+// Raw shape of a thumb_ record as stored in chrome.storage.local
+interface RawThumbRecord {
+    id: string;
+    url: string;
+    filename?: string;
+    base64?: string;
+}
 
+const THUMB_PREFIX = 'thumb_';
+const BACKUP_CHUNK_SIZE = 25;
+
+export class BackupManager {
     async createBackup(): Promise<Blob> {
-        // 1. Get Settings
         const settings = await chrome.storage.sync.get(null);
 
-        // 2. Get Thumbnails Metadata
-        const thumbnails = await thumbnailStorage.getAllThumbnails();
+        // Read raw storage once — avoids the getAllThumbnails base64↔blob round-trip
+        const allData = await chrome.storage.local.get(null);
+        const thumbKeys = Object.keys(allData).filter(k => k.startsWith(THUMB_PREFIX));
 
-        // 3. Prepare export data
-        // We now include the image data as Base64 to ensure full restoration
-        const exportThumbnails = await Promise.all(thumbnails.map(async t => {
-            let data = '';
-            if (t.blob) {
-                try {
-                    data = await this.blobToBase64(t.blob);
-                } catch (e) {
-                    console.warn(`Failed to convert blob for ${t.id}`, e);
-                }
+        // Fetch metadata so we can populate title in the export
+        const allMeta = await storageIndex.getAll();
+
+        const exportThumbnails: BackupData['thumbnails'] = [];
+
+        for (let i = 0; i < thumbKeys.length; i += BACKUP_CHUNK_SIZE) {
+            const chunk = thumbKeys.slice(i, i + BACKUP_CHUNK_SIZE);
+            for (const key of chunk) {
+                const r = allData[key] as RawThumbRecord;
+                exportThumbnails.push({
+                    id: r.id,
+                    url: r.url,
+                    filename: r.filename,
+                    title: allMeta[r.id]?.title ?? '',
+                    image_data: r.base64 || '',
+                });
             }
-            return {
-                id: t.id,
-                url: t.url,
-                filename: t.filename,
-                title: '',
-                image_data: data // Include Base64 image data
-            };
-        }));
+            // Yield to event loop between chunks to keep UI responsive
+            if (i + BACKUP_CHUNK_SIZE < thumbKeys.length) {
+                await new Promise<void>(resolve => setTimeout(resolve, 0));
+            }
+        }
 
         const backupData: BackupData = {
             version: 1,
             timestamp: Date.now(),
             settings,
-            thumbnails: exportThumbnails
+            thumbnails: exportThumbnails,
         };
 
         return new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -64,6 +70,10 @@ export class BackupManager {
         try {
             const text = await file.text();
             const data: BackupData = JSON.parse(text);
+
+            if (typeof data.version !== 'number' || data.version !== 1) {
+                throw new Error(`Unsupported or missing backup version: ${data.version ?? 'none'}`);
+            }
 
             if (data.settings) {
                 await chrome.storage.sync.set(data.settings);
