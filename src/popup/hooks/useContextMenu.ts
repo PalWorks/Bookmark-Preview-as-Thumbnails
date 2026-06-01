@@ -123,12 +123,15 @@ export function useContextMenu({
         return `Open ${suffix}`;
     };
 
+    // Rebuilt each render (cheap, and the menu only renders while visible). A
+    // useMemo here was ineffective anyway — its handler closures are recreated
+    // every render, so they could never match the manual dependency list.
     const menuItems = [
         { label: 'Rename', action: handleRename },
         { label: 'Delete', action: handleDelete, danger: true },
-        { separator: true, label: '', action: () => {} },
+        { separator: true, label: '', action: () => { } },
         { label: 'Regenerate Preview', action: handleRegenerate, disabled: contextMenu.type === 'folder' },
-        { separator: true, label: '', action: () => {} },
+        { separator: true, label: '', action: () => { } },
         { label: 'Cut', action: () => onCut(contextMenu.targetId) },
         { label: 'Copy', action: () => onCopy(contextMenu.targetId) },
         {
@@ -139,7 +142,7 @@ export function useContextMenu({
             },
             disabled: !clipboard,
         },
-        { separator: true, label: '', action: () => {} },
+        { separator: true, label: '', action: () => { } },
         { label: getOpenLabel('in new tab'), action: () => handleOpen('tab') },
         { label: getOpenLabel('in new window'), action: () => handleOpen('window') },
         { label: getOpenLabel('in Incognito window'), action: () => handleOpen('incognito') },

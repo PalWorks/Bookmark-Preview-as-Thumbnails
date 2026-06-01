@@ -103,6 +103,30 @@ describe('BackupManager', () => {
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
             expect(data.thumbnails).toHaveLength(0);
         });
+
+        it('populates title from meta_ record', async () => {
+            localStore['thumb_https://example.com'] = {
+                id: 'https://example.com', url: 'https://example.com',
+                mime: 'image/webp', updatedAt: 1000, width: 600, height: 400, sizeBytes: 10,
+                base64: 'data:image/webp;base64,ZmFrZQ==',
+            };
+            localStore['meta_https://example.com'] = {
+                id: 'https://example.com', url: 'https://example.com',
+                title: 'My Page', status: 'saved_indexeddb',
+            };
+            const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
+            expect(data.thumbnails[0].title).toBe('My Page');
+        });
+
+        it('uses empty string when no meta_ record exists for a thumbnail', async () => {
+            localStore['thumb_https://no-meta.example'] = {
+                id: 'https://no-meta.example', url: 'https://no-meta.example',
+                mime: 'image/webp', updatedAt: 1000, width: 600, height: 400, sizeBytes: 10,
+                base64: 'data:image/webp;base64,ZmFrZQ==',
+            };
+            const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
+            expect(data.thumbnails[0].title).toBe('');
+        });
     });
 
     // ─── importBackup ─────────────────────────────────────────────────────────
@@ -206,9 +230,78 @@ describe('BackupManager', () => {
             expect(result.count).toBe(1);
         });
 
+        it('restores a meta_ record so the index can see imported thumbnails', async () => {
+            const file = makeBackupFile({
+                thumbnails: [
+                    { id: 'https://a.example', url: 'https://a.example', title: 'A Page', image_data: 'data:image/webp;base64,ZmFrZQ==' },
+                ],
+            });
+            await manager.importBackup(file);
+
+            const meta = localStore['meta_https://a.example'] as Record<string, unknown> | undefined;
+            expect(meta).toBeDefined();
+            expect(meta!.title).toBe('A Page');
+            // With a blob present and no explicit status, defaults to saved_indexeddb
+            expect(meta!.status).toBe('saved_indexeddb');
+        });
+
+        it('preserves an exported error status on import (Regenerate Failed support)', async () => {
+            const file = makeBackupFile({
+                thumbnails: [
+                    { id: 'https://err.example', url: 'https://err.example', title: 'Broken', status: 'error', image_data: 'data:image/webp;base64,ZmFrZQ==' },
+                ],
+            });
+            await manager.importBackup(file);
+
+            const meta = localStore['meta_https://err.example'] as Record<string, unknown> | undefined;
+            expect(meta).toBeDefined();
+            expect(meta!.status).toBe('error');
+        });
+
+        it('round-trips status through export then import', async () => {
+            localStore['thumb_https://x.example'] = {
+                id: 'https://x.example', url: 'https://x.example',
+                mime: 'image/webp', updatedAt: 1000, width: 600, height: 400, sizeBytes: 10,
+                base64: 'data:image/webp;base64,ZmFrZQ==',
+            };
+            localStore['meta_https://x.example'] = {
+                id: 'https://x.example', url: 'https://x.example',
+                title: 'X', status: 'error',
+            };
+
+            const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
+            expect(data.thumbnails[0].status).toBe('error');
+        });
+
         it('throws on invalid JSON', async () => {
             const file = { text: async () => 'not-valid-json' } as unknown as File;
             await expect(manager.importBackup(file)).rejects.toThrow();
+        });
+
+        it('accepts backup with version: 0 (legacy pre-versioning)', async () => {
+            const json = JSON.stringify({
+                version: 0, timestamp: Date.now(), settings: {}, thumbnails: [],
+            });
+            const file = { text: async () => json } as unknown as File;
+            const result = await manager.importBackup(file);
+            expect(result.success).toBe(true);
+        });
+
+        it('accepts backup with missing version field', async () => {
+            const json = JSON.stringify({
+                timestamp: Date.now(), settings: {}, thumbnails: [],
+            });
+            const file = { text: async () => json } as unknown as File;
+            const result = await manager.importBackup(file);
+            expect(result.success).toBe(true);
+        });
+
+        it('throws for backup version > 1', async () => {
+            const json = JSON.stringify({
+                version: 2, timestamp: Date.now(), settings: {}, thumbnails: [],
+            });
+            const file = { text: async () => json } as unknown as File;
+            await expect(manager.importBackup(file)).rejects.toThrow('Unsupported backup version');
         });
     });
 });

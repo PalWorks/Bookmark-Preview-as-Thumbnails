@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Grid, List, Sun, Moon, MoreVertical, Folder, ExternalLink, Globe, Code, ShoppingBag, Layout } from 'lucide-react';
+import { Search, Grid, List, Sun, Moon, MoreVertical, Folder, ExternalLink, Globe } from 'lucide-react';
 import { ViewMode, ThemeMode, BookmarkMock } from '../types';
 
 const MOCK_BOOKMARKS: BookmarkMock[] = [

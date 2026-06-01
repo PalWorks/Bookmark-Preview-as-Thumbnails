@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-export interface MenuItem {
+interface MenuItem {
     label: string;
     action: () => void;
     disabled?: boolean;

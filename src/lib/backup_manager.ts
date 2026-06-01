@@ -1,15 +1,17 @@
 import { thumbnailStorage } from './thumbnail_storage';
 import { storageIndex } from './storage_index';
+import type { ThumbnailStatus } from './storage_index';
 
 export interface BackupData {
     version: number;
     timestamp: number;
-    settings: Record<string, any>;
+    settings: Record<string, unknown>;
     thumbnails: Array<{
         id: string;
         url: string;
         filename?: string;
         title?: string;
+        status?: ThumbnailStatus;
         image_data?: string; // Base64 image data
     }>;
 }
@@ -29,12 +31,17 @@ export class BackupManager {
     async createBackup(): Promise<Blob> {
         const settings = await chrome.storage.sync.get(null);
 
-        // Read raw storage once — avoids the getAllThumbnails base64↔blob round-trip
+        // Read raw storage once for both thumbnails and metadata
         const allData = await chrome.storage.local.get(null);
         const thumbKeys = Object.keys(allData).filter(k => k.startsWith(THUMB_PREFIX));
 
-        // Fetch metadata so we can populate title in the export
-        const allMeta = await storageIndex.getAll();
+        // Extract metadata from the same read instead of a second full-storage fetch
+        const META_PREFIX = 'meta_';
+        const allMeta: Record<string, { title?: string; status?: ThumbnailStatus }> = Object.fromEntries(
+            Object.entries(allData)
+                .filter(([k]) => k.startsWith(META_PREFIX))
+                .map(([k, v]) => [k.slice(META_PREFIX.length), v as { title?: string; status?: ThumbnailStatus }])
+        );
 
         const exportThumbnails: BackupData['thumbnails'] = [];
 
@@ -47,6 +54,7 @@ export class BackupManager {
                     url: r.url,
                     filename: r.filename,
                     title: allMeta[r.id]?.title ?? '',
+                    status: allMeta[r.id]?.status,
                     image_data: r.base64 || '',
                 });
             }
@@ -71,12 +79,21 @@ export class BackupManager {
             const text = await file.text();
             const data: BackupData = JSON.parse(text);
 
-            if (typeof data.version !== 'number' || data.version !== 1) {
-                throw new Error(`Unsupported or missing backup version: ${data.version ?? 'none'}`);
+            if (typeof data.version === 'number' && data.version > 1) {
+                throw new Error(`Unsupported backup version: ${data.version}. Please update the extension.`);
             }
 
+            const ALLOWED_SYNC_KEYS = ['useIncognito', 'theme', 'captureDelay', 'useActiveTabCapture'] as const;
             if (data.settings) {
-                await chrome.storage.sync.set(data.settings);
+                const filtered: Record<string, unknown> = {};
+                for (const key of ALLOWED_SYNC_KEYS) {
+                    if (key in data.settings) {
+                        filtered[key] = data.settings[key];
+                    }
+                }
+                if (Object.keys(filtered).length > 0) {
+                    await chrome.storage.sync.set(filtered);
+                }
             }
 
             let count = 0;
@@ -115,6 +132,16 @@ export class BackupManager {
                             height: 0,
                             sizeBytes: blob ? blob.size : 0,
                             filename: t.filename
+                        });
+                        // Restore the metadata record too, otherwise imported
+                        // thumbnails have no status and features that read the
+                        // index (e.g. "Regenerate Failed") can't see them.
+                        await storageIndex.set({
+                            id: t.id,
+                            url: t.url,
+                            title: t.title || '',
+                            status: t.status ?? (blob ? 'saved_indexeddb' : 'none'),
+                            lastCaptureAt: Date.now(),
                         });
                         count++;
                     }

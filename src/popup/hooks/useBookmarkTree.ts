@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 
+// Chrome's permanent ID for the "Bookmarks bar" folder
+const BOOKMARKS_BAR_ID = '1';
+
 export function useBookmarkTree() {
     const [bookmarkTree, setBookmarkTree] = useState<chrome.bookmarks.BookmarkTreeNode[]>([]);
-    const [selectedFolderId, setSelectedFolderId] = useState<string>('1');
+    const [selectedFolderId, setSelectedFolderId] = useState<string>(BOOKMARKS_BAR_ID);
     const [currentFolder, setCurrentFolder] = useState<chrome.bookmarks.BookmarkTreeNode | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<chrome.bookmarks.BookmarkTreeNode[]>([]);
@@ -13,7 +16,7 @@ export function useBookmarkTree() {
             const root = tree[0];
             setBookmarkTree(root.children || []);
             if (root.children && root.children.length > 0) {
-                const bar = root.children.find(n => n.id === '1');
+                const bar = root.children.find(n => n.id === BOOKMARKS_BAR_ID);
                 setSelectedFolderId(bar ? bar.id : root.children[0].id);
             }
         });
@@ -32,6 +35,10 @@ export function useBookmarkTree() {
         if (searchQuery.length > 2) {
             chrome.bookmarks.search(searchQuery, (results) => setSearchResults(results));
         } else {
+            // Benign one-shot reset when the query drops below the search threshold.
+            // Not a cascading render (fires only on query change) and this state
+            // isn't even read while the query is short — see App.tsx displayedNodes.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSearchResults([]);
         }
     }, [searchQuery]);

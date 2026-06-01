@@ -11,17 +11,17 @@ export const TallyForm: React.FC = () => {
       script.src = scriptUrl;
       script.async = true;
       script.onload = () => {
-        // @ts-ignore
+        // @ts-expect-error Tally is injected by the external embed script
         if (typeof Tally !== "undefined") {
-          // @ts-ignore
+          // @ts-expect-error Tally is injected by the external embed script
           Tally.loadEmbeds();
         }
       };
       document.body.appendChild(script);
     } else {
-        // @ts-ignore
+        // @ts-expect-error Tally is injected by the external embed script
         if (typeof Tally !== "undefined") {
-            // @ts-ignore
+            // @ts-expect-error Tally is injected by the external embed script
             Tally.loadEmbeds();
         }
     }

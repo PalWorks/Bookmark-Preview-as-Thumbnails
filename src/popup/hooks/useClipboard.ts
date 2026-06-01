@@ -45,11 +45,16 @@ export function useClipboard(
     const handlePaste = async (targetParentId: string) => {
         if (!clipboard) return;
         if (clipboard.mode === 'cut') {
-            chrome.bookmarks.move(clipboard.node.id, { parentId: targetParentId }, () => {
-                setClipboard(null);
-                refreshTree();
-                refreshCurrentFolder(selectedFolderId);
+            // Await the move so the refresh runs after it completes — matching the
+            // copy branch and ensuring callers can await a settled paste.
+            await new Promise<void>((resolve) => {
+                chrome.bookmarks.move(clipboard.node.id, { parentId: targetParentId }, () => {
+                    setClipboard(null);
+                    resolve();
+                });
             });
+            refreshTree();
+            refreshCurrentFolder(selectedFolderId);
         } else if (clipboard.mode === 'copy') {
             await copyNodeRecursively(clipboard.node, targetParentId);
             refreshTree();

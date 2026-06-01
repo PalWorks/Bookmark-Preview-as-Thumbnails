@@ -5,9 +5,6 @@ export interface StorageEstimateResult {
 }
 
 export class StorageManager {
-    private readonly WARNING_THRESHOLD = 0.8; // 80%
-    private readonly CRITICAL_THRESHOLD = 0.95; // 95%
-
     async getEstimate(): Promise<StorageEstimateResult> {
         if (navigator.storage && navigator.storage.estimate) {
             const estimate = await navigator.storage.estimate();
@@ -20,16 +17,6 @@ export class StorageManager {
             };
         }
         return { usage: 0, quota: 0, percentage: 0 };
-    }
-
-    async isLow(): Promise<boolean> {
-        const { percentage } = await this.getEstimate();
-        return percentage > this.WARNING_THRESHOLD;
-    }
-
-    async isCritical(): Promise<boolean> {
-        const { percentage } = await this.getEstimate();
-        return percentage > this.CRITICAL_THRESHOLD;
     }
 
     formatBytes(bytes: number, decimals = 2): string {

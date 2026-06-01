@@ -23,14 +23,18 @@ export class FSAccess {
             });
 
             // Scan and Re-link Logic
+            // Build filename map from raw storage (no blob deserialization needed)
             let count = 0;
-            const thumbnails = await thumbnailStorage.getAllThumbnails();
-            const filenameMap = new Map<string, string>(); // filename -> id
-            thumbnails.forEach(t => {
-                if (t.filename) {
-                    filenameMap.set(t.filename, t.id);
+            const allData = await chrome.storage.local.get(null);
+            const filenameMap = new Map<string, string>();
+            for (const [key, value] of Object.entries(allData)) {
+                if (key.startsWith('thumb_')) {
+                    const record = value as { id: string; filename?: string };
+                    if (record.filename) {
+                        filenameMap.set(record.filename, record.id);
+                    }
                 }
-            });
+            }
 
             if (filenameMap.size > 0) {
                 // Iterate directory
@@ -74,26 +78,6 @@ export class FSAccess {
         return state === 'granted';
     }
 
-    async verifyPermission(
-        handle: FileSystemDirectoryHandle,
-        readWrite: boolean
-    ): Promise<boolean> {
-        const options: FileSystemHandlePermissionDescriptor = {};
-        if (readWrite) {
-            options.mode = 'readwrite';
-        }
-
-        if ((await handle.queryPermission(options)) === 'granted') {
-            return true;
-        }
-
-        if ((await handle.requestPermission(options)) === 'granted') {
-            return true;
-        }
-
-        return false;
-    }
-
     async writeFile(name: string, blob: Blob): Promise<void> {
         if (!this.directoryHandle) {
             throw new Error('No directory selected');
@@ -105,10 +89,6 @@ export class FSAccess {
         const writable = await fileHandle.createWritable();
         await writable.write(blob);
         await writable.close();
-    }
-
-    get isReady(): boolean {
-        return this.directoryHandle !== null;
     }
 }
 
