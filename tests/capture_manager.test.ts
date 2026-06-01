@@ -87,13 +87,14 @@ describe('CaptureManager', () => {
         expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42);
     });
 
-    it('routes to captureBackgroundTab when window is not focused', async () => {
+    it('routes to captureVisibleTab even when window is not focused (batch capture support)', async () => {
         asMock(chrome.tabs.get).mockResolvedValue(mockTab({ active: true }));
         asMock(chrome.windows.get).mockResolvedValue(mockWindow({ state: 'normal', focused: false }));
 
         await manager.capture(42);
 
-        expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42);
+        expect(manager.captureVisibleTab).toHaveBeenCalledWith(1);
+        expect(manager.captureBackgroundTab).not.toHaveBeenCalled();
     });
 
     it('falls back to captureBackgroundTab when captureVisibleTab throws', async () => {

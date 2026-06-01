@@ -130,4 +130,38 @@ describe('StorageIndex', () => {
         expect(all['https://other.example']).toEqual(other);
         expect(all['https://example.com']).toBeUndefined();
     });
+
+    // clear()
+
+    it('clear() removes only meta_-prefixed keys', async () => {
+        await index.set(baseRecord);
+        localStore['thumb_https://example.com'] = { id: 'thumb-data' };
+        localStore['hasSeenWelcome'] = true;
+
+        await index.clear();
+
+        expect(localStore['meta_https://example.com']).toBeUndefined();
+        expect(localStore['thumb_https://example.com']).toEqual({ id: 'thumb-data' });
+        expect(localStore['hasSeenWelcome']).toBe(true);
+    });
+
+    it('clear() removes all meta_ keys', async () => {
+        const second: MetadataRecord = {
+            id: 'https://second.example',
+            url: 'https://second.example',
+            title: 'Second',
+            status: 'pending',
+        };
+        await index.set(baseRecord);
+        await index.set(second);
+
+        await index.clear();
+
+        const all = await index.getAll();
+        expect(Object.keys(all)).toHaveLength(0);
+    });
+
+    it('clear() handles empty store without error', async () => {
+        await expect(index.clear()).resolves.not.toThrow();
+    });
 });

@@ -12,6 +12,7 @@ import { useStorageWarning } from './hooks/useStorageWarning';
 import { useClipboard } from './hooks/useClipboard';
 import { useThumbnails } from './hooks/useThumbnails';
 import { useContextMenu } from './hooks/useContextMenu';
+import { getDomain } from '../lib/utils';
 
 function App() {
     // ── Settings ──────────────────────────────────────────────────────────────
@@ -85,14 +86,6 @@ function App() {
         'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc'
     >('name-asc');
 
-    const getDomain = (url?: string) => {
-        if (!url) return '';
-        try {
-            const h = new URL(url).hostname;
-            return h.startsWith('www.') ? h.slice(4) : h;
-        } catch { return ''; }
-    };
-
     const displayedNodes = useMemo(() => {
         let nodes: chrome.bookmarks.BookmarkTreeNode[] =
             searchQuery.length > 2 ? searchResults : (currentFolder?.children ?? []);
@@ -105,8 +98,8 @@ function App() {
                 if (!aF && bF) return 1;
             }
             switch (sortOrder) {
-                case 'name-asc':    return a.title.localeCompare(b.title);
-                case 'name-desc':   return b.title.localeCompare(a.title);
+                case 'name-asc': return a.title.localeCompare(b.title);
+                case 'name-desc': return b.title.localeCompare(a.title);
                 case 'date-newest': return (b.dateAdded || 0) - (a.dateAdded || 0);
                 case 'date-oldest': return (a.dateAdded || 0) - (b.dateAdded || 0);
                 case 'domain-asc': {
@@ -199,9 +192,19 @@ function App() {
     };
 
     const handleUninstall = async () => {
+        if (!confirm('This will export a backup of your data and then uninstall the extension. Continue?')) return;
+
         try {
-            await handleExportBackup();
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const blob = await backupManager.createBackup();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bookmarks_thumbnails_backup_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            await new Promise(resolve => setTimeout(resolve, 500));
         } catch (e) {
             console.error('Backup failed during uninstall', e);
             if (!confirm('Backup failed! Proceed with uninstall anyway? All data will be lost.')) return;

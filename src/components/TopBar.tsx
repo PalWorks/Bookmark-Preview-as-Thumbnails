@@ -285,16 +285,21 @@ export const TopBar: React.FC<TopBarProps> = ({
                                         type="number"
                                         className="delay-input"
                                         value={captureDelay}
-                                        onChange={(e) => onCaptureDelayChange(parseInt(e.target.value, 10) || 0)}
+                                        onChange={(e) => {
+                                            const raw = parseInt(e.target.value, 10);
+                                            const value = isNaN(raw) ? 0 : raw;
+                                            onCaptureDelayChange(value);
+                                            onCaptureDelayCommit(value);
+                                        }}
                                         onBlur={(e) => {
                                             const raw = parseInt(e.target.value, 10);
-                                            const clamped = isNaN(raw) ? 500 : Math.max(100, Math.min(5000, raw));
+                                            const clamped = isNaN(raw) || raw < 100 ? 500 : Math.min(30000, raw);
                                             onCaptureDelayChange(clamped);
                                             onCaptureDelayCommit(clamped);
                                         }}
                                         min="100"
-                                        max="5000"
-                                        step="50"
+                                        max="30000"
+                                        step="100"
                                     />
                                 </div>
                             </div>

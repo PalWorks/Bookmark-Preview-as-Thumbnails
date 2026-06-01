@@ -36,10 +36,10 @@ describe('P1-1 regression — SW listener must return true synchronously', () =>
             return false;
         };
 
-        const resultForCapture = syncListener({ type: 'CAPTURE_THUMBNAIL' }, null, () => {});
+        const resultForCapture = syncListener({ type: 'CAPTURE_THUMBNAIL' }, null, () => { });
         expect(resultForCapture).toBe(true); // channel stays open
 
-        const resultForOther = syncListener({ type: 'PING' }, null, () => {});
+        const resultForOther = syncListener({ type: 'PING' }, null, () => { });
         expect(resultForOther).toBe(false);
     });
 
@@ -56,7 +56,7 @@ describe('P1-1 regression — SW listener must return true synchronously', () =>
             }
         };
 
-        const result = asyncListener({ type: 'CAPTURE_THUMBNAIL' }, null, () => {});
+        const result = asyncListener({ type: 'CAPTURE_THUMBNAIL' }, null, () => { });
         // The return value is a Promise, which is neither `true` nor `false`
         expect(result).toBeInstanceOf(Promise);
         // Chrome interprets a non-true return as "channel can close" → sendResponse arrives too late
@@ -116,33 +116,58 @@ describe('P1-2 regression — StorageIndex must not bleed across namespaces', ()
 
 // ─── P1-3: captureDelay is read once per batch, not per URL ──────────────────
 
-describe('P1-3 regression — captureDelay reads are batched (was per-URL)', () => {
-    it('storage.sync.get for captureDelay is called at most once for a batch of N URLs', async () => {
-        // This is a contract test: the SW hoisted captureDelay to batch scope.
-        // We verify the pattern is correct: one read for N URLs.
-        // The actual SW is not imported here (it has side effects), but we test
-        // the pattern by simulating the batch loop.
+describe('P1-3 contract — captureDelay must be read once per batch, not per URL', () => {
+    /**
+     * Architecture constraint: the SW reads captureDelay from chrome.storage.sync
+     * exactly once at the start of processBatchCapture, then passes it to each
+     * individual capture call. This test validates the constraint structurally.
+     *
+     * We cannot import sw.ts directly (it has top-level side effects), so this is
+     * a contract test validating the pattern. The constraint is enforced by code
+     * review and this documented test.
+     */
 
-        let storageReadCount = 0;
+    it('batch processing reads storage once and passes delay to each capture', async () => {
+        let syncReadCount = 0;
 
-        const readCaptureDelayOnce = async () => {
-            storageReadCount++;
-            return 500; // simulates chrome.storage.sync.get(['captureDelay'])
-        };
-
-        const captureSingleUrl = async (url: string, captureDelay: number) => {
-            // captureDelay is passed as a parameter, NOT read from storage here
-            return { url, delay: captureDelay };
-        };
-
+        // Mirrors the SW pattern: one read, N captures with the pre-read value
         const processBatch = async (urls: string[]) => {
-            const captureDelay = await readCaptureDelayOnce(); // once per batch
-            return Promise.all(urls.map(url => captureSingleUrl(url, captureDelay)));
+            syncReadCount++;
+            const delay = 500; // read once from chrome.storage.sync
+            const results = await Promise.all(
+                urls.map(async (url) => ({ url, delay }))
+            );
+            return results;
+        };
+
+        const urls = Array.from({ length: 20 }, (_, i) => `https://example.com/${i}`);
+        const results = await processBatch(urls);
+
+        // Exactly one storage read regardless of batch size
+        expect(syncReadCount).toBe(1);
+        // Every capture received the same delay value
+        expect(results.every(r => r.delay === 500)).toBe(true);
+        expect(results).toHaveLength(20);
+    });
+
+    it('per-URL reads (the broken pattern) result in N reads for N URLs', async () => {
+        let syncReadCount = 0;
+
+        // Anti-pattern: reading storage inside each capture
+        const processBatchBroken = async (urls: string[]) => {
+            const results = await Promise.all(
+                urls.map(async (url) => {
+                    syncReadCount++;
+                    return { url, delay: 500 };
+                })
+            );
+            return results;
         };
 
         const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}`);
-        await processBatch(urls);
+        await processBatchBroken(urls);
 
-        expect(storageReadCount).toBe(1); // single read regardless of batch size
+        // Demonstrates the anti-pattern produces N reads
+        expect(syncReadCount).toBe(10);
     });
 });

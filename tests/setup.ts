@@ -27,7 +27,11 @@ const sync = {
 
 (globalThis as any).chrome = {
     storage: { local, sync },
-    runtime: { lastError: undefined },
+    runtime: {
+        lastError: undefined,
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+        sendMessage: vi.fn().mockResolvedValue(undefined),
+    },
     tabs: {
         captureVisibleTab: vi.fn(),
         get: vi.fn(),

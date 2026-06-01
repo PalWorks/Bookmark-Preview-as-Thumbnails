@@ -40,7 +40,11 @@ export class StorageIndex {
     }
 
     async clear(): Promise<void> {
-        await chrome.storage.local.clear();
+        const all = await chrome.storage.local.get(null);
+        const metaKeys = Object.keys(all).filter(k => k.startsWith(this.PREFIX));
+        if (metaKeys.length > 0) {
+            await chrome.storage.local.remove(metaKeys);
+        }
     }
 }
 
