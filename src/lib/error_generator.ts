@@ -1,5 +1,5 @@
 
-export async function generateErrorImage(error: string, url: string): Promise<string> {
+export async function generateErrorImage(error: string, url: string, title?: string): Promise<string> {
     const width = 600;
     const height = 400;
     const canvas = new OffscreenCanvas(width, height);
@@ -8,10 +8,10 @@ export async function generateErrorImage(error: string, url: string): Promise<st
     if (!ctx) throw new Error('Failed to get canvas context');
 
     // Background
-    ctx.fillStyle = '#f8f9fa'; // Light gray like Chrome error page
+    ctx.fillStyle = '#f8f9fa';
     ctx.fillRect(0, 0, width, height);
 
-    // Icon (Sad Face / File) - Simplified representation
+    // Icon
     ctx.fillStyle = '#9aa0a6';
     ctx.font = '48px sans-serif';
     ctx.textAlign = 'center';
@@ -21,7 +21,7 @@ export async function generateErrorImage(error: string, url: string): Promise<st
     // Error Title
     ctx.fillStyle = '#202124';
     ctx.font = 'bold 24px sans-serif';
-    ctx.fillText('This site can\'t be reached', width / 2, height / 2 + 10);
+    ctx.fillText(title || 'This site can\'t be reached', width / 2, height / 2 + 10);
 
     // Error Details
     ctx.fillStyle = '#5f6368';

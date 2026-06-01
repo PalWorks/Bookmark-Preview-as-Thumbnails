@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Zap, Shield, Layout, Moon, Search, FolderTree, Database } from 'lucide-react';
+import { Camera, Zap, Layout, Moon, Search, FolderTree } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const features = [

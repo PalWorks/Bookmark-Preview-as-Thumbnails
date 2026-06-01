@@ -20,8 +20,9 @@ This is a Chrome Extension (Manifest V3) built with React, TypeScript, and Vite.
 
 ## Key Files
 
+- `index.html` → `src/popup/index.tsx`: The **sole** extension entry point. Do not be confused by the absence of `src/App.tsx` / `src/main.tsx` — those were default Vite scaffold files that have been removed. The popup uses `src/popup/App.tsx`.
 - `manifest.json`: Configuration for the Chrome Extension. **CRITICAL**: Ensure permissions are minimal and justified.
-- `vite.config.ts`: Build configuration. Note the multi-page entry points for extension components.
+- `vite.config.ts`: Build configuration. Note the multi-page entry points: `popup` (index.html), `sw` (src/sw.ts), `content` (src/content/capture.ts).
 - `architecture.d2`: System architecture diagram.
 
 ## Code Style & Conventions

@@ -7,18 +7,20 @@ export interface CaptureResult {
 }
 
 export class CaptureManager {
-    async capture(tabId: number, options?: { useActiveTabCapture?: boolean }): Promise<string> {
+    // Mutex: serializes the activate+captureVisibleTab fallback so that
+    // concurrent workers (CONCURRENCY=5) don't race to activate their tabs.
+    private _fallbackLock: Promise<void> = Promise.resolve();
+
+    async capture(tabId: number, options?: { useActiveTabCapture?: boolean; renderDelay?: number }): Promise<string> {
         try {
             const tab = await chrome.tabs.get(tabId);
 
-            // Check if window is minimized or unfocused
+            // Check if window is minimized
             let isMinimized = false;
-            let isFocused = false;
             if (tab.windowId) {
                 try {
                     const win = await chrome.windows.get(tab.windowId);
                     isMinimized = win.state === 'minimized';
-                    isFocused = !!win.focused;
                 } catch (e) {
                     console.warn('Could not get window state', e);
                 }
@@ -34,8 +36,8 @@ export class CaptureManager {
                     // 2. Activate target tab
                     await chrome.tabs.update(tabId, { active: true });
 
-                    // 3. Wait for render (short delay)
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    // 3. Wait for render
+                    await new Promise(resolve => setTimeout(resolve, options?.renderDelay || 300));
 
                     // 4. Capture
                     const dataUrl = await this.captureVisibleTab(tab.windowId);
@@ -52,18 +54,54 @@ export class CaptureManager {
                 }
             }
 
-            // Only use visible capture if active, not minimized, AND focused
-            if (tab.active && !isMinimized && isFocused) {
+            // Try captureVisibleTab when the tab is active and not minimized.
+            // The windowId parameter allows capture on unfocused windows from the SW.
+            if (tab.active && !isMinimized) {
                 try {
                     return await this.captureVisibleTab(tab.windowId);
                 } catch (e) {
                     console.warn('Visible capture failed, falling back to background capture', e);
                 }
             }
-            return await this.captureBackgroundTab(tabId);
+            try {
+                return await this.captureBackgroundTab(tabId);
+            } catch (bgError) {
+                console.warn('Background capture failed, attempting visible tab fallback', bgError);
+                // Fallback: activate the tab and use Chrome's native captureVisibleTab.
+                // This bypasses content script injection (CSP safe) and html2canvas entirely.
+                // Serialized through _fallbackLock to prevent concurrent tab activation.
+                if (tab.windowId) {
+                    return await this.serializedVisibleCapture(tabId, tab.windowId, options?.renderDelay);
+                }
+                throw bgError;
+            }
         } catch (error) {
             console.error('Capture failed:', error);
             throw error;
+        }
+    }
+
+    // Serialized fallback: only one worker activates a tab and captures at a time.
+    // Prevents CONCURRENCY=5 workers from racing to change the active tab.
+    // Focuses the window briefly so Chrome's compositor renders the content
+    // (required on Linux where unfocused windows don't get composited).
+    private async serializedVisibleCapture(tabId: number, windowId: number, renderDelay?: number): Promise<string> {
+        let releaseLock: () => void;
+        const waiting = this._fallbackLock;
+        this._fallbackLock = new Promise<void>(r => { releaseLock = r; });
+
+        await waiting;
+
+        try {
+            await chrome.windows.update(windowId, { focused: true });
+            await chrome.tabs.update(tabId, { active: true });
+            await new Promise(resolve => setTimeout(resolve, renderDelay || 300));
+            const dataUrl = await this.captureVisibleTab(windowId);
+            // Unfocus the capture window to return focus to the user's window
+            await chrome.windows.update(windowId, { focused: false }).catch(() => { });
+            return dataUrl;
+        } finally {
+            releaseLock!();
         }
     }
 
@@ -75,14 +113,20 @@ export class CaptureManager {
 
     async captureVisibleTab(windowId?: number): Promise<string> {
         const capturePromise = new Promise<string>((resolve, reject) => {
-            // @ts-expect-error - windowId can be undefined
-            chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 80 }, (dataUrl) => {
+            const callback = (dataUrl: string) => {
                 if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError);
+                    reject(new Error(chrome.runtime.lastError.message));
                 } else {
                     resolve(dataUrl);
                 }
-            });
+            };
+            const options = { format: 'jpeg' as const, quality: 80 };
+            // When windowId is undefined, Chrome captures the current window
+            if (windowId !== undefined) {
+                chrome.tabs.captureVisibleTab(windowId, options, callback);
+            } else {
+                chrome.tabs.captureVisibleTab(options, callback);
+            }
         });
 
         return Promise.race([capturePromise, this.timeout(5000)]);
@@ -95,12 +139,12 @@ export class CaptureManager {
                 files: ['content-script.js']
             }, () => {
                 if (chrome.runtime.lastError) {
-                    return reject(chrome.runtime.lastError);
+                    return reject(new Error(chrome.runtime.lastError.message));
                 }
 
                 chrome.tabs.sendMessage(tabId, { action: 'CAPTURE_TAB' }, (response) => {
                     if (chrome.runtime.lastError) {
-                        return reject(chrome.runtime.lastError);
+                        return reject(new Error(chrome.runtime.lastError.message));
                     }
                     if (response && response.success) {
                         resolve(response.dataUrl);
@@ -145,18 +189,13 @@ export class CaptureManager {
         if (!ctx) throw new Error('Could not get 2d context');
 
         ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+        bitmap.close();
 
         const compressedBlob = await canvas.convertToBlob({
             type: 'image/webp',
             quality,
         });
 
-        // Create a data URL for the blob (manual construction or FileReader)
-        // FileReader is not available in SW in some versions, but we can use a simple reader if needed.
-        // Actually, for the result, we might just want the blob.
-        // But the interface asks for dataUrl.
-        // In SW, we can use FileReader if available, or just return null dataUrl if not needed immediately.
-        // However, FileReader IS available in Service Workers.
         const compressedDataUrl = await this.blobToDataURL(compressedBlob);
 
         return {
