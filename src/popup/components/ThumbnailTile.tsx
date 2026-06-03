@@ -14,10 +14,11 @@ interface ThumbnailTileProps {
     bookmark: BookmarkItem;
     isLoading?: boolean;
     isQueued?: boolean;
+    tags?: string[];
     onContextMenu?: (e: React.MouseEvent, bookmark: BookmarkItem) => void;
 }
 
-const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQueued, onContextMenu }) => {
+const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQueued, tags, onContextMenu }) => {
     const handleClick = () => {
         chrome.tabs.create({ url: bookmark.url, active: true });
     };
@@ -78,6 +79,13 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQu
                 >
                     {bookmark.url}
                 </div>
+                {tags && tags.length > 0 && (
+                    <div className="tile-tags">
+                        {tags.map(tag => (
+                            <span key={tag} className="tile-tag">{tag}</span>
+                        ))}
+                    </div>
+                )}
             </div>
             <div className="more-options-btn" onClick={(e) => {
                 e.stopPropagation();

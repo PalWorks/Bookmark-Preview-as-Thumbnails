@@ -477,6 +477,13 @@
     text-overflow: ellipsis;
 }
 
+.list-item-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
 .list-item-status {
     margin-left: 16px;
     font-size: 12px;
@@ -1101,4 +1108,67 @@
 
 .theme-dark .more-options-btn:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Sidebar footer (AI Settings entry) ─────────────────────────────────────── */
+
+.sidebar-footer {
+    border-top: 1px solid #e8eaed;
+    padding: 8px 4px;
+    flex-shrink: 0;
+}
+
+.sidebar-ai-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #5f6368;
+    user-select: none;
+    transition: background-color 0.1s;
+}
+
+.sidebar-ai-btn:hover {
+    background-color: #e8eaed;
+}
+
+.sidebar-ai-btn--active {
+    background-color: #e8f0fe;
+    color: #1967d2;
+    font-weight: 500;
+}
+
+.sidebar-ai-icon {
+    flex-shrink: 0;
+    color: #7c3aed;
+}
+
+.sidebar-ai-btn--active .sidebar-ai-icon {
+    color: #1967d2;
+}
+
+/* Dark mode */
+.theme-dark .sidebar-footer {
+    border-top-color: #5f6368;
+}
+
+.theme-dark .sidebar-ai-btn {
+    color: #9aa0a6;
+}
+
+.theme-dark .sidebar-ai-btn:hover {
+    background-color: #3c4043;
+    color: #e8eaed;
+}
+
+.theme-dark .sidebar-ai-btn--active {
+    background-color: #1e3a5f;
+    color: #8ab4f8;
+}
+
+.theme-dark .sidebar-ai-btn--active .sidebar-ai-icon {
+    color: #8ab4f8;
 }

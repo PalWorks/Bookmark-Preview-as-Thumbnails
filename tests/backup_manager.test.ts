@@ -163,6 +163,37 @@ describe('BackupManager', () => {
             expect(result.success).toBe(true);
         });
 
+        it('skips records with a non-string or empty id (hardening against malformed backups)', async () => {
+            const file = makeBackupFile({
+                thumbnails: [
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    { url: 'https://noid.example', title: '' } as any,                       // missing id
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    { id: 123, url: 'https://numid.example' } as any,                          // non-string id
+                    { id: 'https://ok.example', url: 'https://ok.example', title: '', image_data: 'data:image/webp;base64,ZmFrZQ==' },
+                ],
+            });
+            const result = await manager.importBackup(file);
+            expect(result.count).toBe(1);
+            expect(localStore['thumb_undefined']).toBeUndefined();
+        });
+
+        it('does NOT fetch a non-data: image_data URL (no SSRF-style fetch from a hostile backup)', async () => {
+            // The test fetch mock throws on any non-data: URL; if the code tried to
+            // fetch it the import would reject. It must skip the fetch and still import metadata.
+            const file = makeBackupFile({
+                thumbnails: [
+                    { id: 'https://evil.example', url: 'https://evil.example', title: '', image_data: 'https://attacker.example/internal' },
+                ],
+            });
+            const result = await manager.importBackup(file);
+            expect(result.success).toBe(true);
+            expect(result.count).toBe(1);
+            // Stored as metadata-only (no blob), proving the remote URL was never fetched.
+            const rec = localStore['thumb_https://evil.example'] as { base64?: string } | undefined;
+            expect(rec?.base64).toBeFalsy();
+        });
+
         it('stores imported thumbnails under thumb_ prefix in storage', async () => {
             const file = makeBackupFile({
                 thumbnails: [

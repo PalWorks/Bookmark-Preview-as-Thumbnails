@@ -1,6 +1,42 @@
 export { };
 
 declare global {
+    // ── Chrome Built-in AI (Gemini Nano) — Chrome 127+ ────────────────────────
+    interface AILanguageModelSession {
+        prompt(input: string, options?: { signal?: AbortSignal }): Promise<string>;
+        promptStreaming(input: string, options?: { signal?: AbortSignal }): ReadableStream<string>;
+        clone(options?: { signal?: AbortSignal }): Promise<AILanguageModelSession>;
+        destroy(): void;
+        readonly tokensSoFar: number;
+        readonly maxTokens: number;
+        readonly tokensLeft: number;
+    }
+
+    interface AILanguageModelCreateOptions {
+        systemPrompt?: string;
+        initialPrompts?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+        temperature?: number;
+        topK?: number;
+        signal?: AbortSignal;
+        monitor?: (monitor: EventTarget) => void;
+        expectedInputs?: Array<{ type: 'text'; languages?: string[] }>;
+        expectedOutputs?: Array<{ type: 'text'; languages?: string[] }>;
+    }
+
+    interface AIDownloadProgressEvent extends Event {
+        loaded: number; // 0–1
+        total: number;  // 1
+    }
+
+    interface AILanguageModelFactory {
+        availability(options?: {
+            expectedInputs?: Array<{ type: 'text'; languages?: string[] }>;
+            expectedOutputs?: Array<{ type: 'text'; languages?: string[] }>;
+        }): Promise<'available' | 'after-download' | 'downloadable' | 'downloading' | 'unavailable'>;
+        create(options?: AILanguageModelCreateOptions): Promise<AILanguageModelSession>;
+    }
+
+    var LanguageModel: AILanguageModelFactory;
     interface Window {
         showDirectoryPicker(options?: unknown): Promise<FileSystemDirectoryHandle>;
     }

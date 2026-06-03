@@ -69,13 +69,18 @@ export class FSAccess {
         const record = await db.getHandle('default');
         if (!record) return false;
 
-        this.directoryHandle = record.handle;
-
         // Only query permission — never request it from a non-gesture context (e.g. SW).
         // requestPermission requires a user gesture and must be triggered from popup UI only (chooseDirectory).
         const options: FileSystemHandlePermissionDescriptor = { mode: 'readwrite' };
-        const state = await this.directoryHandle.queryPermission(options);
-        return state === 'granted';
+        const state = await record.handle.queryPermission(options);
+        if (state !== 'granted') {
+            // Don't retain a handle we can't write to — otherwise writeFile() would
+            // later attempt a revoked handle instead of cleanly falling back to IndexedDB.
+            this.directoryHandle = null;
+            return false;
+        }
+        this.directoryHandle = record.handle;
+        return true;
     }
 
     async writeFile(name: string, blob: Blob): Promise<void> {

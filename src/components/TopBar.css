@@ -505,3 +505,119 @@
 .menu-title--danger {
     color: #d93025;
 }
+
+.menu-icon--accent {
+    color: #f59e0b;
+}
+
+.menu-icon--ai {
+    color: #7c3aed;
+}
+
+.menu-item--disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Spinner shown during auto-tagging */
+.ai-tag-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e0d4f7;
+    border-top-color: #7c3aed;
+    border-radius: 50%;
+    animation: ai-spin 0.7s linear infinite;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+@keyframes ai-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Tag filter section inside the Filter By dropdown */
+.dropdown-tag-label {
+    padding: 6px 12px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9aa0a6;
+}
+
+.dropdown-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 12px 10px;
+}
+
+.dropdown-tag-pill {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s;
+}
+
+.dropdown-tag-pill:hover {
+    background-color: #d2e3fc;
+}
+
+.dropdown-tag-pill--active {
+    background-color: #1a73e8;
+    color: #fff;
+}
+
+.dropdown-tag-pill--active:hover {
+    background-color: #1557b0;
+}
+
+.theme-dark .dropdown-tag-pill {
+    background-color: #1e3a5f;
+    color: #8ab4f8;
+}
+
+.theme-dark .dropdown-tag-pill:hover {
+    background-color: #2d4f7c;
+}
+
+.theme-dark .dropdown-tag-pill--active {
+    background-color: #8ab4f8;
+    color: #202124;
+}
+
+.theme-dark .ai-tag-spinner {
+    border-color: #3c4043;
+    border-top-color: #a78bfa;
+}
+
+.theme-dark .menu-icon--ai {
+    color: #a78bfa;
+}
+
+/* TopBar AI Settings icon — kept white so it stays visible on the colored top bar.
+   Works for light (blue bar), dark (dark bar) and system (resolved via .theme-*). */
+.topbar-ai-btn {
+    color: #fff;
+    position: relative;
+}
+.topbar-ai-btn:hover {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+}
+.topbar-ai-btn--active {
+    color: #fff !important;
+    background-color: #7c3aed !important;
+}
+.topbar-ai-btn--active:hover {
+    background-color: #6d28d9 !important;
+}
+/* Dark mode top bar is dark — keep the icon light, accent stays purple when active. */
+.theme-dark .topbar-ai-btn { color: #e8eaed; }
+.theme-dark .topbar-ai-btn:hover { background-color: rgba(255, 255, 255, 0.1) !important; }
+.theme-dark .topbar-ai-btn--active { background-color: #7c3aed !important; color: #fff !important; }
+.theme-dark .topbar-ai-btn--active:hover { background-color: #8b5cf6 !important; }

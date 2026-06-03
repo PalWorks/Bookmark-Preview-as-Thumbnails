@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAITagger } from './hooks/useAITagger';
+import { AISettingsPage } from './components/AISettingsPage';
 import './App.css';
 import { backupManager } from '../lib/backup_manager';
 import { Sidebar } from '../components/Sidebar';
@@ -50,6 +52,17 @@ function App() {
     );
 
     const isCapturing = loadingUrls.size > 0 || queuedUrls.size > 0;
+
+    // ── Panel routing ─────────────────────────────────────────────────────────
+    const [activePanel, setActivePanel] = useState<'bookmarks' | 'ai-settings'>('bookmarks');
+    // Incrementing this causes useAITagger to re-check availability after settings save
+    const [aiSettingsVersion, setAISettingsVersion] = useState(0);
+
+    // ── AI auto-tagging ───────────────────────────────────────────────────────
+    const {
+        aiAvailability, isTagging, taggingProgress,
+        tags: aiTags, triggerAutoTag, stopAutoTag,
+    } = useAITagger(currentFolder, aiSettingsVersion);
     const storageWarning = useStorageWarning(isCapturing);
 
     // User-initiated captures check storage first; auto-capture (in useThumbnails) does not
@@ -85,12 +98,15 @@ function App() {
     const [sortOrder, setSortOrder] = useState<
         'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc'
     >('name-asc');
+    const [activeTag, setActiveTag] = useState<string | null>(null);
 
     const displayedNodes = useMemo(() => {
         let nodes: chrome.bookmarks.BookmarkTreeNode[] =
             searchQuery.length > 2 ? searchResults : (currentFolder?.children ?? []);
         if (filterType === 'folders') nodes = nodes.filter(n => !n.url);
         else if (filterType === 'bookmarks') nodes = nodes.filter(n => n.url);
+        // Tag filter: show only bookmarks that carry the active tag (folders hidden)
+        if (activeTag) nodes = nodes.filter(n => n.url && (aiTags[n.url] ?? []).includes(activeTag));
         return [...nodes].sort((a, b) => {
             const aF = !a.url, bF = !b.url;
             if (sortOrder.startsWith('name') || sortOrder.startsWith('domain')) {
@@ -115,7 +131,24 @@ function App() {
                 default: return 0;
             }
         });
-    }, [currentFolder, searchResults, searchQuery, filterType, sortOrder]);
+    }, [currentFolder, searchResults, searchQuery, filterType, sortOrder, activeTag, aiTags]);
+
+    // Tags present across the currently displayed nodes — drives the filter pills
+    const availableTags = useMemo(() => {
+        const tagSet = new Set<string>();
+        const base = searchQuery.length > 2 ? searchResults : (currentFolder?.children ?? []);
+        base.forEach(n => { if (n.url) (aiTags[n.url] ?? []).forEach(t => tagSet.add(t)); });
+        return Array.from(tagSet).sort();
+    }, [currentFolder, searchResults, searchQuery, aiTags]);
+
+    // ── AI auto-tag: tag all bookmarks in the current view ───────────────────
+    const handleAutoTag = () => {
+        const bookmarks = displayedNodes
+            .filter(n => n.url)
+            .map(n => ({ url: n.url!, title: n.title }));
+        if (bookmarks.length === 0) return;
+        triggerAutoTag(bookmarks);
+    };
 
     // ── Thumbnail update (manual regenerate / resume) ─────────────────────────
     const handleUpdateThumbnails = async (force = false, regenerateFailed = false) => {
@@ -233,6 +266,7 @@ function App() {
         <div className={`app-container theme-${effectiveTheme}`}>
             <TopBar
                 onSearch={setSearchQuery}
+                searchQuery={searchQuery}
                 onConnectFolder={handleConnectFolder}
                 useIncognito={useIncognito}
                 onToggleIncognito={handleToggleIncognito}
@@ -255,6 +289,16 @@ function App() {
                 onCaptureDelayCommit={onCaptureDelayCommit}
                 useActiveTabCapture={useActiveTabCapture}
                 onToggleActiveTabCapture={onToggleActiveTabCapture}
+                aiAvailability={aiAvailability}
+                isTagging={isTagging}
+                taggingProgress={taggingProgress}
+                availableTags={availableTags}
+                activeTag={activeTag}
+                onTagChange={setActiveTag}
+                onAutoTag={handleAutoTag}
+                onStopTag={stopAutoTag}
+                onAISettings={() => setActivePanel('ai-settings')}
+                isAISettingsActive={activePanel === 'ai-settings'}
             />
 
             {storageWarning.level !== 'none' && (
@@ -272,23 +316,36 @@ function App() {
                 <Sidebar
                     folders={bookmarkTree}
                     selectedFolderId={selectedFolderId}
-                    onSelectFolder={handleNavigate}
+                    onSelectFolder={(id) => { handleNavigate(id); setActivePanel('bookmarks'); }}
                     onContextMenu={handleContextMenu}
+                    onAISettings={() => setActivePanel('ai-settings')}
+                    isAISettingsActive={activePanel === 'ai-settings'}
                 />
-                <MainContent
-                    folder={currentFolder}
-                    displayedNodes={displayedNodes}
-                    isSearching={searchQuery.length > 2}
-                    searchQuery={searchQuery}
-                    thumbnails={thumbnails}
-                    loadingUrls={loadingUrls}
-                    queuedUrls={queuedUrls}
-                    onNavigate={handleNavigate}
-                    onNavigateBack={handleNavigateBack}
-                    onTriggerBatchCapture={handleBatchCapture}
-                    viewMode={viewMode}
-                    onContextMenu={handleContextMenu}
-                />
+                {activePanel === 'ai-settings' ? (
+                    <AISettingsPage
+                        onBack={() => setActivePanel('bookmarks')}
+                        // Bump the version so useAITagger re-checks availability, but
+                        // stay on the page — saving shows "Saved!" without navigating.
+                        onSave={() => setAISettingsVersion(v => v + 1)}
+                        currentFolder={currentFolder}
+                    />
+                ) : (
+                    <MainContent
+                        folder={currentFolder}
+                        displayedNodes={displayedNodes}
+                        isSearching={searchQuery.length > 2}
+                        searchQuery={searchQuery}
+                        thumbnails={thumbnails}
+                        loadingUrls={loadingUrls}
+                        queuedUrls={queuedUrls}
+                        bookmarkTags={aiTags}
+                        onNavigate={handleNavigate}
+                        onNavigateBack={handleNavigateBack}
+                        onTriggerBatchCapture={handleBatchCapture}
+                        viewMode={viewMode}
+                        onContextMenu={handleContextMenu}
+                    />
+                )}
             </div>
 
             {contextMenu.visible && (

@@ -41,9 +41,10 @@ export async function generateErrorImage(error: string, url: string, title?: str
     // Convert to Blob/DataURL
     const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error ?? new Error('Failed to read error image'));
         reader.readAsDataURL(blob);
     });
 }

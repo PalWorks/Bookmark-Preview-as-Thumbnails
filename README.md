@@ -5,11 +5,21 @@
 ## Features
 
 - **Visual Previews**: Automatically generates thumbnail previews for your bookmarks.
-- **Grid Layout**: Displays bookmarks in a responsive, easy-to-scan grid.
+- **Grid & List Layouts**: Responsive, easy-to-scan views with filtering and sorting.
 - **Folder Navigation**: Navigate through your bookmark folders seamlessly.
 - **Search**: Quickly find bookmarks by title or URL.
-- **Drag & Drop**: Reorder bookmarks and move them between folders (Planned/In-Progress).
-- **Dark Mode**: Supports system dark mode preference.
+- **AI features (opt-in, bring-your-own-AI)**:
+  - **Auto-Tag** — categorise bookmarks into topic tags (with your own preferred tags).
+  - **Smart Search** — find bookmarks with natural language.
+  - **Duplicate Finder** — find and merge duplicate bookmarks (no AI needed).
+  - Runs on **Chrome's built-in Gemini Nano on-device by default** (nothing leaves
+    your device), or with **your own API key** for a cloud provider (OpenAI,
+    Anthropic, Google Gemini, Groq, Mistral, and more) or a local server
+    (Ollama / LM Studio). See [PRIVACY.md](PRIVACY.md) for exactly what data the
+    cloud option sends.
+- **Offline backup**: Export/import your thumbnails and settings as JSON; optionally
+  save thumbnails to a folder on disk.
+- **Dark Mode**: Light, dark, and system themes.
 
 ## Tech Stack
 
@@ -26,8 +36,8 @@
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/yourusername/bookmarks-thumbnails.git
-    cd bookmarks-thumbnails
+    git clone https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails.git
+    cd Bookmark-Preview-as-Thumbnails
     ```
 
 2. Install dependencies:
@@ -92,4 +102,5 @@ Contributions are welcome! Please follow these steps:
 
 ## License
 
-Distributed under the AGPL-3.0 License. See `LICENSE` for more information.
+Dual-licensed: **AGPL-3.0** for free/open-source use, or a **Commercial License**
+for proprietary use. See [`LICENSE`](LICENSE) for details.

@@ -5,6 +5,8 @@ import { thumbnailStorage } from './lib/thumbnail_storage';
 import { storageIndex } from './lib/storage_index';
 import { fsAccess } from './lib/fsaccess';
 import { generateErrorImage } from './lib/error_generator';
+import { checkAIAvailability, tagBookmark, invalidateAITemplate, searchBookmarks, friendlyError, isFatalAIError } from './lib/ai_tagger';
+import { loadAISettings } from './lib/ai_settings_storage';
 
 // Service Worker for BookmarksThumbnails
 
@@ -48,6 +50,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     if (message.type === 'STOP_CAPTURE') {
         stopBatchCapture = true;
+        // Abort in-flight captures so they unwind immediately instead of running
+        // out their 5–10s internal timeouts before the worker loop notices the flag.
+        batchController?.abort();
         sendResponse({ status: 'stopping' });
         return false;
     }
@@ -57,11 +62,65 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return false;
     }
 
+    if (message.type === 'CHECK_AI_AVAILABILITY') {
+        checkAIAvailability()
+            .then(available => sendResponse({ available }))
+            .catch(() => sendResponse({ available: 'unsupported' }));
+        return true; // async response
+    }
+
+    if (message.type === 'AUTO_TAG') {
+        if (isAutoTagging) {
+            sendResponse({ status: 'busy' });
+            return false;
+        }
+        processAutoTag(message.bookmarks as Array<{ url: string; title: string }>);
+        sendResponse({ status: 'started' });
+        return false;
+    }
+
+    if (message.type === 'STOP_TAG') {
+        stopAutoTagFlag = true;
+        // Abort the in-flight AI call so a hung/slow request unblocks immediately,
+        // rather than waiting for the loop to reach its next flag check.
+        autoTagController?.abort();
+        sendResponse({ status: 'stopping' });
+        return false;
+    }
+
+    if (message.type === 'GET_TAG_STATUS') {
+        // Lets the popup restore the live progress/Stop indicator after it was
+        // unmounted (navigated away) while a batch keeps running in the worker.
+        sendResponse({ isTagging: isAutoTagging, done: autoTagDone, total: autoTagTotal });
+        return false;
+    }
+
+    if (message.type === 'AI_SEARCH') {
+        searchBookmarks(
+            message.query as string,
+            message.bookmarks as Array<{ title: string; url: string }>
+        )
+            .then(urls => sendResponse({ urls }))
+            .catch(err => sendResponse({ error: String(err), urls: [] }));
+        return true; // async response
+    }
+
     return false;
 });
 
 let isBatchCapturing = false;
 let stopBatchCapture = false;
+let batchController: AbortController | null = null;
+
+let isAutoTagging = false;
+let stopAutoTagFlag = false;
+let autoTagController: AbortController | null = null;
+// Mirrored progress so a re-opened popup can restore its indicator (GET_TAG_STATUS).
+let autoTagDone = 0;
+let autoTagTotal = 0;
+// Cloud providers are network-bound — tag several at once. On-device Nano is a
+// single local model, so it stays sequential to avoid thrashing.
+const AUTO_TAG_CLOUD_CONCURRENCY = 6;
 
 // Hard cap on waiting for a tab to reach 'complete'. Failed main-frame loads
 // short-circuit much sooner via the navError check, so this only bounds pages
@@ -75,6 +134,7 @@ const CAPTURE_RETRY_BACKOFF_MS = 600;
 function resetBatchState(): void {
     isBatchCapturing = false;
     stopBatchCapture = false;
+    batchController = null;
     chrome.runtime.sendMessage({ type: 'BATCH_STOPPED' }).catch(() => { });
 }
 
@@ -86,6 +146,8 @@ async function processBatchCapture(
     if (isBatchCapturing) return;
     isBatchCapturing = true;
     stopBatchCapture = false;
+    batchController = new AbortController();
+    const signal = batchController.signal;
 
     // Create a window to perform captures without disrupting the user
     let captureWindow: chrome.windows.Window | undefined;
@@ -224,12 +286,12 @@ async function processBatchCapture(
             } else {
                 // Retry transient capture failures (navigation already succeeded, so
                 // a failure here is usually a flaky capture, not a dead page).
-                await captureTabWithRetry(tabId, url, useActiveTabCapture, captureDelay);
+                await captureTabWithRetry(tabId, url, useActiveTabCapture, captureDelay, signal);
             }
         } catch (rawError: unknown) {
             chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
-            // A stop request shouldn't leave behind an error thumbnail.
-            if (stopBatchCapture) return;
+            // A stop request (flag or abort) shouldn't leave behind an error thumbnail.
+            if (stopBatchCapture || signal.aborted) return;
             const errMsg = rawError instanceof Error
                 ? rawError.message
                 : (typeof rawError === 'object' && rawError !== null && 'message' in rawError)
@@ -280,6 +342,9 @@ chrome.bookmarks.onCreated.addListener(async (_id, bookmark) => {
     if (isBatchCapturing) return;
     if (bookmark.url) {
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        // Re-check after the await — a batch may have started in the interim, and
+        // both paths write the same keys.
+        if (isBatchCapturing) return;
         const activeTab = tabs[0];
         if (activeTab?.id && activeTab.url === bookmark.url) {
             try {
@@ -298,12 +363,16 @@ async function persistCapture(
     tabId: number,
     id: string,
     useActiveTabCapture: boolean,
-    renderDelay?: number
+    renderDelay?: number,
+    signal?: AbortSignal
 ): Promise<{ success: boolean; id: string; dataUrl: string }> {
     const tab = await chrome.tabs.get(tabId);
     if (!tab.url) throw new Error('Tab has no URL');
 
-    const dataUrl = await captureManager.capture(tabId, { useActiveTabCapture, renderDelay });
+    const dataUrl = await captureManager.capture(tabId, { useActiveTabCapture, renderDelay, signal });
+    // A stop that landed mid-capture: drop the result rather than writing a tile
+    // (and broadcasting an update) after the user asked to stop.
+    if (signal?.aborted) throw new DOMException('Capture aborted', 'AbortError');
     const result = await captureManager.resizeAndCompress(dataUrl, 600, 0.8);
 
     let status: 'saved_indexeddb' | 'saved_disk' = 'saved_indexeddb';
@@ -362,9 +431,10 @@ async function captureTab(
     tabId: number,
     overrideUrl: string,
     useActiveTabCapture: boolean = false,
-    renderDelay?: number
+    renderDelay?: number,
+    signal?: AbortSignal
 ): Promise<{ success: boolean; id: string; dataUrl: string }> {
-    return persistCapture(tabId, overrideUrl, useActiveTabCapture, renderDelay);
+    return persistCapture(tabId, overrideUrl, useActiveTabCapture, renderDelay, signal);
 }
 
 // Retry a capture on transient failure with linear backoff. Aborts immediately
@@ -374,21 +444,130 @@ async function captureTabWithRetry(
     tabId: number,
     overrideUrl: string,
     useActiveTabCapture: boolean,
-    renderDelay: number
+    renderDelay: number,
+    signal?: AbortSignal
 ): Promise<{ success: boolean; id: string; dataUrl: string }> {
     let lastError: unknown;
     for (let attempt = 0; attempt <= CAPTURE_RETRIES; attempt++) {
         try {
-            return await captureTab(tabId, overrideUrl, useActiveTabCapture, renderDelay);
+            return await captureTab(tabId, overrideUrl, useActiveTabCapture, renderDelay, signal);
         } catch (err) {
             lastError = err;
             // Don't retry if we're out of attempts or the user asked to stop.
-            if (attempt >= CAPTURE_RETRIES || stopBatchCapture) break;
+            if (attempt >= CAPTURE_RETRIES || stopBatchCapture || signal?.aborted) break;
             console.warn(`Capture attempt ${attempt + 1} failed for ${overrideUrl}, retrying`, err);
             await new Promise(resolve => setTimeout(resolve, CAPTURE_RETRY_BACKOFF_MS * (attempt + 1)));
         }
     }
     throw lastError;
+}
+
+// ─── AI Auto-Tagging ──────────────────────────────────────────────────────────
+
+// Per-item errors are skipped so the rest of the batch still gets tagged. But if
+// many fail back-to-back with a non-fatal error (e.g. the network just dropped),
+// stop rather than grind through hundreds of doomed calls. Fatal/config errors
+// abort on the first occurrence (see isFatalAIError).
+const AUTO_TAG_MAX_CONSECUTIVE_FAILS = 10;
+
+async function processAutoTag(bookmarks: Array<{ url: string; title: string }>): Promise<void> {
+    if (isAutoTagging) return;
+    if (bookmarks.length === 0) return; // nothing to do — don't broadcast a start/done cycle
+    isAutoTagging = true;
+    stopAutoTagFlag = false;
+    autoTagController = new AbortController();
+    autoTagDone = 0;
+    autoTagTotal = 0;
+
+    // Pre-flight: don't churn through hundreds of bookmarks if AI isn't usable at all.
+    const availability = await checkAIAvailability().catch(() => 'unsupported' as const);
+    if (availability === 'unavailable' || availability === 'unsupported') {
+        isAutoTagging = false;
+        autoTagController = null;
+        const reason = availability === 'unsupported'
+            ? 'AI is not available. Enable Chrome\'s built-in AI (Chrome 138+) or add an API key in Provider Settings.'
+            : 'The selected AI provider is not ready. Check your API key / model in Provider Settings.';
+        chrome.runtime.sendMessage({ type: 'TAG_BATCH_FAILED', error: reason }).catch(() => { });
+        return;
+    }
+
+    // Cloud is network-bound → tag several at once; on-device Nano stays sequential.
+    const { settings } = await loadAISettings();
+    const concurrency = settings.mode === 'cloud' ? AUTO_TAG_CLOUD_CONCURRENCY : 1;
+
+    autoTagTotal = bookmarks.length;
+    chrome.runtime.sendMessage({ type: 'TAG_BATCH_STARTED', total: bookmarks.length }).catch(() => { });
+
+    let count = 0;
+    let failCount = 0;
+    let consecutiveFails = 0;
+    let lastError = '';
+    let aborted = false;
+    let fatal = false;
+    let nextIndex = 0;
+
+    const reportFatal = (error: string) => {
+        if (fatal) return;
+        fatal = true;
+        chrome.runtime.sendMessage({ type: 'TAG_BATCH_FAILED', error }).catch(() => { });
+        autoTagController?.abort(); // unblock the other workers' in-flight calls
+    };
+
+    const worker = async (): Promise<void> => {
+        while (!stopAutoTagFlag && !fatal && !autoTagController!.signal.aborted) {
+            const i = nextIndex++;
+            if (i >= bookmarks.length) break;
+            const { url, title } = bookmarks[i];
+            try {
+                const tags = await tagBookmark(title, url, autoTagController!.signal);
+                const existing = await storageIndex.get(url);
+                if (existing) await storageIndex.set({ ...existing, tags });
+                else await storageIndex.set({ id: url, url, title, status: 'none', tags });
+                count++; autoTagDone++; consecutiveFails = 0;
+                chrome.runtime.sendMessage({ type: 'TAG_UPDATED', url, tags }).catch(() => { });
+            } catch (err) {
+                // A Stop/abort isn't a real failure.
+                if (stopAutoTagFlag || autoTagController!.signal.aborted) { aborted = true; break; }
+                lastError = friendlyError(err);
+                failCount++; autoTagDone++;
+                console.warn('[AutoTag] Failed to tag bookmark', url, err);
+                if (settings.mode === 'builtin') invalidateAITemplate();
+
+                // Config errors fail identically for every bookmark — stop the batch.
+                if (isFatalAIError(lastError)) {
+                    reportFatal(`${lastError} This affects every bookmark — fix it in Provider Settings, then try again. (${count} tagged before stopping.)`);
+                    break;
+                }
+                chrome.runtime.sendMessage({ type: 'TAG_FAILED', url, error: lastError }).catch(() => { });
+
+                // Rate-limit (429) is expected under concurrency on free tiers — skip
+                // it but DON'T count it toward the circuit-breaker (re-run later).
+                if (!/rate.?limit/i.test(lastError)) {
+                    consecutiveFails++;
+                    if (consecutiveFails >= AUTO_TAG_MAX_CONSECUTIVE_FAILS) {
+                        reportFatal(`Stopped after ${consecutiveFails} consecutive failures — likely a connection or provider problem. Last error: ${lastError} (${count} tagged.)`);
+                        break;
+                    }
+                }
+            }
+        }
+    };
+
+    try {
+        const pool = Math.min(concurrency, bookmarks.length);
+        await Promise.all(Array.from({ length: pool }, () => worker()));
+    } catch (err) {
+        console.error('[AutoTag] Batch failed', err);
+        invalidateAITemplate();
+        reportFatal(friendlyError(err));
+    } finally {
+        isAutoTagging = false;
+        stopAutoTagFlag = false;
+        autoTagController = null;
+    }
+    if (!fatal) {
+        chrome.runtime.sendMessage({ type: 'TAG_BATCH_DONE', count, failCount, aborted }).catch(() => { });
+    }
 }
 
 // ─── Installation & migration ─────────────────────────────────────────────────

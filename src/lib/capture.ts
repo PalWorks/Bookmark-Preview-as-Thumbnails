@@ -11,8 +11,10 @@ export class CaptureManager {
     // concurrent workers (CONCURRENCY=5) don't race to activate their tabs.
     private _fallbackLock: Promise<void> = Promise.resolve();
 
-    async capture(tabId: number, options?: { useActiveTabCapture?: boolean; renderDelay?: number }): Promise<string> {
+    async capture(tabId: number, options?: { useActiveTabCapture?: boolean; renderDelay?: number; signal?: AbortSignal }): Promise<string> {
+        const signal = options?.signal;
         try {
+            if (signal?.aborted) throw new DOMException('Capture aborted', 'AbortError');
             const tab = await chrome.tabs.get(tabId);
 
             // Check if window is minimized
@@ -36,11 +38,11 @@ export class CaptureManager {
                     // 2. Activate target tab
                     await chrome.tabs.update(tabId, { active: true });
 
-                    // 3. Wait for render
-                    await new Promise(resolve => setTimeout(resolve, options?.renderDelay || 300));
+                    // 3. Wait for render (cancellable)
+                    await this.delay(options?.renderDelay || 300, signal);
 
                     // 4. Capture
-                    const dataUrl = await this.captureVisibleTab(tab.windowId);
+                    const dataUrl = await this.captureVisibleTab(tab.windowId, signal);
 
                     // 5. Restore original tab (if different)
                     if (originalActiveId && originalActiveId !== tabId) {
@@ -49,6 +51,7 @@ export class CaptureManager {
 
                     return dataUrl;
                 } catch (e) {
+                    if (signal?.aborted) throw e; // a stop must propagate, not fall through
                     console.warn('Active capture failed, falling back to standard logic', e);
                     // Fallthrough to standard logic
                 }
@@ -58,20 +61,22 @@ export class CaptureManager {
             // The windowId parameter allows capture on unfocused windows from the SW.
             if (tab.active && !isMinimized) {
                 try {
-                    return await this.captureVisibleTab(tab.windowId);
+                    return await this.captureVisibleTab(tab.windowId, signal);
                 } catch (e) {
+                    if (signal?.aborted) throw e;
                     console.warn('Visible capture failed, falling back to background capture', e);
                 }
             }
             try {
-                return await this.captureBackgroundTab(tabId);
+                return await this.captureBackgroundTab(tabId, signal);
             } catch (bgError) {
+                if (signal?.aborted) throw bgError;
                 console.warn('Background capture failed, attempting visible tab fallback', bgError);
                 // Fallback: activate the tab and use Chrome's native captureVisibleTab.
                 // This bypasses content script injection (CSP safe) and html2canvas entirely.
                 // Serialized through _fallbackLock to prevent concurrent tab activation.
                 if (tab.windowId) {
-                    return await this.serializedVisibleCapture(tabId, tab.windowId, options?.renderDelay);
+                    return await this.serializedVisibleCapture(tabId, tab.windowId, options?.renderDelay, signal);
                 }
                 throw bgError;
             }
@@ -81,11 +86,46 @@ export class CaptureManager {
         }
     }
 
+    // Race a capture against the abort signal so Stop unwinds it immediately, and
+    // ALWAYS detach the abort listener once settled — otherwise a long batch would
+    // pile up one dangling listener per capture on the shared batch signal.
+    private async raceAbort<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+        if (!signal) return p;
+        if (signal.aborted) throw new DOMException('Capture aborted', 'AbortError');
+        let onAbort!: () => void;
+        const abortP = new Promise<never>((_, reject) => {
+            onAbort = () => reject(new DOMException('Capture aborted', 'AbortError'));
+            signal.addEventListener('abort', onAbort, { once: true });
+        });
+        try {
+            return await Promise.race([p, abortP]);
+        } finally {
+            signal.removeEventListener('abort', onAbort);
+        }
+    }
+
+    // Cancellable sleep used for render-settle delays. Detaches its listener on both
+    // paths (resolve and abort) so nothing lingers on the batch signal.
+    private delay(ms: number, signal?: AbortSignal): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            if (signal?.aborted) { reject(new DOMException('Capture aborted', 'AbortError')); return; }
+            const onAbort = () => {
+                clearTimeout(timer);
+                reject(new DOMException('Capture aborted', 'AbortError'));
+            };
+            const timer = setTimeout(() => {
+                signal?.removeEventListener('abort', onAbort);
+                resolve();
+            }, ms);
+            signal?.addEventListener('abort', onAbort, { once: true });
+        });
+    }
+
     // Serialized fallback: only one worker activates a tab and captures at a time.
     // Prevents CONCURRENCY=5 workers from racing to change the active tab.
     // Focuses the window briefly so Chrome's compositor renders the content
     // (required on Linux where unfocused windows don't get composited).
-    private async serializedVisibleCapture(tabId: number, windowId: number, renderDelay?: number): Promise<string> {
+    private async serializedVisibleCapture(tabId: number, windowId: number, renderDelay?: number, signal?: AbortSignal): Promise<string> {
         let releaseLock: () => void;
         const waiting = this._fallbackLock;
         this._fallbackLock = new Promise<void>(r => { releaseLock = r; });
@@ -93,10 +133,12 @@ export class CaptureManager {
         await waiting;
 
         try {
+            // A stop may have arrived while queued behind the lock — don't start work.
+            if (signal?.aborted) throw new DOMException('Capture aborted', 'AbortError');
             await chrome.windows.update(windowId, { focused: true });
             await chrome.tabs.update(tabId, { active: true });
-            await new Promise(resolve => setTimeout(resolve, renderDelay || 300));
-            const dataUrl = await this.captureVisibleTab(windowId);
+            await this.delay(renderDelay || 300, signal);
+            const dataUrl = await this.captureVisibleTab(windowId, signal);
             // Unfocus the capture window to return focus to the user's window
             await chrome.windows.update(windowId, { focused: false }).catch(() => { });
             return dataUrl;
@@ -111,7 +153,7 @@ export class CaptureManager {
         });
     }
 
-    async captureVisibleTab(windowId?: number): Promise<string> {
+    async captureVisibleTab(windowId?: number, signal?: AbortSignal): Promise<string> {
         const capturePromise = new Promise<string>((resolve, reject) => {
             const callback = (dataUrl: string) => {
                 if (chrome.runtime.lastError) {
@@ -129,10 +171,10 @@ export class CaptureManager {
             }
         });
 
-        return Promise.race([capturePromise, this.timeout(5000)]);
+        return this.raceAbort(Promise.race([capturePromise, this.timeout(5000)]), signal);
     }
 
-    async captureBackgroundTab(tabId: number): Promise<string> {
+    async captureBackgroundTab(tabId: number, signal?: AbortSignal): Promise<string> {
         const capturePromise = new Promise<string>((resolve, reject) => {
             chrome.scripting.executeScript({
                 target: { tabId },
@@ -155,7 +197,7 @@ export class CaptureManager {
             });
         });
 
-        return Promise.race([capturePromise, this.timeout(10000)]);
+        return this.raceAbort(Promise.race([capturePromise, this.timeout(10000)]), signal);
     }
 
     async resizeAndCompress(

@@ -4,12 +4,13 @@ import ThumbnailTile from '../popup/components/ThumbnailTile';
 
 interface MainContentProps {
     folder: chrome.bookmarks.BookmarkTreeNode | null;
-    displayedNodes?: chrome.bookmarks.BookmarkTreeNode[]; // Optional for backward compatibility, but we'll use it
+    displayedNodes?: chrome.bookmarks.BookmarkTreeNode[];
     isSearching?: boolean;
     searchQuery?: string;
-    thumbnails: Record<string, string>; // Map URL -> Blob URL
+    thumbnails: Record<string, string>;
     loadingUrls: Set<string>;
     queuedUrls: Set<string>;
+    bookmarkTags?: Record<string, string[]>;
     onNavigate: (id: string) => void;
     onNavigateBack?: () => void;
     onTriggerBatchCapture: (urls: string[]) => void;
@@ -25,6 +26,7 @@ export const MainContent: React.FC<MainContentProps> = ({
     thumbnails,
     loadingUrls,
     queuedUrls,
+    bookmarkTags,
     onNavigate,
     onNavigateBack,
     viewMode,
@@ -79,6 +81,13 @@ export const MainContent: React.FC<MainContentProps> = ({
                                             {node.title || node.url}
                                         </a>
                                         <span className="list-item-url">{node.url}</span>
+                                        {bookmarkTags?.[node.url]?.length ? (
+                                            <div className="list-item-tags">
+                                                {bookmarkTags[node.url].map(tag => (
+                                                    <span key={tag} className="tile-tag">{tag}</span>
+                                                ))}
+                                            </div>
+                                        ) : null}
                                     </div>
                                     <div className="list-item-status">
                                         {loadingUrls.has(node.url) && <span className="status-loading">Loading...</span>}
@@ -105,6 +114,7 @@ export const MainContent: React.FC<MainContentProps> = ({
                                 }}
                                 isLoading={loadingUrls.has(node.url)}
                                 isQueued={queuedUrls.has(node.url)}
+                                tags={bookmarkTags?.[node.url]}
                                 onContextMenu={(e) => onContextMenu(e, node)}
                             />
                         );

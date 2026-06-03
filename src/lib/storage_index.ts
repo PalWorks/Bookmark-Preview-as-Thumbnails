@@ -7,6 +7,7 @@ export interface MetadataRecord {
     status: ThumbnailStatus;
     lastCaptureAt?: number;
     error?: string;
+    tags?: string[];
 }
 
 export class StorageIndex {

@@ -64,7 +64,7 @@ describe('CaptureManager', () => {
 
         await manager.capture(42);
 
-        expect(manager.captureVisibleTab).toHaveBeenCalledWith(1);
+        expect(manager.captureVisibleTab).toHaveBeenCalledWith(1, undefined);
         expect(manager.captureBackgroundTab).not.toHaveBeenCalled();
     });
 
@@ -74,7 +74,7 @@ describe('CaptureManager', () => {
 
         await manager.capture(42);
 
-        expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42);
+        expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42, undefined);
         expect(manager.captureVisibleTab).not.toHaveBeenCalled();
     });
 
@@ -84,7 +84,7 @@ describe('CaptureManager', () => {
 
         await manager.capture(42);
 
-        expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42);
+        expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42, undefined);
     });
 
     it('routes to captureVisibleTab even when window is not focused (batch capture support)', async () => {
@@ -93,7 +93,7 @@ describe('CaptureManager', () => {
 
         await manager.capture(42);
 
-        expect(manager.captureVisibleTab).toHaveBeenCalledWith(1);
+        expect(manager.captureVisibleTab).toHaveBeenCalledWith(1, undefined);
         expect(manager.captureBackgroundTab).not.toHaveBeenCalled();
     });
 
@@ -107,7 +107,7 @@ describe('CaptureManager', () => {
 
         const result = await manager.capture(42);
         expect(result).toBe(FAKE_DATA_URL);
-        expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42);
+        expect(manager.captureBackgroundTab).toHaveBeenCalledWith(42, undefined);
     });
 
     // ── useActiveTabCapture path ─────────────────────────────────────────────
@@ -127,7 +127,7 @@ describe('CaptureManager', () => {
         // Must activate the target tab
         expect(chrome.tabs.update).toHaveBeenCalledWith(42, { active: true });
         // Must use the visible capture path
-        expect(manager.captureVisibleTab).toHaveBeenCalledWith(1);
+        expect(manager.captureVisibleTab).toHaveBeenCalledWith(1, undefined);
     });
 
     it('useActiveTabCapture: restores the previously active tab after capture', async () => {
@@ -142,6 +142,51 @@ describe('CaptureManager', () => {
 
         // After capture, must restore the original active tab
         expect(chrome.tabs.update).toHaveBeenCalledWith(99, { active: true });
+    });
+
+    // ── Stop / abort behaviour ───────────────────────────────────────────────
+
+    it('capture(): an already-aborted signal short-circuits before touching Chrome APIs', async () => {
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(manager.capture(42, { signal: controller.signal })).rejects.toThrow();
+        // Must bail before even querying the tab.
+        expect(chrome.tabs.get).not.toHaveBeenCalled();
+        expect(manager.captureVisibleTab).not.toHaveBeenCalled();
+        expect(manager.captureBackgroundTab).not.toHaveBeenCalled();
+    });
+
+    it('captureVisibleTab(): rejects promptly when the signal aborts mid-capture (no 5s timeout wait)', async () => {
+        // Use the REAL captureVisibleTab leaf. The Chrome stub is a no-op vi.fn that
+        // never invokes its callback, so the capture promise stays pending and the
+        // only way the call settles is via the abort — proving Stop is immediate.
+        vi.restoreAllMocks();
+
+        const controller = new AbortController();
+        const pending = manager.captureVisibleTab(1, controller.signal);
+        controller.abort();
+
+        await expect(pending).rejects.toThrow(/abort/i);
+    });
+
+    it('useActiveTabCapture: a stop propagates instead of falling through to the standard path', async () => {
+        asMock(chrome.tabs.get).mockResolvedValue(mockTab({ id: 42, active: false }));
+        asMock(chrome.windows.get).mockResolvedValue(mockWindow());
+        asMock(chrome.tabs.query).mockResolvedValue([mockTab({ id: 99, active: true })]);
+        asMock(chrome.tabs.update).mockResolvedValue(mockTab());
+
+        const controller = new AbortController();
+        // The active-tab capture path throws because the signal is aborted.
+        vi.spyOn(manager, 'captureVisibleTab').mockImplementation(async () => {
+            throw new DOMException('Capture aborted', 'AbortError');
+        });
+        const bg = vi.spyOn(manager, 'captureBackgroundTab').mockResolvedValue(FAKE_DATA_URL);
+        controller.abort();
+
+        await expect(manager.capture(42, { useActiveTabCapture: true, signal: controller.signal })).rejects.toThrow();
+        // Must NOT silently fall through to the background path after a stop.
+        expect(bg).not.toHaveBeenCalled();
     });
 
     // ── resizeAndCompress ────────────────────────────────────────────────────

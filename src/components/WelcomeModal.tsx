@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { LayoutGrid, Play, ShieldCheck, Moon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LayoutGrid, Play, ShieldCheck, Moon, X } from 'lucide-react';
 import './WelcomeModal.css';
 
 interface WelcomeModalProps {
@@ -49,9 +49,19 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose, theme, onSe
         }
     };
 
+    // Dismiss on Escape, like any standard modal.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
     return (
         <div className="welcome-overlay">
             <div className="welcome-modal">
+                <button className="welcome-close" onClick={onClose} title="Close" aria-label="Close">
+                    <X size={20} />
+                </button>
                 <div className="welcome-content">
                     <div className="welcome-icon-wrapper">
                         {steps[step].icon}

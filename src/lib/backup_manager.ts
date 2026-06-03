@@ -99,9 +99,19 @@ export class BackupManager {
             let count = 0;
             if (data.thumbnails && Array.isArray(data.thumbnails)) {
                 for (const t of data.thumbnails) {
-                    // Check if we have image data to restore
+                    // Validate untrusted input: a backup file is user-supplied and could
+                    // be malformed or hostile. `id` becomes a storage key, so it must be
+                    // a non-empty string; `url` likewise.
+                    if (!t || typeof t.id !== 'string' || !t.id || typeof t.url !== 'string') {
+                        console.warn('Skipping invalid backup record', t);
+                        continue;
+                    }
+
+                    // Only ever fetch inline data: URLs — never an arbitrary http(s) URL
+                    // embedded in the file (that would be an SSRF-style fetch from the
+                    // extension origin on import).
                     let blob: Blob | null = null;
-                    if (t.image_data) {
+                    if (typeof t.image_data === 'string' && t.image_data.startsWith('data:')) {
                         try {
                             const res = await fetch(t.image_data);
                             blob = await res.blob();

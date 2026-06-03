@@ -1,14 +1,19 @@
 import React from 'react';
-import { Folder } from 'lucide-react';
+import { Folder, Sparkles } from 'lucide-react';
 
 interface SidebarProps {
     folders: chrome.bookmarks.BookmarkTreeNode[];
     selectedFolderId: string;
     onSelectFolder: (id: string) => void;
     onContextMenu: (e: React.MouseEvent, node: chrome.bookmarks.BookmarkTreeNode) => void;
+    onAISettings: () => void;
+    isAISettingsActive: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onSelectFolder, onContextMenu }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+    folders, selectedFolderId, onSelectFolder, onContextMenu,
+    onAISettings, isAISettingsActive,
+}) => {
     const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(new Set(['1'])); // Default expand Bookmarks Bar
 
     const toggleExpand = (e: React.MouseEvent, folderId: string) => {
@@ -90,6 +95,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ folders, selectedFolderId, onS
             </div>
             <div className="sidebar-content">
                 {renderTree(folders)}
+            </div>
+            <div className="sidebar-footer">
+                <div
+                    className={`sidebar-ai-btn ${isAISettingsActive ? 'sidebar-ai-btn--active' : ''}`}
+                    onClick={onAISettings}
+                    title="AI Settings"
+                >
+                    <Sparkles size={15} className="sidebar-ai-icon" />
+                    <span>AI Settings</span>
+                </div>
             </div>
         </div>
     );

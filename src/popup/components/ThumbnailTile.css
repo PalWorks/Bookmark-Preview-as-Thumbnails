@@ -165,3 +165,26 @@
 .theme-dark .queued-text {
     color: #9aa0a6;
 }
+
+/* AI tag pills */
+.tile-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.tile-tag {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    white-space: nowrap;
+}
+
+.theme-dark .tile-tag {
+    background-color: #1e3a5f;
+    color: #8ab4f8;
+}

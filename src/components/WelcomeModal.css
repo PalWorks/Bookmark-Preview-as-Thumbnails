@@ -14,6 +14,7 @@
 }
 
 .welcome-modal {
+    position: relative;
     background: white;
     width: 500px;
     max-width: 90vw;
@@ -23,6 +24,29 @@
     display: flex;
     flex-direction: column;
     animation: slideUp 0.3s ease-out;
+}
+
+.welcome-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #5f6368;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    z-index: 1;
+}
+
+.welcome-close:hover {
+    background-color: #f1f3f4;
+    color: #202124;
 }
 
 .welcome-content {

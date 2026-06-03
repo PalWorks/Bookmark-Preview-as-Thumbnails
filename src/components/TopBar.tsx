@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles } from 'lucide-react';
 import './TopBar.css';
 
 interface TopBarProps {
     onSearch: (query: string) => void;
+    searchQuery: string;
     onConnectFolder: () => void;
     useIncognito: boolean;
     onToggleIncognito: (value: boolean) => void;
@@ -26,10 +27,21 @@ interface TopBarProps {
     onCaptureDelayCommit: (value: number) => void;
     useActiveTabCapture: boolean;
     onToggleActiveTabCapture: (value: boolean) => void;
+    aiAvailability: 'checking' | 'available' | 'after-download' | 'unavailable' | 'unsupported';
+    isTagging: boolean;
+    taggingProgress: { done: number; total: number };
+    availableTags: string[];
+    activeTag: string | null;
+    onTagChange: (tag: string | null) => void;
+    onAutoTag: () => void;
+    onStopTag: () => void;
+    onAISettings: () => void;
+    isAISettingsActive: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
     onSearch,
+    searchQuery,
     onConnectFolder,
     useIncognito,
     onToggleIncognito,
@@ -51,7 +63,17 @@ export const TopBar: React.FC<TopBarProps> = ({
     onCaptureDelayChange,
     onCaptureDelayCommit,
     useActiveTabCapture,
-    onToggleActiveTabCapture
+    onToggleActiveTabCapture,
+    aiAvailability,
+    isTagging,
+    taggingProgress,
+    availableTags,
+    activeTag,
+    onTagChange,
+    onAutoTag,
+    onStopTag,
+    onAISettings,
+    isAISettingsActive,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -81,6 +103,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     }, []);
 
     const getFilterLabel = () => {
+        if (activeTag) return activeTag;
         switch (filterType) {
             case 'folders': return 'Folders';
             case 'bookmarks': return 'Bookmarks';
@@ -111,7 +134,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     return (
         <div className="top-bar">
             <div className="logo-section">
-                <span className="logo-text">Bookmarks Preview As Thumbnails</span>
+                <span className="logo-text">Visual Bookmark Manager with Thumbnail Previews</span>
             </div>
 
             <div className="actions-section">
@@ -121,9 +144,18 @@ export const TopBar: React.FC<TopBarProps> = ({
                         type="text"
                         placeholder="Search bookmarks"
                         className="search-input"
+                        value={searchQuery}
                         onChange={(e) => onSearch(e.target.value)}
                     />
                 </div>
+
+                <button
+                    className={`icon-btn topbar-ai-btn ${isAISettingsActive ? 'topbar-ai-btn--active' : ''}`}
+                    onClick={onAISettings}
+                    title="AI Settings"
+                >
+                    <Sparkles size={18} />
+                </button>
 
                 <div className="capture-controls-wrapper">
                     <span className="capture-label">Generate Preview</span>
@@ -143,7 +175,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                 <div className="dropdown-wrapper" ref={filterRef}>
                     <button
-                        className={`action-btn ${isFilterOpen ? 'active' : ''} ${filterType !== 'all' ? 'has-value' : ''}`}
+                        className={`action-btn ${isFilterOpen ? 'active' : ''} ${filterType !== 'all' || activeTag ? 'has-value' : ''}`}
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
                         title="Filter By"
                     >
@@ -152,9 +184,26 @@ export const TopBar: React.FC<TopBarProps> = ({
                     </button>
                     {isFilterOpen && (
                         <div className="dropdown-menu">
-                            <div className={`dropdown-item ${filterType === 'all' ? 'selected' : ''}`} onClick={() => { onFilterChange('all'); setIsFilterOpen(false); }}>All</div>
-                            <div className={`dropdown-item ${filterType === 'folders' ? 'selected' : ''}`} onClick={() => { onFilterChange('folders'); setIsFilterOpen(false); }}>Folders Only</div>
-                            <div className={`dropdown-item ${filterType === 'bookmarks' ? 'selected' : ''}`} onClick={() => { onFilterChange('bookmarks'); setIsFilterOpen(false); }}>Bookmarks Only</div>
+                            <div className={`dropdown-item ${filterType === 'all' && !activeTag ? 'selected' : ''}`} onClick={() => { onFilterChange('all'); onTagChange(null); setIsFilterOpen(false); }}>All</div>
+                            <div className={`dropdown-item ${filterType === 'folders' ? 'selected' : ''}`} onClick={() => { onFilterChange('folders'); onTagChange(null); setIsFilterOpen(false); }}>Folders Only</div>
+                            <div className={`dropdown-item ${filterType === 'bookmarks' ? 'selected' : ''}`} onClick={() => { onFilterChange('bookmarks'); onTagChange(null); setIsFilterOpen(false); }}>Bookmarks Only</div>
+                            {availableTags.length > 0 && (
+                                <>
+                                    <div className="menu-divider"></div>
+                                    <div className="dropdown-tag-label">By AI Tag</div>
+                                    <div className="dropdown-tags">
+                                        {availableTags.map(tag => (
+                                            <div
+                                                key={tag}
+                                                className={`dropdown-tag-pill ${activeTag === tag ? 'dropdown-tag-pill--active' : ''}`}
+                                                onClick={() => { onTagChange(activeTag === tag ? null : tag); setIsFilterOpen(false); }}
+                                            >
+                                                {tag}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -327,6 +376,60 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <div>
                                     <div className="menu-title">Import Backup</div>
                                     <div className="menu-desc">Restore from file</div>
+                                </div>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div
+                                className={`menu-item ${aiAvailability === 'unsupported' || aiAvailability === 'unavailable' ? 'menu-item--disabled' : ''}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (aiAvailability === 'unsupported' || aiAvailability === 'unavailable') return;
+                                    if (isTagging) { onStopTag(); } else { onAutoTag(); setIsMenuOpen(false); }
+                                }}
+                            >
+                                <Sparkles size={16} className="menu-icon menu-icon--ai" />
+                                <div className="menu-text">
+                                    <div className="menu-title">
+                                        {isTagging
+                                            ? `Auto-Tagging… (${taggingProgress.done}/${taggingProgress.total})`
+                                            : 'Auto-Tag Bookmarks'}
+                                    </div>
+                                    <div className="menu-desc">
+                                        {aiAvailability === 'checking' ? 'Checking AI availability…' :
+                                         aiAvailability === 'unsupported' ? 'Chrome 127+ required' :
+                                         aiAvailability === 'after-download' ? 'AI model downloading…' :
+                                         aiAvailability === 'unavailable' ? 'AI not available' :
+                                         isTagging ? 'Click to stop' : 'AI-powered topic tagging'}
+                                    </div>
+                                </div>
+                                {isTagging && <div className="ai-tag-spinner"></div>}
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item" onClick={() => {
+                                chrome.tabs.create({ url: 'mailto:support@palworks.ai?subject=Feedback%20-%20Bookmarks%20Preview%20As%20Thumbnails' });
+                                setIsMenuOpen(false);
+                            }}>
+                                <MessageSquare size={16} className="menu-icon" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Submit Feedback</div>
+                                    <div className="menu-desc">Send us your thoughts</div>
+                                </div>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item" onClick={() => {
+                                chrome.tabs.create({ url: 'https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj/reviews' });
+                                setIsMenuOpen(false);
+                            }}>
+                                <Star size={16} className="menu-icon menu-icon--accent" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Rate Extension</div>
+                                    <div className="menu-desc">Love it? Leave a review</div>
                                 </div>
                             </div>
 
