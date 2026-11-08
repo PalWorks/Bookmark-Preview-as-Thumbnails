@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
 
 export function useSettings() {
@@ -5,18 +6,34 @@ export function useSettings() {
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
     const [captureDelay, setCaptureDelay] = useState<number>(500);
     const [useActiveTabCapture, setUseActiveTabCapture] = useState(false);
+    // Desktop preference: hide the folder panel. Synced like the other settings.
+    const [sidebarHidden, setSidebarHidden] = useState(false);
+    // Bumped by reloadSettings() (after a settings import).
+    const [loadSeq, setLoadSeq] = useState(0);
 
     useEffect(() => {
-        chrome.storage.sync.get(
-            ['useIncognito', 'theme', 'captureDelay', 'useActiveTabCapture'],
-            (result) => {
-                setUseIncognito(!!result.useIncognito);
-                if (result.theme) setTheme(result.theme as 'light' | 'dark' | 'system');
-                if (result.captureDelay) setCaptureDelay(Number(result.captureDelay));
-                setUseActiveTabCapture(!!result.useActiveTabCapture);
-            }
-        );
-    }, []);
+        let cancelled = false;
+        const load = async () => {
+            const result = await chrome.storage.sync.get(
+                ['useIncognito', 'theme', 'captureDelay', 'useActiveTabCapture', 'sidebarHidden'],
+            );
+            if (cancelled) return;
+            setUseIncognito(!!result.useIncognito);
+            if (result.theme === 'light' || result.theme === 'dark' || result.theme === 'system') setTheme(result.theme);
+            if (result.captureDelay) setCaptureDelay(Number(result.captureDelay));
+            setUseActiveTabCapture(!!result.useActiveTabCapture);
+            setSidebarHidden(result.sidebarHidden === true);
+        };
+        load().catch(err => console.error('[Settings] load failed', err));
+        return () => { cancelled = true; };
+    }, [loadSeq]);
+
+    const reloadSettings = () => setLoadSeq(n => n + 1);
+
+    const handleSetSidebarHidden = (value: boolean) => {
+        setSidebarHidden(value);
+        chrome.storage.sync.set({ sidebarHidden: value });
+    };
 
     const handleToggleIncognito = (value: boolean) => {
         if (value) {
@@ -75,5 +92,8 @@ export function useSettings() {
         handleSetTheme,
         onCaptureDelayCommit,
         onToggleActiveTabCapture,
+        sidebarHidden,
+        setSidebarHidden: handleSetSidebarHidden,
+        reloadSettings,
     };
 }

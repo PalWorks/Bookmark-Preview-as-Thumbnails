@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BackupManager } from '../src/lib/backup_manager';
 import type { BackupData } from '../src/lib/backup_manager';
@@ -58,9 +59,9 @@ describe('BackupManager', () => {
             localStore['hasSeenWelcome'] = true;
 
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
-            expect(data.thumbnails).toHaveLength(1);
-            expect(data.thumbnails[0].id).toBe('https://example.com');
-            expect(data.thumbnails[0].url).toBe('https://example.com');
+            expect(data.thumbnails!).toHaveLength(1);
+            expect(data.thumbnails![0].id).toBe('https://example.com');
+            expect(data.thumbnails![0].url).toBe('https://example.com');
         });
 
         it('exports raw base64 without double base64↔blob conversion', async () => {
@@ -78,7 +79,7 @@ describe('BackupManager', () => {
 
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
             // The image_data in backup equals the base64 field from storage — no round-trip
-            expect(data.thumbnails[0].image_data).toBe(storedBase64);
+            expect(data.thumbnails![0].image_data).toBe(storedBase64);
         });
 
         it('handles chunked export: more than 25 thumbnails does not error', async () => {
@@ -96,12 +97,12 @@ describe('BackupManager', () => {
             }
 
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
-            expect(data.thumbnails).toHaveLength(60);
+            expect(data.thumbnails!).toHaveLength(60);
         });
 
         it('returns empty thumbnails array when there are none', async () => {
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
-            expect(data.thumbnails).toHaveLength(0);
+            expect(data.thumbnails!).toHaveLength(0);
         });
 
         it('populates title from meta_ record', async () => {
@@ -115,7 +116,7 @@ describe('BackupManager', () => {
                 title: 'My Page', status: 'saved_indexeddb',
             };
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
-            expect(data.thumbnails[0].title).toBe('My Page');
+            expect(data.thumbnails![0].title).toBe('My Page');
         });
 
         it('uses empty string when no meta_ record exists for a thumbnail', async () => {
@@ -125,7 +126,7 @@ describe('BackupManager', () => {
                 base64: 'data:image/webp;base64,ZmFrZQ==',
             };
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
-            expect(data.thumbnails[0].title).toBe('');
+            expect(data.thumbnails![0].title).toBe('');
         });
     });
 
@@ -314,7 +315,7 @@ describe('BackupManager', () => {
             };
 
             const data: BackupData = JSON.parse(await (await manager.createBackup()).text());
-            expect(data.thumbnails[0].status).toBe('error');
+            expect(data.thumbnails![0].status).toBe('error');
         });
 
         it('throws on invalid JSON', async () => {
@@ -346,6 +347,89 @@ describe('BackupManager', () => {
             });
             const file = { text: async () => json } as unknown as File;
             await expect(manager.importBackup(file)).rejects.toThrow('Unsupported backup version');
+        });
+    });
+
+    describe('settings allowlist (1.3.0)', () => {
+        const fileOf = (data: unknown) => new File([JSON.stringify(data)], 'b.json', { type: 'application/json' });
+
+        it('settings-only export has the allowlisted settings and never a key', async () => {
+            Object.assign(syncStore, {
+                theme: 'dark', captureDelay: 900, sidebarHidden: true, ai_mode: 'cloud', ai_provider: 'openai',
+                ai_model: 'gpt-4o-mini', ai_custom_tags: 'Dev, News', somethingElse: 'x',
+            });
+            localStore.ai_enc_key = 'SECRET_ENC';
+            localStore.ai_api_key_encrypted = 'SECRET_CIPHER';
+            localStore['thumb_https://a.example'] = { id: 'https://a.example', url: 'https://a.example', base64: 'data:image/webp;base64,QQ==' };
+            const blob = await manager.createSettingsBackup();
+            const text = await blob.text();
+            const data = JSON.parse(text);
+            expect(data).toMatchObject({ version: 1, kind: 'settings' });
+            expect(data.thumbnails!).toBeUndefined();
+            expect(data.settings).toEqual({
+                theme: 'dark', captureDelay: 900, sidebarHidden: true, ai_mode: 'cloud', ai_provider: 'openai',
+                ai_model: 'gpt-4o-mini', ai_custom_tags: 'Dev, News',
+            });
+            expect(text).not.toContain('SECRET');
+            expect(text).not.toContain('base64');
+        });
+
+        it('full backup settings use the same allowlist', async () => {
+            Object.assign(syncStore, { theme: 'light', unknownKey: 1 });
+            const data = JSON.parse(await (await manager.createBackup()).text());
+            expect(data.kind).toBe('full');
+            expect(data.settings).toEqual({ theme: 'light' });
+        });
+
+        it('a tampered file: unknown keys and wrong types are ignored and counted', async () => {
+            const r = await manager.importBackup(fileOf({
+                version: 1, kind: 'settings', settings: {
+                    theme: 'neon', captureDelay: '500', useIncognito: 'yes', sidebarHidden: false,
+                    // Built at runtime so the fixture is not mistaken for a real credential.
+                    ai_custom_url: `https://${'user'}:${'secret'}@evil.example/v1`, evil: true, ai_mode: 'cloud',
+                },
+            }));
+            expect(r).toMatchObject({ success: true, kind: 'settings', settingsApplied: 2, settingsSkipped: 5, aiProviderHeld: false });
+            expect(syncStore).toEqual({ sidebarHidden: false, ai_mode: 'cloud' });
+        });
+
+        it('rejects an endpoint with a query string, accepts a clean one', async () => {
+            await manager.importBackup(fileOf({ settings: { ai_custom_url: 'https://llm.example/v1?key=abc' } }));
+            expect(syncStore.ai_custom_url).toBeUndefined();
+            await manager.importBackup(fileOf({ settings: { ai_custom_url: 'https://llm.example/v1/chat/completions' } }));
+            expect(syncStore.ai_custom_url).toBe('https://llm.example/v1/chat/completions');
+        });
+
+        it('never changes the AI provider or endpoint while an API key is saved', async () => {
+            localStore.ai_api_key_encrypted = 'CIPHER';
+            Object.assign(syncStore, { ai_provider: 'openai' });
+            const r = await manager.importBackup(fileOf({
+                settings: { ai_provider: 'custom', ai_custom_url: 'https://attacker.example/v1', theme: 'dark' },
+            }));
+            expect(r.aiProviderHeld).toBe(true);
+            expect(syncStore.ai_provider).toBe('openai');
+            expect(syncStore.ai_custom_url).toBeUndefined();
+            expect(syncStore.theme).toBe('dark');
+        });
+
+        it('applies the provider when no key is saved', async () => {
+            const r = await manager.importBackup(fileOf({ settings: { ai_provider: 'groq' } }));
+            expect(r.aiProviderHeld).toBe(false);
+            expect(syncStore.ai_provider).toBe('groq');
+        });
+
+        it('a JSON file that is not a backup is refused with a clear message', async () => {
+            await expect(manager.importBackup(fileOf([1, 2, 3]))).rejects.toThrow("That file isn't a backup from this extension.");
+            await expect(manager.importBackup(fileOf({ hello: 'world' }))).rejects.toThrow("isn't a backup");
+        });
+
+        it('a settings file never imports thumbnails', async () => {
+            const r = await manager.importBackup(fileOf({
+                kind: 'settings', settings: {},
+                thumbnails: [{ id: 'https://x.example', url: 'https://x.example', image_data: 'data:image/webp;base64,QQ==' }],
+            }));
+            expect(r.count).toBe(0);
+            expect(localStore['thumb_https://x.example']).toBeUndefined();
         });
     });
 });

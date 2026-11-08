@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 /// <reference types="chrome" />
 
 import { captureManager } from './lib/capture';
@@ -8,8 +9,15 @@ import { generateErrorImage } from './lib/error_generator';
 import { checkAIAvailability, tagBookmark, invalidateAITemplate, searchBookmarks, friendlyError, isFatalAIError } from './lib/ai_tagger';
 import { loadAISettings, bindLegacyApiKey } from './lib/ai_settings_storage';
 import { migrateStorageSchema, markFreshInstall, repairMisMigratedKeys } from './lib/storage_migration';
+import { createTrashService, handleTrashMessage, isTrashMessage } from './sw/trash';
+import { TRASH_RESTORING_KEY } from './lib/trash_store';
 
 // Service Worker for BookmarksThumbnails
+
+// Split incognito runs a second worker. Only the regular one owns Trash.
+const IS_INCOGNITO_WORKER = chrome.extension?.inIncognitoContext === true;
+const trash = createTrashService();
+const TRASH_PURGE_ALARM = 'trash-purge';
 
 // Listen for extension icon click
 chrome.action.onClicked.addListener(() => {
@@ -78,6 +86,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             .then(() => sendResponse({ ok: true }))
             .catch((err: unknown) => {
                 console.error('[Metadata] META_PATCH failed', id, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
+    }
+
+    if (isTrashMessage(message)) {
+        handleTrashMessage(trash, message, _sender, IS_INCOGNITO_WORKER)
+            .then(sendResponse)
+            .catch((err: unknown) => {
+                console.error('[Trash] message failed', message.type, err);
                 sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
             });
         return true; // async response
@@ -298,6 +316,11 @@ async function processBatchCapture(
             });
 
             if (navError) {
+                // Deleted while this capture ran: write nothing.
+                if (await isNoLongerBookmarked(url)) {
+                    chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
+                    return;
+                }
                 const dataUrl = await generateErrorImage(navError, url);
                 const res = await fetch(dataUrl);
                 const blob = await res.blob();
@@ -324,6 +347,10 @@ async function processBatchCapture(
                     ? String((rawError as { message: unknown }).message)
                     : 'Capture Failed';
             console.error('Failed to capture', url, rawError);
+            if (await isNoLongerBookmarked(url)) {
+                chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
+                return;
+            }
             try {
                 const dataUrl = await generateErrorImage(errMsg, url, 'Capture Failed');
                 const res = await fetch(dataUrl);
@@ -360,24 +387,45 @@ async function processBatchCapture(
     }
 }
 
+// A capture can finish after its bookmark was deleted (and maybe emptied from
+// Trash). Writing then would leave an orphaned preview, so captures of
+// bookmarks check right before writing. A bookmark sitting in Trash keeps its
+// older preview for a restore.
+async function isNoLongerBookmarked(url: string): Promise<boolean> {
+    try {
+        return (await chrome.bookmarks.search({ url })).length === 0;
+    } catch {
+        return false; // unsearchable URL: keep the old behaviour
+    }
+}
+
+// Bookmarks re-created by a Trash restore already have their preview cached.
+async function isTrashRestoreActive(): Promise<boolean> {
+    if (trash.isRestoreActive()) return true;
+    if (!IS_INCOGNITO_WORKER) return false;
+    // The incognito worker cannot see the regular worker's memory.
+    const r = await chrome.storage.local.get(TRASH_RESTORING_KEY).catch(() => ({} as Record<string, unknown>));
+    return Number(r[TRASH_RESTORING_KEY] ?? 0) > Date.now();
+}
+
 // Auto-capture when a bookmark is created
 chrome.bookmarks.onCreated.addListener(async (_id, bookmark) => {
     // Skip while a batch is running: both paths write the same storage keys and
     // would race (last write wins), leaving the blob and its metadata mismatched.
     // The user can regenerate the thumbnail afterwards if needed.
     if (isBatchCapturing) return;
-    if (bookmark.url) {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        // Re-check after the await — a batch may have started in the interim, and
-        // both paths write the same keys.
-        if (isBatchCapturing) return;
-        const activeTab = tabs[0];
-        if (activeTab?.id && activeTab.url === bookmark.url) {
-            try {
-                await captureTab(activeTab.id, bookmark.url);
-            } catch (err) {
-                console.error('Auto-capture failed:', err);
-            }
+    if (!bookmark.url) return;
+    if (await isTrashRestoreActive()) return;
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    // Re-check after the await — a batch may have started in the interim, and
+    // both paths write the same keys.
+    if (isBatchCapturing) return;
+    const activeTab = tabs[0];
+    if (activeTab?.id && activeTab.url === bookmark.url) {
+        try {
+            await captureTab(activeTab.id, bookmark.url);
+        } catch (err) {
+            console.error('Auto-capture failed:', err);
         }
     }
 });
@@ -390,7 +438,9 @@ async function persistCapture(
     id: string,
     useActiveTabCapture: boolean,
     renderDelay?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    /** Bookmark captures skip the write if the bookmark was deleted meanwhile. */
+    requireBookmark = true,
 ): Promise<{ success: boolean; id: string; dataUrl: string }> {
     const tab = await chrome.tabs.get(tabId);
     if (!tab.url) throw new Error('Tab has no URL');
@@ -414,6 +464,13 @@ async function persistCapture(
         }
     } catch (fsError) {
         console.warn('Failed to save to disk:', fsError);
+    }
+
+    // Checked as late as possible: the bookmark may have been deleted during the
+    // capture, resize or disk write above.
+    if (requireBookmark && await isNoLongerBookmarked(id)) {
+        chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url: id, error: 'Bookmark was deleted' }).catch(() => { });
+        return { success: false, id, dataUrl: '' };
     }
 
     // Use `id` (the original bookmark URL) for both key and url field.
@@ -448,7 +505,8 @@ async function captureActiveTab(): Promise<{ success: boolean; id: string; dataU
     const tab = tabs[0];
     if (!tab?.id) throw new Error('No active tab found');
     if (!tab.url) throw new Error('Tab has no URL');
-    return persistCapture(tab.id, tab.url, false);
+    // The active tab need not be bookmarked.
+    return persistCapture(tab.id, tab.url, false, undefined, undefined, false);
 }
 
 // Capture a specific tab with an explicit target URL (batch capture + auto-capture path)
@@ -601,6 +659,25 @@ repairMisMigratedKeys()
     .then(repaired => { if (repaired.length) console.log('[StorageMigration] Repaired keys:', repaired); })
     .then(() => bindLegacyApiKey())
     .catch(err => console.error('[StorageMigration] Repair failed:', err));
+
+// ─── Trash upkeep ─────────────────────────────────────────────────────────────
+
+if (!IS_INCOGNITO_WORKER) {
+    // Finish anything a previous worker left half-done, then make sure the daily
+    // expiry alarm exists (alarms survive worker restarts but not every update).
+    trash.reconcile().catch(err => console.error('[Trash] startup reconcile failed', err));
+    chrome.alarms.get(TRASH_PURGE_ALARM)
+        .then(alarm => {
+            if (!alarm) return chrome.alarms.create(TRASH_PURGE_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 1 });
+        })
+        .catch(err => console.error('[Trash] alarm setup failed', err));
+    chrome.alarms.onAlarm.addListener((alarm) => {
+        if (alarm.name !== TRASH_PURGE_ALARM) return;
+        trash.purgeExpired()
+            .then(n => { if (n) console.log(`[Trash] purged ${n} expired entr${n === 1 ? 'y' : 'ies'}`); })
+            .catch(err => console.error('[Trash] purge failed', err));
+    });
+}
 
 chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === 'install') {

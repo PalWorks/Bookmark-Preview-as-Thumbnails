@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-08T04:16:16+00:00
+**Last Updated:** 2026-11-08T10:20:54+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -18,7 +18,15 @@ servers):
 3. **Optional disk folder.** If you use "Connect a Folder" (File System Access
    API), thumbnails are also written to the directory you explicitly choose. The
    extension accesses no other files.
-4. **AI API keys (optional).** If you enable a cloud AI provider, your API key is
+4. **Trash.** When you delete a bookmark or folder in the extension, a copy of its
+   titles, links, folder location and dates is kept in `chrome.storage.local` for
+   30 days so you can restore it. After 30 days, or when you empty Trash, the copy
+   is removed together with cached previews that no other bookmark uses. Preview
+   files already saved to a folder you connected on disk stay there.
+5. **Site icons.** Bookmarks without a preview show their site icon from Chrome's
+   own local favicon cache. This is read on your device; no request goes to the
+   site or to us.
+6. **AI API keys (optional).** If you enable a cloud AI provider, your API key is
    stored locally (obfuscated at rest) and is sent **only** to the provider you
    selected, solely to authenticate your own requests. It is never sent to us.
    The key is tied to the provider (and, for a custom or local server, the server
@@ -53,18 +61,22 @@ them).
 - **bookmarks** — read your bookmarks to display them and associate thumbnails.
 - **tabs / activeTab / scripting / webNavigation** — load and capture bookmarked
   pages to generate thumbnails.
-- **storage / unlimitedStorage** — store thumbnails, metadata, and settings locally.
+- **storage / unlimitedStorage** — store thumbnails, metadata, Trash, and settings locally.
+- **favicon** — show a bookmark's site icon from Chrome's local favicon cache when it has no preview.
+- **alarms** — run the daily clean-up that removes Trash items older than 30 days.
 - **host permissions (`<all_urls>`)** — capture screenshots of any site you have
   bookmarked, and (only if you enable cloud AI) send requests to your chosen
   provider's API endpoint.
 
 ## Data deletion
 
-- Remove individual thumbnails in the extension, or
+- Delete bookmarks in the extension and then **Empty Trash** (removes the Trash copy
+  and any cached preview no other bookmark uses), or wait 30 days, or
 - Uninstall the extension (clears its local data), or
 - Clear the browser's "Hosted App Data" for the extension.
 
-Your stored API key is removed when you clear it in AI Settings or uninstall.
+Your stored API key is removed when you clear it in AI Settings or uninstall. Backup
+and **Export Settings** files never contain the API key or its encryption key.
 
 ## Contact
 

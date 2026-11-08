@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
 
 export const PrivacyPolicy: React.FC = () => (
@@ -38,8 +39,8 @@ export const TermsAndConditions: React.FC = () => (
       <h3 className="text-xl font-bold text-slate-900">1. Usage License</h3>
       <p>This software is dual-licensed:</p>
       <ul className="list-disc pl-5 space-y-2">
-        <li><strong>Free/Open Source:</strong> You may use this software under the terms of the GNU Affero General Public License v3 (AGPLv3) for non-commercial or open-source purposes.</li>
-        <li><strong>Commercial:</strong> For proprietary or commercial use without the AGPLv3 restrictions, a commercial license must be purchased.</li>
+        <li><strong>Open source:</strong> You may use, change and share this software under the GNU Affero General Public License, version 3 only (AGPL-3.0). The AGPL allows any use, including commercial use, provided you meet its conditions, such as publishing the source code of versions you distribute or offer over a network.</li>
+        <li><strong>Commercial:</strong> To use this software without the AGPL obligations, for example in a closed-source product, a paid commercial license is available. See COMMERCIAL-LICENSE.md in the GitHub repository.</li>
       </ul>
 
       <h3 className="text-xl font-bold text-slate-900">2. Disclaimer of Warranty</h3>

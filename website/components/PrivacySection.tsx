@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
 import { Shield, Database, Lock, WifiOff } from 'lucide-react';
 

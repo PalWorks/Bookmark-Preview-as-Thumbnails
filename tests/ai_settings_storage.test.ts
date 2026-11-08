@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect } from 'vitest';
 import { saveAISettings, loadAISettings, getBoundApiKey as getBoundApiKeyForTrim, saveCustomTags, parseCustomTags } from '../src/lib/ai_settings_storage';
 

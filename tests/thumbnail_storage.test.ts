@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ThumbnailStorage } from '../src/lib/thumbnail_storage';
 import { localStore } from './setup';

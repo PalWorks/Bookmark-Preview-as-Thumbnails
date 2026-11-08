@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Eye, EyeOff, CheckCircle2, Search, Copy, Trash2, ExternalLink, Sparkles, Plus, X, StopCircle, ChevronDown } from 'lucide-react';
 import './AISettingsPage.css';
@@ -8,6 +9,7 @@ import {
 import { AI_TAGS, validateProviderKey, SEARCH_CAP_BUILTIN, SEARCH_CAP_CLOUD, type AIAvailability } from '../../lib/ai_tagger';
 import { storageIndex } from '../../lib/storage_index';
 import { patchMetadata } from '../../lib/metadata_client';
+import type { TrashDeleteResult } from '../../lib/trash_store';
 
 type KeepPolicy = 'oldest' | 'newest';
 
@@ -17,6 +19,10 @@ interface AISettingsPageProps {
     onSave: () => void;
     onBack: () => void;
     currentFolder: chrome.bookmarks.BookmarkTreeNode | null;
+    /** Duplicate Finder deletes go through Trash (one Undo per action). */
+    onDeleteBookmarks: (targets: Array<{ id: string; title: string }>) => Promise<TrashDeleteResult | undefined>;
+    /** False in incognito, where Trash is read-only. */
+    canDelete: boolean;
 }
 
 type BuiltinStatus = 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'unsupported';
@@ -27,6 +33,8 @@ interface DupEntry {
     url: string;
     folder: string;
     dateAdded?: number;
+    /** Managed by an administrator: never sent for deletion. */
+    managed: boolean;
 }
 
 interface DuplicateGroup {
@@ -59,7 +67,7 @@ function collectDupEntries(
     out: DupEntry[] = []
 ): DupEntry[] {
     for (const n of nodes) {
-        if (n.url) out.push({ id: n.id, title: n.title, url: n.url, folder: parent, dateAdded: n.dateAdded });
+        if (n.url) out.push({ id: n.id, title: n.title, url: n.url, folder: parent, dateAdded: n.dateAdded, managed: n.unmodifiable === 'managed' });
         if (n.children) collectDupEntries(n.children, n.title || parent, out);
     }
     return out;
@@ -138,7 +146,7 @@ const RING_CIRC = 2 * Math.PI * 15; // ≈ 94.25
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, currentFolder }) => {
+export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, currentFolder, onDeleteBookmarks, canDelete }) => {
     const [activeTab, setActiveTab] = useState<'settings' | 'autotag' | 'search' | 'duplicates'>('settings');
 
     // Guard the "Saved!" reset timers so they don't setState after the page unmounts
@@ -487,44 +495,55 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         }
     };
 
-    const handleDeleteBookmark = async (id: string, groupKey: string) => {
-        await chrome.bookmarks.remove(id);
+    // Ids a delete actually removed: requested minus skipped (already gone) and failed.
+    const removedIds = (requested: string[], res: TrashDeleteResult | undefined): Set<string> => {
+        if (!res?.ok) return new Set();
+        const notRemoved = new Set([...(res.skipped ?? []), ...(res.failed ?? []).map(f => f.id)]);
+        return new Set(requested.filter(id => !notRemoved.has(id)));
+    };
+
+    // Drop removed bookmarks from the results; groups left with one copy disappear.
+    const pruneDuplicates = (gone: Set<string>) => {
+        if (gone.size === 0) return;
         setDuplicates(prev => prev
-            .map(g => g.normKey === groupKey
-                ? { ...g, entries: g.entries.filter(e => e.id !== id) }
-                : g
-            )
+            .map(g => ({ ...g, entries: g.entries.filter(e => !gone.has(e.id)) }))
             .filter(g => g.entries.length > 1)
         );
+    };
+
+    // Every Duplicate Finder delete goes through Trash as one operation with Undo.
+    // Managed bookmarks are never sent (the service would reject the whole request).
+    const deleteDuplicates = async (entries: DupEntry[]) => {
+        const targets = entries.filter(e => !e.managed).map(e => ({ id: e.id, title: e.title || e.url }));
+        if (targets.length === 0) return;
+        const ids = targets.map(t => t.id);
+        const res = await onDeleteBookmarks(targets);
+        pruneDuplicates(removedIds(ids, res));
+    };
+
+    const handleDeleteBookmark = async (id: string, groupKey: string) => {
+        const entry = duplicates.find(g => g.normKey === groupKey)?.entries.find(e => e.id === id);
+        if (entry) await deleteDuplicates([entry]);
     };
 
     // Merge one group per the current keep-policy: keep one copy, delete the rest.
     const handleMergeGroup = async (group: DuplicateGroup) => {
         const keep = keptEntry(group.entries, keepPolicy);
-        const toRemove = group.entries.filter(e => e.id !== keep.id);
-        await Promise.all(toRemove.map(e => chrome.bookmarks.remove(e.id).catch(() => { })));
-        setDuplicates(prev => prev.filter(g => g.normKey !== group.normKey));
+        await deleteDuplicates(group.entries.filter(e => e.id !== keep.id));
     };
 
-    // Merge every group in one click, keeping the oldest or newest copy.
+    // Merge every group in one click, keeping the oldest or newest copy. No
+    // confirmation: it is one Trash operation, undone with a single Undo.
     const handleMergeAll = async (policy: KeepPolicy) => {
         setDupMenuOpen(false);
         setKeepPolicy(policy);
         if (duplicates.length === 0) return;
-        const total = duplicates.reduce((n, g) => n + (g.entries.length - 1), 0);
-        const kept = policy === 'oldest' ? 'OLDEST' : 'NEWEST';
-        if (!confirm(
-            `Remove ${total} duplicate bookmark${total !== 1 ? 's' : ''} across ${duplicates.length} group` +
-            `${duplicates.length !== 1 ? 's' : ''}?\n\n` +
-            `The ${kept} copy in each group is kept; the others are deleted. This cannot be undone.`
-        )) return;
-        const removals: string[] = [];
+        const removals: DupEntry[] = [];
         for (const g of duplicates) {
             const keep = keptEntry(g.entries, policy);
-            for (const e of g.entries) if (e.id !== keep.id) removals.push(e.id);
+            for (const e of g.entries) if (e.id !== keep.id) removals.push(e);
         }
-        await Promise.all(removals.map(id => chrome.bookmarks.remove(id).catch(() => { })));
-        setDuplicates([]);
+        await deleteDuplicates(removals);
     };
 
     // ── Handlers: Auto-Tag ────────────────────────────────────────────────────
@@ -662,7 +681,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         <div
                             className={`ai-card ${mode === 'builtin' ? 'ai-card--selected' : ''}`}
                             onClick={() => setMode('builtin')}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMode('builtin'); } }}
                             role="button"
+                            tabIndex={0}
                             aria-pressed={mode === 'builtin'}
                         >
                             {mode === 'builtin' && <div className="ai-card-check">✓</div>}
@@ -680,7 +701,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         <div
                             className={`ai-card ${mode === 'cloud' ? 'ai-card--selected' : ''}`}
                             onClick={() => setMode('cloud')}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMode('cloud'); } }}
                             role="button"
+                            tabIndex={0}
                             aria-pressed={mode === 'cloud'}
                         >
                             {mode === 'cloud' && <div className="ai-card-check">✓</div>}
@@ -1176,7 +1199,8 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         </button>
                         {scanDone && !isScanning && duplicates.length > 0 && (
                             <div className="ai-merge-menu-wrap">
-                                <button className="ai-merge-all-btn" onClick={() => setDupMenuOpen(o => !o)}>
+                                <button className="ai-merge-all-btn" onClick={() => setDupMenuOpen(o => !o)} disabled={!canDelete}
+                                    title={canDelete ? 'Removed duplicates go to Trash; you can undo' : 'Delete works in regular windows only'}>
                                     ✨ Remove All Duplicates <ChevronDown size={14} />
                                 </button>
                                 {dupMenuOpen && (
@@ -1228,7 +1252,8 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                             <span className="ai-dup-group-url">{group.normKey}</span>
                                             <button
                                                 className="ai-dup-merge-btn"
-                                                title={`Keep the ${keepPolicy} copy, delete the others`}
+                                                title={`Keep the ${keepPolicy} copy, delete the others (you can undo)`}
+                                                disabled={!canDelete}
                                                 onClick={() => handleMergeGroup(group)}
                                             >
                                                 Merge ({group.entries.length - 1} to delete)
@@ -1260,8 +1285,12 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                                             </button>
                                                             <button
                                                                 className="ai-result-action ai-result-action--danger"
-                                                                title={isKept ? 'This is the copy that would be kept' : 'Delete this bookmark'}
-                                                                disabled={isKept}
+                                                                title={isKept ? 'This is the copy that would be kept'
+                                                                    : e.managed ? 'Managed by your organisation'
+                                                                        : !canDelete ? 'Delete works in regular windows only'
+                                                                            : 'Delete this bookmark (you can undo)'}
+                                                                aria-label={`Delete ${e.title || e.url}`}
+                                                                disabled={isKept || e.managed || !canDelete}
                                                                 onClick={() => handleDeleteBookmark(e.id, group.normKey)}
                                                             >
                                                                 <Trash2 size={14} />

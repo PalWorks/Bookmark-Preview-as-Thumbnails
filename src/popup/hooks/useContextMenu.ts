@@ -1,4 +1,7 @@
-import { useState } from 'react';
+// SPDX-License-Identifier: AGPL-3.0-only
+import { useRef, useState } from 'react';
+
+type Node = chrome.bookmarks.BookmarkTreeNode;
 
 interface ContextMenuDeps {
     selectedFolderId: string;
@@ -6,10 +9,14 @@ interface ContextMenuDeps {
     refreshTree: () => void;
     refreshCurrentFolder: (folderId: string) => void;
     onTriggerCapture: (urls: string[]) => void;
-    clipboard: { mode: 'cut' | 'copy'; node: chrome.bookmarks.BookmarkTreeNode } | null;
+    clipboard: { mode: 'cut' | 'copy'; node: Node } | null;
     onCut: (targetId: string) => void;
     onCopy: (targetId: string) => void;
     onPaste: (targetParentId: string) => Promise<void>;
+    /** Delete through Trash (with Undo); no confirmation dialog. */
+    onDelete: (node: { id: string; title: string }) => void;
+    /** False in incognito, where Trash is read-only. */
+    canDelete: boolean;
 }
 
 export function useContextMenu({
@@ -22,35 +29,62 @@ export function useContextMenu({
     onCut,
     onCopy,
     onPaste,
+    onDelete,
+    canDelete,
 }: ContextMenuDeps) {
     const [contextMenu, setContextMenu] = useState<{
         visible: boolean;
         x: number;
         y: number;
         targetId: string;
+        title: string;
         type: 'folder' | 'bookmark';
         itemCount?: number;
-    }>({ visible: false, x: 0, y: 0, targetId: '', type: 'bookmark' });
+        permanent?: boolean;
+    }>({ visible: false, x: 0, y: 0, targetId: '', title: '', type: 'bookmark' });
+    // Element that opened the menu; focus returns there when it closes.
+    const openerRef = useRef<HTMLElement | null>(null);
 
-    const handleContextMenu = (e: React.MouseEvent, node: chrome.bookmarks.BookmarkTreeNode) => {
+    const handleContextMenu = (e: React.MouseEvent, node: Node) => {
         e.preventDefault();
+        const target = e.currentTarget as HTMLElement | null;
+        // Return focus to the focused control inside the row (keyboard: Shift+F10 or
+        // the menu key), else to the element the event was attached to.
+        const active = document.activeElement as HTMLElement | null;
+        const opener = active && target?.contains(active) ? active : target;
+        openerRef.current = opener;
+        // A keyboard "click" has no pointer position: open below the button instead.
+        let x = e.clientX;
+        let y = e.clientY;
+        if ((x === 0 && y === 0) && opener?.getBoundingClientRect) {
+            const r = opener.getBoundingClientRect();
+            x = r.left;
+            y = r.bottom;
+        }
+        const permanent = !node.parentId || node.parentId === '0';
         if (!node.url) {
             chrome.bookmarks.getChildren(node.id, (children) => {
                 setContextMenu({
-                    visible: true, x: e.clientX, y: e.clientY,
-                    targetId: node.id, type: 'folder',
-                    itemCount: children.filter(c => c.url).length,
+                    visible: true, x, y,
+                    targetId: node.id, title: node.title, type: 'folder',
+                    itemCount: (children ?? []).filter(c => c.url).length,
+                    permanent,
                 });
             });
         } else {
             setContextMenu({
-                visible: true, x: e.clientX, y: e.clientY,
-                targetId: node.id, type: 'bookmark',
+                visible: true, x, y,
+                targetId: node.id, title: node.title, type: 'bookmark',
             });
         }
     };
 
-    const closeContextMenu = () => setContextMenu(prev => ({ ...prev, visible: false }));
+    const closeContextMenu = () => {
+        setContextMenu(prev => ({ ...prev, visible: false }));
+        const opener = openerRef.current;
+        openerRef.current = null;
+        if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
 
     const handleRename = () => {
         const { targetId } = contextMenu;
@@ -67,18 +101,8 @@ export function useContextMenu({
     };
 
     const handleDelete = () => {
-        const { targetId, type } = contextMenu;
-        if (!confirm('Are you sure you want to delete this item?')) return;
-        if (type === 'folder') {
-            chrome.bookmarks.removeTree(targetId, () => {
-                refreshTree();
-                if (currentFolderId) refreshCurrentFolder(currentFolderId);
-            });
-        } else {
-            chrome.bookmarks.remove(targetId, () => {
-                if (currentFolderId) refreshCurrentFolder(currentFolderId);
-            });
-        }
+        const { targetId, title } = contextMenu;
+        onDelete({ id: targetId, title });
     };
 
     const handleOpen = (mode: 'tab' | 'window' | 'incognito') => {
@@ -128,7 +152,7 @@ export function useContextMenu({
     // every render, so they could never match the manual dependency list.
     const menuItems = [
         { label: 'Rename', action: handleRename },
-        { label: 'Delete', action: handleDelete, danger: true },
+        { label: 'Delete', action: handleDelete, danger: true, disabled: !canDelete || contextMenu.permanent },
         { separator: true, label: '', action: () => { } },
         { label: 'Regenerate Preview', action: handleRegenerate, disabled: contextMenu.type === 'folder' },
         { separator: true, label: '', action: () => { } },

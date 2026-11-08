@@ -1,10 +1,15 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
-import { Folder, MoreVertical, ArrowLeft } from 'lucide-react';
+import { MoreVertical, ArrowLeft, Trash2 } from 'lucide-react';
 import ThumbnailTile from '../popup/components/ThumbnailTile';
+import { BookmarkPreview, FolderGlyph } from './BookmarkPreview';
+import { countBookmarksDeep, plural } from '../lib/utils';
+
+type Node = chrome.bookmarks.BookmarkTreeNode;
 
 interface MainContentProps {
-    folder: chrome.bookmarks.BookmarkTreeNode | null;
-    displayedNodes?: chrome.bookmarks.BookmarkTreeNode[];
+    folder: Node | null;
+    displayedNodes?: Node[];
     isSearching?: boolean;
     searchQuery?: string;
     thumbnails: Record<string, string>;
@@ -13,10 +18,16 @@ interface MainContentProps {
     bookmarkTags?: Record<string, string[]>;
     onNavigate: (id: string) => void;
     onNavigateBack?: () => void;
-    onTriggerBatchCapture: (urls: string[]) => void;
     viewMode: 'grid' | 'list';
-    onContextMenu: (e: React.MouseEvent, node: chrome.bookmarks.BookmarkTreeNode) => void;
+    onContextMenu: (e: React.MouseEvent, node: Node) => void;
+    onDelete: (node: Node) => void;
+    canDelete: boolean;
+    pendingDeleteIds: Set<string>;
+    trashCount: number;
+    onOpenTrash: () => void;
 }
+
+const isPermanent = (n: Node) => !n.parentId || n.parentId === '0';
 
 export const MainContent: React.FC<MainContentProps> = ({
     folder,
@@ -30,24 +41,68 @@ export const MainContent: React.FC<MainContentProps> = ({
     onNavigate,
     onNavigateBack,
     viewMode,
-    onContextMenu
+    onContextMenu,
+    onDelete,
+    canDelete,
+    pendingDeleteIds,
+    trashCount,
+    onOpenTrash,
 }) => {
-    // Logic for triggering capture is now handled in App.tsx to avoid race conditions
-    // and ensure thumbnails are loaded first.
-
     // Use displayedNodes if provided, otherwise fallback to folder.children (or empty)
     const nodesToDisplay = displayedNodes || folder?.children || [];
 
     if (!folder && !isSearching) return <div className="main-empty">Select a folder</div>;
 
-    const showBackButton = !isSearching && folder && folder.parentId;
+    const showBackButton = !isSearching && folder && folder.parentId && folder.parentId !== '0';
+
+    // Delete key on a focused row or folder tile (grid bookmark tiles handle their own).
+    const deleteOnKey = (node: Node) => (e: React.KeyboardEvent) => {
+        if (e.key === 'Delete' && canDelete && !isPermanent(node) && !pendingDeleteIds.has(node.id)) {
+            e.preventDefault();
+            onDelete(node);
+        }
+    };
+
+    const deleteButton = (node: Node, withLabel: boolean) => {
+        const title = node.title || node.url || 'Untitled';
+        const busy = pendingDeleteIds.has(node.id);
+        return (
+            <button
+                type="button"
+                className={`tile-action-btn tile-delete-btn ${withLabel ? 'tile-action-btn--label' : ''}`}
+                aria-label={`Delete ${title}`}
+                title={canDelete ? 'Delete (you can undo)' : 'Delete works in regular windows only'}
+                disabled={!canDelete || busy}
+                onClick={(e) => { e.stopPropagation(); onDelete(node); }}
+            >
+                {busy ? <span className="btn-spinner" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}
+                {withLabel && <span>Delete</span>}
+            </button>
+        );
+    };
+
+    const moreButton = (node: Node) => (
+        <button
+            type="button"
+            className="tile-action-btn more-options-btn"
+            aria-label={`More actions for ${node.title || node.url || 'Untitled'}`}
+            aria-haspopup="menu"
+            title="More actions"
+            onClick={(e) => { e.stopPropagation(); onContextMenu(e, node); }}
+        >
+            <MoreVertical size={18} aria-hidden="true" />
+        </button>
+    );
+
+    const folderCount = (node: Node): number | undefined =>
+        node.children ? countBookmarksDeep(node) : undefined;
 
     return (
         <div className={`main-content ${viewMode === 'list' ? 'list-view' : ''}`}>
             <header className="main-header">
                 {showBackButton && (
-                    <button className="back-button" onClick={onNavigateBack} title="Go back">
-                        <ArrowLeft size={18} />
+                    <button className="back-button" onClick={onNavigateBack} title="Go back" aria-label="Back to parent folder">
+                        <ArrowLeft size={18} aria-hidden="true" />
                     </button>
                 )}
                 <h2>{isSearching ? `Search Results for "${searchQuery}"` : folder?.title}</h2>
@@ -55,30 +110,22 @@ export const MainContent: React.FC<MainContentProps> = ({
             <div className={viewMode === 'grid' ? 'grid' : 'list-container'}>
                 {nodesToDisplay.map((node) => {
                     if (node.url) {
-                        // Bookmark
                         if (viewMode === 'list') {
+                            const title = node.title || node.url;
                             return (
-                                <div key={node.id} className="list-item" onContextMenu={(e) => onContextMenu(e, node)}>
-                                    <div
-                                        className="list-item-thumb"
-                                        style={{ cursor: 'pointer' }}
-                                        onClick={() => chrome.tabs.create({ url: node.url, active: true })}
-                                        onAuxClick={(e) => {
-                                            if (e.button === 1) {
-                                                e.preventDefault();
-                                                chrome.tabs.create({ url: node.url, active: false });
-                                            }
-                                        }}
-                                    >
-                                        {thumbnails[node.url] ? (
-                                            <img src={thumbnails[node.url]} alt={node.title} />
-                                        ) : (
-                                            <div className="list-thumb-placeholder"></div>
-                                        )}
+                                <div
+                                    key={node.id}
+                                    className={`list-item ${pendingDeleteIds.has(node.id) ? 'tile--busy' : ''}`}
+                                    data-node-id={node.id}
+                                    onContextMenu={(e) => onContextMenu(e, node)}
+                                    onKeyDown={deleteOnKey(node)}
+                                >
+                                    <div className="list-item-thumb">
+                                        <BookmarkPreview url={node.url} title={title} thumbnailUrl={thumbnails[node.url]} variant="row" />
                                     </div>
                                     <div className="list-item-info">
-                                        <a href={node.url} target="_blank" rel="noopener noreferrer" className="list-item-title">
-                                            {node.title || node.url}
+                                        <a href={node.url} target="_blank" rel="noopener noreferrer" className="list-item-title tile-link" title={title}>
+                                            {title}
                                         </a>
                                         <span className="list-item-url">{node.url}</span>
                                         {bookmarkTags?.[node.url]?.length ? (
@@ -93,11 +140,9 @@ export const MainContent: React.FC<MainContentProps> = ({
                                         {loadingUrls.has(node.url) && <span className="status-loading">Loading...</span>}
                                         {queuedUrls.has(node.url) && <span className="status-queued">Waiting...</span>}
                                     </div>
-                                    <div className="more-options-btn" onClick={(e) => {
-                                        e.stopPropagation();
-                                        onContextMenu(e, node);
-                                    }}>
-                                        <MoreVertical size={16} />
+                                    <div className="row-actions">
+                                        {moreButton(node)}
+                                        {deleteButton(node, true)}
                                     </div>
                                 </div>
                             );
@@ -116,53 +161,79 @@ export const MainContent: React.FC<MainContentProps> = ({
                                 isQueued={queuedUrls.has(node.url)}
                                 tags={bookmarkTags?.[node.url]}
                                 onContextMenu={(e) => onContextMenu(e, node)}
+                                onDelete={() => onDelete(node)}
+                                deleting={pendingDeleteIds.has(node.id)}
+                                canDelete={canDelete}
                             />
                         );
-                    } else {
-                        // Folder
-                        if (viewMode === 'list') {
-                            return (
-                                <div
-                                    key={node.id}
-                                    className="list-item folder-list-item"
-                                    onClick={() => onNavigate(node.id)}
-                                    onContextMenu={(e) => onContextMenu(e, node)}
-                                >
-                                    <Folder size={20} className="list-folder-icon" />
-                                    <span className="list-item-title">{node.title}</span>
-                                    <div className="more-options-btn" onClick={(e) => {
-                                        e.stopPropagation();
-                                        onContextMenu(e, node);
-                                    }}>
-                                        <MoreVertical size={16} />
-                                    </div>
-                                </div>
-                            );
-                        }
+                    }
 
+                    // Folder
+                    const count = folderCount(node);
+                    const countLabel = count !== undefined ? `${plural(count, 'bookmark')}, including subfolders` : undefined;
+                    if (viewMode === 'list') {
                         return (
                             <div
                                 key={node.id}
-                                className="folder-tile"
-                                onClick={() => onNavigate(node.id)}
+                                className={`list-item folder-list-item ${pendingDeleteIds.has(node.id) ? 'tile--busy' : ''}`}
+                                data-node-id={node.id}
                                 onContextMenu={(e) => onContextMenu(e, node)}
+                                onKeyDown={deleteOnKey(node)}
                             >
-                                <Folder size={48} className="folder-icon" />
-                                <span className="folder-label">{node.title}</span>
-                                <div className="more-options-btn" onClick={(e) => {
-                                    e.stopPropagation();
-                                    onContextMenu(e, node);
-                                }}>
-                                    <MoreVertical size={16} />
+                                <FolderGlyph size={22} className="list-folder-icon" />
+                                <button type="button" className="list-item-title tile-link folder-link" onClick={() => onNavigate(node.id)} title={node.title}>
+                                    {node.title || 'Untitled folder'}
+                                </button>
+                                {count !== undefined && (
+                                    <span className="folder-count-badge" title={countLabel} aria-label={countLabel}>{count}</span>
+                                )}
+                                <div className="row-actions">
+                                    {moreButton(node)}
+                                    {!isPermanent(node) && deleteButton(node, true)}
                                 </div>
                             </div>
                         );
                     }
+
+                    return (
+                        <div
+                            key={node.id}
+                            className={`folder-tile ${pendingDeleteIds.has(node.id) ? 'tile--busy' : ''}`}
+                            data-node-id={node.id}
+                            onContextMenu={(e) => onContextMenu(e, node)}
+                            onKeyDown={deleteOnKey(node)}
+                        >
+                            <FolderGlyph size={48} className="folder-icon" />
+                            <button type="button" className="folder-label tile-link" onClick={() => onNavigate(node.id)} title={node.title}>
+                                {node.title || 'Untitled folder'}
+                            </button>
+                            {count !== undefined && (
+                                <span className="folder-tile-count" title={countLabel} aria-label={countLabel}>{plural(count, 'bookmark')}</span>
+                            )}
+                            <div className="tile-actions">
+                                {moreButton(node)}
+                                {!isPermanent(node) && deleteButton(node, false)}
+                            </div>
+                        </div>
+                    );
                 })}
                 {nodesToDisplay.length === 0 && (
                     <div className="empty-state">
-                        <p>{isSearching ? 'No results found.' : 'This folder is empty.'}</p>
-                        {!isSearching && <p className="sub-text">Add bookmarks to see them here.</p>}
+                        {isSearching ? (
+                            <p>No results found.</p>
+                        ) : (
+                            <>
+                                <p>This folder is empty.</p>
+                                {trashCount > 0 ? (
+                                    <p className="sub-text">
+                                        Deleted items are in{' '}
+                                        <button type="button" className="link-btn" onClick={onOpenTrash}>Trash ({trashCount})</button>.
+                                    </p>
+                                ) : (
+                                    <p className="sub-text">Add bookmarks to see them here.</p>
+                                )}
+                            </>
+                        )}
                     </div>
                 )}
             </div>

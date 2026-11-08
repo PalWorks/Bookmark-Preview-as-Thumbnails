@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
-import { storageIndex } from '../../lib/storage_index';
+import type { MetadataRecord } from '../../lib/storage_index';
 import type { AIAvailability } from '../../lib/ai_tagger';
 
 export interface TaggingProgress {
@@ -28,18 +29,20 @@ export function useAITagger(currentFolder: chrome.bookmarks.BookmarkTreeNode | n
         return () => { cancelled = true; };
     }, [settingsVersion]);
 
-    // Load persisted tags from storageIndex whenever the folder changes
+    // Load persisted tags whenever the folder changes. Reads only this folder's
+    // meta_<url> records: the folder is re-read on every bookmark change, and a
+    // full storage read would also pull every cached preview image.
     useEffect(() => {
         if (!currentFolder?.children) return;
         let cancelled = false;
         const load = async () => {
-            const allMeta = await storageIndex.getAll();
+            const urls = [...new Set(currentFolder.children!.filter(n => n.url).map(n => n.url!))];
+            const meta = urls.length ? await chrome.storage.local.get(urls.map(u => `meta_${u}`)) : {};
             if (cancelled) return;
             const loaded: Record<string, string[]> = {};
-            for (const node of currentFolder.children!) {
-                if (node.url && allMeta[node.url]?.tags?.length) {
-                    loaded[node.url] = allMeta[node.url].tags!;
-                }
+            for (const url of urls) {
+                const rec = meta[`meta_${url}`] as MetadataRecord | undefined;
+                if (rec?.tags?.length) loaded[url] = rec.tags;
             }
             setTags(loaded);
         };

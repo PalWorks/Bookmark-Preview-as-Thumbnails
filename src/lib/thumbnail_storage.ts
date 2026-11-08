@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { db } from './indexeddb';
 import type { ThumbnailRecord } from './indexeddb';
 

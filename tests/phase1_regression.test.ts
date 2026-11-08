@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Regression tests for Phase 1 critical bugs.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useRef, useState } from 'react';
 import { thumbnailStorage } from '../../lib/thumbnail_storage';
 
@@ -20,6 +21,19 @@ export function useThumbnails(
     // parallel getThumbnail reads; only the latest read may apply, otherwise an
     // older read can resolve last and clobber newer image data.
     const updateSeqRef = useRef<Map<string, number>>(new Map());
+
+    // URLs already looked up with no preview stored. The folder object is
+    // re-read on every bookmark change, so without this a folder of uncaptured
+    // bookmarks would be queried again on each refresh. New previews arrive via
+    // THUMBNAIL_UPDATED; reloadThumbnails() clears it (after an import).
+    const checkedEmptyRef = useRef<Set<string>>(new Set());
+    const forceReloadRef = useRef(false);
+    const [reloadSeq, setReloadSeq] = useState(0);
+    const reloadThumbnails = () => {
+        checkedEmptyRef.current = new Set();
+        forceReloadRef.current = true;
+        setReloadSeq(n => n + 1);
+    };
 
     useEffect(() => { thumbnailsRef.current = thumbnails; }, [thumbnails]);
     useEffect(() => { loadingUrlsRef.current = loadingUrls; }, [loadingUrls]);
@@ -79,6 +93,7 @@ export function useThumbnails(
                 setLoadingUrls(prev => { const s = new Set(prev); s.add(message.url!); return s; });
             } else if (message.type === 'THUMBNAIL_UPDATED' && message.url) {
                 const url = message.url;
+                checkedEmptyRef.current.delete(url);
                 const seq = (updateSeqRef.current.get(url) ?? 0) + 1;
                 updateSeqRef.current.set(url, seq);
                 thumbnailStorage.getThumbnail(url).then(thumb => {
@@ -112,13 +127,18 @@ export function useThumbnails(
     // chrome.storage reads aren't abortable, so a folder switch (or unmount) can't
     // cancel an in-flight read — instead the `cancelled` flag makes a superseded
     // load discard its results at apply time, before any object URL is created.
+    // Previews already in memory are kept; only missing ones are read.
     useEffect(() => {
         let cancelled = false;
+        const forceAll = forceReloadRef.current;
+        forceReloadRef.current = false;
 
         const loadThumbnails = async () => {
             if (!currentFolder?.children) return;
 
-            const bookmarkNodes = currentFolder.children.filter(n => n.url);
+            const bookmarkNodes = currentFolder.children.filter(n => n.url
+                && (forceAll || (!thumbnailsRef.current[n.url] && !checkedEmptyRef.current.has(n.url))));
+            if (bookmarkNodes.length === 0) return;
             const thumbResults = await Promise.all(
                 bookmarkNodes.map(async (node) => {
                     // Isolate per-thumbnail failures: one corrupt/unreadable record
@@ -140,8 +160,11 @@ export function useThumbnails(
             for (const { url, thumb } of thumbResults) {
                 if (thumb?.blob) {
                     newThumbs[url] = URL.createObjectURL(thumb.blob);
+                } else {
+                    checkedEmptyRef.current.add(url);
                 }
             }
+            if (Object.keys(newThumbs).length === 0) return;
 
             setThumbnails(prev => {
                 for (const url of Object.keys(newThumbs)) {
@@ -153,11 +176,11 @@ export function useThumbnails(
 
         loadThumbnails();
         return () => { cancelled = true; };
-    }, [currentFolder]);
+    }, [currentFolder, reloadSeq]);
 
     const stopCapture = () => {
         chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' }).catch(() => { });
     };
 
-    return { thumbnails, loadingUrls, queuedUrls, triggerCapture, stopCapture };
+    return { thumbnails, loadingUrls, queuedUrls, triggerCapture, stopCapture, reloadThumbnails };
 }

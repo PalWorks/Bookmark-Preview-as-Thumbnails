@@ -1162,3 +1162,31 @@ Approved by the owner with both User Challenges accepted and both taste choices 
 - **VERDICT:** CEO + DESIGN + ENG CLEARED, ready to implement.
 
 NO UNRESOLVED DECISIONS
+
+## Implementation status (2026-11-08T10:20:54+00:00)
+
+Built on `release/1.3.0`. Everything in the Final Gate outcome is implemented; notes on how the
+build differs from or settles parts of this document:
+
+- **Open Questions answered on Chrome 156** (real browser, 2026-11-08): (1) `onRemoved` for a
+  folder carries the full subtree in `node`; (2) `folderType` and `syncing` are present on
+  permanent folders; (3) `removeTree` fires one `onRemoved`, for the root only. (4) incognito
+  storage sharing was not tested; Trash is read-only in incognito as planned (A1).
+- **Restore progress** stores no `restoredIds` map. A retried restore re-walks the snapshot and
+  reuses nodes created after the first attempt began (same parent, title and URL); progress is a
+  small record checkpointed every 25 creates. This keeps writes linear and Retry duplicate-free.
+- **Restore guard** expires 60 seconds after the last create instead of being cleared at the end,
+  because Chrome delivers `onCreated` after `create()` resolves.
+- **Settings allowlist**: `captureDelay` accepts 100 to 30000 ms (the range the UI already
+  allows), not 100 to 10000.
+- **Trash entry point**: the settings menu always has a Trash item, not only when the sidebar is
+  hidden.
+- **TODOS.md** was folded into [ROADMAP.md](../../ROADMAP.md) (rows 1 to 8).
+- **CI**: `scripts/check-bundle.mjs` implements A10 and also scans for secrets and source maps.
+- Permission gate passed: identical warning lists for the 1.2.1 and 1.3.0 manifests.
+- **Master audit** (Claude reviewer and Codex, 2026-11-08): 15 findings fixed with regression
+  tests (resume after a crash before any checkpoint, partial copy follows Restore to...,
+  folder merge only into restore-recreated folders, snapshot refreshed before removal, retry
+  continues the same operation, capture skips deleted bookmarks, drawer and menu focus,
+  picker selection, AI Settings at 360px). Declined: emptying Trash after a failed partial
+  restore leaves the partial copy as ordinary bookmarks rather than deleting them.
