@@ -74,10 +74,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
         const patch = { ...(update as Record<string, unknown>) };
         delete patch.id;
-        storageIndex.get(id)
-            .then(existing => storageIndex.patch(id, existing || typeof titleIfNew !== 'string'
-                ? patch
-                : { title: titleIfNew, ...patch }))
+        storageIndex.patch(id, patch, typeof titleIfNew === 'string' ? { title: titleIfNew } : {})
             .then(() => sendResponse({ ok: true }))
             .catch((err: unknown) => {
                 console.error('[Metadata] META_PATCH failed', id, err);
@@ -548,8 +545,7 @@ async function processAutoTag(bookmarks: Array<{ url: string; title: string }>):
             const { url, title } = bookmarks[i];
             try {
                 const tags = await tagBookmark(title, url, autoTagController!.signal);
-                const existing = await storageIndex.get(url);
-                await storageIndex.patch(url, existing ? { tags } : { title, tags });
+                await storageIndex.patch(url, { tags }, { title });
                 count++; autoTagDone++; consecutiveFails = 0;
                 chrome.runtime.sendMessage({ type: 'TAG_UPDATED', url, tags }).catch(() => { });
             } catch (err) {
@@ -600,8 +596,10 @@ async function processAutoTag(bookmarks: Array<{ url: string; title: string }>):
 // ─── Installation & migration ─────────────────────────────────────────────────
 
 // Undo the pre-1.2.1 blanket key rename on every worker start (cheap, idempotent).
+// Also bind a pre-1.2.1 API key if the update chain did not get that far.
 repairMisMigratedKeys()
     .then(repaired => { if (repaired.length) console.log('[StorageMigration] Repaired keys:', repaired); })
+    .then(() => bindLegacyApiKey())
     .catch(err => console.error('[StorageMigration] Repair failed:', err));
 
 chrome.runtime.onInstalled.addListener((details) => {

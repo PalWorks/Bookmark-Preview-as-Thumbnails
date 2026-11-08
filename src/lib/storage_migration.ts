@@ -22,11 +22,15 @@ interface LegacyMetaShape {
     status: string;
 }
 
-/** A legacy metadata record is stored under its own URL as key, with id === url === key. */
+/**
+ * A legacy metadata record is stored under its own id (the original bookmark URL)
+ * as key. `url` may differ from the id: older builds stored the captured tab's URL
+ * after redirects.
+ */
 export function isLegacyMetaRecord(key: string, value: unknown): value is LegacyMetaShape {
     if (typeof value !== 'object' || value === null) return false;
     const v = value as Partial<LegacyMetaShape>;
-    return v.id === key && v.url === key && typeof v.status === 'string';
+    return v.id === key && typeof v.url === 'string' && typeof v.status === 'string';
 }
 
 /**

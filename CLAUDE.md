@@ -43,7 +43,17 @@ The extension has three runtime contexts; keep their boundaries in mind:
 
 - `thumbnail_storage.ts` — image blobs persisted in `chrome.storage.local` as base64 under
   `thumb_<id>` keys.
-- `storage_index.ts` — metadata records under `meta_<id>` keys (title, status, timestamps).
+- `storage_index.ts` — metadata records under `meta_<id>` keys (title, status, timestamps, AI `tags`).
+  Write with `storageIndex.patch(id, partial)`, never a fresh `set()`: patch merges and is queued
+  per id, so a recapture cannot drop tags. Popup writes go through the SW as `META_PATCH`
+  (`src/lib/metadata_client.ts`).
+- `storage_migration.ts` — update migration gated by `storage_schema_version` (currently 2). Only
+  legacy raw-URL metadata records are renamed; every other `chrome.storage.local` key is left alone.
+  Never reintroduce a blanket "rename unknown keys" migration: it would destroy `ai_enc_key`,
+  `ai_api_key_encrypted` and any future key (this shipped in 1.2.0 and was fixed in 1.2.1).
+- `ai_settings_storage.ts` — the encrypted API key is bound to its provider and custom endpoint
+  origin (`ai_api_key_binding`). Read it with `getBoundApiKey(provider, customUrl)`; a mismatch means
+  the key must not be sent.
 - `fsaccess.ts` — optional File System Access API: when the user "connects a folder",
   thumbnails are also written to disk (`saved_disk` status).
 - `backup_manager.ts` — export/import a JSON backup (`version: 1`; importer rejects

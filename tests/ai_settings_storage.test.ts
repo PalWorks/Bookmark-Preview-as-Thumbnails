@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { saveAISettings, loadAISettings, getDecryptedApiKey, saveCustomTags, parseCustomTags } from '../src/lib/ai_settings_storage';
+import { saveAISettings, loadAISettings, getBoundApiKey as getBoundApiKeyForTrim, saveCustomTags, parseCustomTags } from '../src/lib/ai_settings_storage';
 
 describe('parseCustomTags', () => {
     it('parses, trims, and de-duplicates a comma-separated list', () => {
@@ -35,7 +35,7 @@ describe('saveAISettings trimming', () => {
             { mode: 'cloud', cloud: { provider: 'groq', model: 'llama-3.3-70b-versatile' } },
             '  gsk_secret_key\n'
         );
-        expect(await getDecryptedApiKey()).toBe('gsk_secret_key');
+        expect((await getBoundApiKeyForTrim('groq')).key).toBe('gsk_secret_key');
     });
 
     it('trims the model name and custom URL on save', async () => {
@@ -54,8 +54,8 @@ describe('saveAISettings trimming', () => {
             { mode: 'cloud', cloud: { provider: 'openai', model: 'gpt-4o-mini' } },
             'sk-clean'
         );
-        // Even if something re-introduced whitespace, getDecryptedApiKey trims on read.
-        const key = await getDecryptedApiKey();
+        // Even if something re-introduced whitespace, getBoundApiKey trims on read.
+        const { key } = await getBoundApiKeyForTrim('openai');
         expect(key).toBe(key.trim());
         expect(key).toBe('sk-clean');
     });
@@ -106,5 +106,28 @@ describe('API key binding', () => {
 
     it('reports no mismatch when no key is saved', async () => {
         expect(await getBoundApiKey('openai')).toEqual({ key: '', mismatch: false });
+    });
+});
+
+import { checkAIAvailability } from '../src/lib/ai_tagger';
+
+describe('checkAIAvailability with a mismatched key binding', () => {
+    it('reports unavailable when the saved key belongs to another provider', async () => {
+        await saveAISettings({ mode: 'cloud', cloud: { provider: 'groq', model: 'm' } }, 'gsk_1');
+        boundSync.ai_provider = 'anthropic';
+        expect(await checkAIAvailability()).toBe('unavailable');
+    });
+    it('reports available when the key matches', async () => {
+        await saveAISettings({ mode: 'cloud', cloud: { provider: 'groq', model: 'm' } }, 'gsk_1');
+        expect(await checkAIAvailability()).toBe('available');
+    });
+});
+
+describe('keyless providers with a mismatched key', () => {
+    it('stay available for Ollama even if a key for another provider is saved', async () => {
+        await saveAISettings({ mode: 'cloud', cloud: { provider: 'groq', model: 'm' } }, 'gsk_1');
+        boundSync.ai_provider = 'ollama';
+        boundSync.ai_custom_url = 'http://localhost:11434';
+        expect(await checkAIAvailability()).toBe('available');
     });
 });

@@ -222,8 +222,3 @@ export async function loadAISettings(): Promise<{ settings: AISettings; hasApiKe
     };
 }
 
-export async function getDecryptedApiKey(): Promise<string> {
-    const { ai_api_key_encrypted } = await chrome.storage.local.get('ai_api_key_encrypted');
-    // Trim on read too, so keys saved before the trim-on-save fix still work.
-    return (await decryptApiKey((ai_api_key_encrypted as string) ?? '')).trim();
-}

@@ -45,7 +45,11 @@ export class StorageIndex {
      * dropping fields the caller did not mention, such as AI `tags` when a
      * preview is recaptured. Writes for the same id are serialised.
      */
-    patch(id: string, update: Partial<Omit<MetadataRecord, 'id'>>): Promise<MetadataRecord> {
+    patch(
+        id: string,
+        update: Partial<Omit<MetadataRecord, 'id'>>,
+        defaultsIfNew: Partial<Omit<MetadataRecord, 'id'>> = {},
+    ): Promise<MetadataRecord> {
         const previous = this.queues.get(id) ?? Promise.resolve();
         const next = previous
             .catch(() => undefined)
@@ -56,7 +60,7 @@ export class StorageIndex {
                     url: id,
                     title: '',
                     status: 'none',
-                    ...existing,
+                    ...(existing ?? defaultsIfNew),
                     ...update,
                 };
                 await this.set(merged);

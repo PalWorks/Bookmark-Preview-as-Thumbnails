@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Eye, EyeOff, CheckCircle2, Search, Copy, Trash2, ExternalLink, Sparkles, Plus, X, StopCircle, ChevronDown } from 'lucide-react';
 import './AISettingsPage.css';
 import {
-    loadAISettings, saveAISettings, getBoundApiKey, saveCustomTags, parseCustomTags, PROVIDERS,
+    loadAISettings, saveAISettings, getBoundApiKey, apiKeyBinding, saveCustomTags, parseCustomTags, PROVIDERS,
     type AIMode, type AIProvider,
 } from '../../lib/ai_settings_storage';
 import { AI_TAGS, validateProviderKey, SEARCH_CAP_BUILTIN, SEARCH_CAP_CLOUD, type AIAvailability } from '../../lib/ai_tagger';
@@ -161,6 +161,15 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
     const [keyModels, setKeyModels] = useState<string[]>([]);
     const [keyMessage, setKeyMessage] = useState('');
     const [keyBindingMismatch, setKeyBindingMismatch] = useState(false);
+    // Binding of the key currently in `apiKey` when it was loaded from storage
+    // (null once the user types a key). If provider or endpoint now differ, the
+    // loaded key is withheld: never validated against, nor re-saved to, the new
+    // endpoint until the user re-enters it.
+    const [storedKeyBinding, setStoredKeyBinding] = useState<string | null>(null);
+    const [keyTouched, setKeyTouched] = useState(false);
+    const keyWithheld = storedKeyBinding !== null && storedKeyBinding !== apiKeyBinding(provider, customUrl);
+    const effectiveKey = keyWithheld ? '' : apiKey;
+    const showKeyMismatch = keyBindingMismatch || keyWithheld;
 
     // ── Chrome Built-in AI status ─────────────────────────────────────────────
     const [builtinStatus, setBuiltinStatus] = useState<BuiltinStatus>('checking');
@@ -218,6 +227,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                 if (cancelled) return;
                 setApiKey(key);
                 setKeyBindingMismatch(mismatch);
+                setStoredKeyBinding(key ? apiKeyBinding(settings.cloud.provider, settings.cloud.customUrl) : null);
             }
         };
         void load();
@@ -259,7 +269,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         const needsKey = meta?.requiresKey ?? true;
         const needsUrl = provider === 'ollama' || provider === 'custom';
         const ready = mode === 'cloud'
-            && (!needsKey || apiKey.trim().length > 0)
+            && (!needsKey || effectiveKey.trim().length > 0)
             && (!needsUrl || customUrl.trim().length > 0);
 
         if (!ready) {
@@ -273,7 +283,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
 
         const run = async () => {
             setKeyStatus('checking');
-            const res = await validateProviderKey(provider, apiKey.trim(), model.trim(), customUrl.trim());
+            const res = await validateProviderKey(provider, effectiveKey.trim(), model.trim(), customUrl.trim());
             if (cancelled) return;
             setKeyStatus(res.ok ? 'valid' : 'invalid');
             setKeyModels(res.models);
@@ -281,7 +291,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         };
         const t = setTimeout(() => { void run(); }, 600);
         return () => { cancelled = true; clearTimeout(t); };
-    }, [mode, provider, apiKey, customUrl, model]);
+    }, [mode, provider, effectiveKey, customUrl, model]);
 
     // ── Auto-Tag: load all bookmarks (with folder + persisted tags) on tab entry ─
     useEffect(() => {
@@ -371,6 +381,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         const meta = PROVIDERS.find(x => x.id === p);
         if (meta) setModel(meta.defaultModel);
         setApiKey('');
+        setKeyTouched(true);
+        setStoredKeyBinding(null);
+        setKeyBindingMismatch(false);
         setCustomUrl('');
         setKeyStatus('idle');
         setKeyModels([]);
@@ -382,7 +395,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         try {
             await saveAISettings(
                 { mode, cloud: { provider, model, customUrl: customUrl || undefined } },
-                mode === 'cloud' ? apiKey : undefined
+                // An untouched key (loaded from storage, possibly withheld) is never
+                // re-written: undefined keeps the saved ciphertext and its binding.
+                mode === 'cloud' && keyTouched ? apiKey : undefined
             );
             setSaved(true);
             setTimeout(() => { if (!mountedRef.current) return; setSaved(false); onSave(); }, 900);
@@ -566,7 +581,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
     const needsCustomUrl = provider === 'ollama' || provider === 'custom';
     const canSave = mode === 'builtin' || (
         mode === 'cloud' && model.trim().length > 0 &&
-        (currentMeta?.requiresKey ? apiKey.trim().length > 0 : true) &&
+        (currentMeta?.requiresKey ? effectiveKey.trim().length > 0 : true) &&
         (!needsCustomUrl || customUrl.trim().length > 0)
     );
 
@@ -805,7 +820,12 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                             className="ai-form-input ai-key-input"
                                             type={keyVisible ? 'text' : 'password'}
                                             value={apiKey}
-                                            onChange={e => { setApiKey(e.target.value); setKeyBindingMismatch(false); }}
+                                            onChange={e => {
+                                                setApiKey(e.target.value);
+                                                setKeyTouched(true);
+                                                setStoredKeyBinding(null);
+                                                setKeyBindingMismatch(false);
+                                            }}
                                             placeholder={currentMeta?.requiresKey
                                                 ? currentMeta.keyPlaceholder
                                                 : 'Leave blank if your server needs no key'}
@@ -816,9 +836,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                             {keyVisible ? <EyeOff size={15} /> : <Eye size={15} />}
                                         </button>
                                     </div>
-                                    {keyBindingMismatch && (
+                                    {showKeyMismatch && (
                                         <div className="ai-key-feedback ai-key-feedback--invalid" role="status">
-                                            Your saved key was entered for a different provider or endpoint, so it was not used. Enter the key for this provider.
+                                            Your saved key was entered for a different provider or server address, so it is not used here. Enter the key again to use it with this provider or address.
                                         </div>
                                     )}
                                     {keyStatus === 'idle' || keyStatus === 'invalid' ? (

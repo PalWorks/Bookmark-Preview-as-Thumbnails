@@ -11,16 +11,24 @@ export async function patchMetadata(
     update: Partial<Omit<MetadataRecord, 'id'>>,
     titleIfNew?: string,
 ): Promise<void> {
+    const defaultsIfNew = titleIfNew !== undefined ? { title: titleIfNew } : {};
+    let res: unknown;
     try {
-        const res = await chrome.runtime.sendMessage({ type: 'META_PATCH', id, update, titleIfNew });
-        if (res && typeof res === 'object' && 'ok' in res && (res as { ok: boolean }).ok) return;
-        const error = res && typeof res === 'object' && 'error' in res ? String((res as { error: unknown }).error) : 'no response';
-        throw new Error(error);
+        res = await chrome.runtime.sendMessage({ type: 'META_PATCH', id, update, titleIfNew });
     } catch (err) {
         // Service worker unreachable: fall back to a local patch (still a merge, so
         // no fields are dropped), and say so in the console for debugging.
-        console.warn('[Metadata] META_PATCH via service worker failed, patching locally:', err);
-        const existing = await storageIndex.get(id);
-        await storageIndex.patch(id, existing ? update : { title: titleIfNew ?? '', ...update });
+        console.warn('[Metadata] Service worker unreachable for META_PATCH, patching locally:', err);
+        await storageIndex.patch(id, update, defaultsIfNew);
+        return;
     }
+    if (res === undefined) {
+        // No listener answered (for example in tests or during worker start-up).
+        await storageIndex.patch(id, update, defaultsIfNew);
+        return;
+    }
+    if (typeof res === 'object' && res !== null && 'ok' in res && (res as { ok: boolean }).ok) return;
+    // The worker answered with an error: surface it instead of writing behind its back.
+    const error = typeof res === 'object' && res !== null && 'error' in res ? String((res as { error: unknown }).error) : 'META_PATCH failed';
+    throw new Error(error);
 }

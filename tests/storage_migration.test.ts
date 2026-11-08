@@ -63,10 +63,11 @@ describe('migrateStorageSchema', () => {
 });
 
 describe('isLegacyMetaRecord', () => {
-    it('requires id === url === key and a string status', () => {
+    it('requires id === key, a string url (may differ after redirects) and a string status', () => {
         expect(isLegacyMetaRecord(LEGACY_URL, legacyRecord)).toBe(true);
         expect(isLegacyMetaRecord('ai_enc_key', 'ENC_KEY_B64')).toBe(false);
-        expect(isLegacyMetaRecord('x', { id: 'x', url: 'y', status: 'none' })).toBe(false);
+        expect(isLegacyMetaRecord('x', { id: 'x', url: 'https://redirected.example/', status: 'none' })).toBe(true);
+        expect(isLegacyMetaRecord('x', { id: 'y', url: 'x', status: 'none' })).toBe(false);
         expect(isLegacyMetaRecord('x', { id: 'x', url: 'x' })).toBe(false);
         expect(isLegacyMetaRecord('x', null)).toBe(false);
     });

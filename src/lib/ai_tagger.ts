@@ -221,7 +221,9 @@ async function callCloudRaw(
         throw new Error('No model name configured. Open Provider Settings to set one.');
     }
     const { key: apiKey, mismatch } = await getBoundApiKey(cloud.provider, cloud.customUrl);
-    if (mismatch) {
+    const keyless = cloud.provider === 'ollama' || cloud.provider === 'custom';
+    // A mismatched key is withheld (apiKey is ''); keyless servers proceed unauthenticated.
+    if (mismatch && !keyless) {
         throw new Error('Your saved API key was entered for a different provider or endpoint. Re-enter it in Provider Settings.');
     }
     if (!apiKey && cloud.provider !== 'ollama' && cloud.provider !== 'custom') {
@@ -247,8 +249,13 @@ async function callCloudRaw(
 export async function checkAIAvailability(): Promise<AIAvailability> {
     const { settings, hasApiKey } = await loadAISettings();
     if (settings.mode === 'cloud') {
+        // A key saved for a different provider or endpoint is not usable here.
         // Ollama and Custom don't require a key
         const noKeyRequired = settings.cloud.provider === 'ollama' || settings.cloud.provider === 'custom';
+        if (hasApiKey && !noKeyRequired) {
+            const { mismatch } = await getBoundApiKey(settings.cloud.provider, settings.cloud.customUrl);
+            if (mismatch) return 'unavailable';
+        }
         return (hasApiKey || noKeyRequired) ? 'available' : 'unavailable';
     }
     if (typeof LanguageModel === 'undefined') return 'unsupported';
