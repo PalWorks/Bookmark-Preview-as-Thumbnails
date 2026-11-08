@@ -140,7 +140,7 @@ npm test -- --run
 npm run build && npm run check:bundle
 ```
 
-244 tests cover migration, metadata merges, API key binding, Trash (delete, restore, crash
+256 tests cover migration, metadata merges, API key binding, Trash (delete, restore, crash
 recovery, expiry, asset sweep), the reactive bookmark tree, backups, and the whole app in jsdom.
 Chrome-only behaviour is verified in a real browser. See [TESTING.md](TESTING.md).
 

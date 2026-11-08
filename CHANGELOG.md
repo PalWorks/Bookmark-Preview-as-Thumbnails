@@ -73,7 +73,7 @@ gaps against Chrome's own bookmark manager reported by a daily user are closed.
 
 - Trash runs in the service worker (`src/sw/trash.ts`) as the single writer, with crash
   recovery and resumable restores; see `ARCHITECTURE.md` and `DATA_MODEL.md`.
-- In-memory Chrome bookmarks fake for tests; 244 tests (160 before).
+- In-memory Chrome bookmarks fake for tests; 256 tests (160 before).
 - CI runs `npm run check:bundle` after the build: no DOM or React in the service worker,
   no secrets, no source maps.
 

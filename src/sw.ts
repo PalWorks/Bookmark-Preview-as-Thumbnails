@@ -392,7 +392,6 @@ async function processBatchCapture(
 // bookmarks check right before writing. A bookmark sitting in Trash keeps its
 // older preview for a restore.
 async function isNoLongerBookmarked(url: string): Promise<boolean> {
-    if (trash.wasRecentlyPurged(url)) return true;
     try {
         return (await chrome.bookmarks.search({ url })).length === 0;
     } catch {

@@ -272,4 +272,40 @@ describe('TRASH_RESTORE', () => {
         expect(recipes).toHaveLength(1);
         expect(recipes[0].children!.map(c => c.title).sort()).toEqual(['Cake', 'Drinks', 'Pie', 'Soup']);
     });
+
+    it('a worker killed right after the first create (nothing checkpointed) does not duplicate', async () => {
+        const { folder } = seedRecipes();
+        const original = shape(fakeBookmarks.tree(folder.id));
+        const { service } = makeService();
+        const del = await service.deleteItems({ ids: [folder.id] });
+        const entryId = del.entryIds![0];
+        clock.t += 1000;
+        fakeBookmarks.failAfter('create', 1, 'killed');
+        await service.restore({ entryId });
+        // Model a crash before any progress write after start: no created count, no root id.
+        const p = progressOf(entryId);
+        localStore[`trash_prog_${entryId}`] = { entryId, state: 'restoring', updatedAt: p.updatedAt, restoreStartedAt: p.restoreStartedAt };
+        clock.t += 1000;
+        const fresh = makeService();
+        await fresh.service.reconcile();
+        clock.t += 1000;
+        expect((await fresh.service.restore({ entryId })).ok).toBe(true);
+        const copies = fakeBookmarks.tree('1').children!.filter(c => c.title === 'Recipes');
+        expect(copies).toHaveLength(1);
+        expect(shape(copies[0])).toEqual(original);
+    });
+
+    it('never merges into a same-named folder the user created after the delete', async () => {
+        const { folder } = seedRecipes();
+        const { service } = makeService();
+        const del = await service.deleteItems({ ids: [folder.id] });
+        clock.t += 1000;
+        const mine = await chrome.bookmarks.create({ parentId: '1', title: 'Recipes' });
+        await chrome.bookmarks.create({ parentId: mine.id, title: 'My own', url: 'https://mine.example/' });
+        clock.t += 1000;
+        await service.restore({ operationId: del.operationId });
+        const recipes = fakeBookmarks.tree('1').children!.filter(c => c.title === 'Recipes');
+        expect(recipes).toHaveLength(2);
+        expect(fakeBookmarks.titlesIn(mine.id)).toEqual(['My own']);
+    });
 });

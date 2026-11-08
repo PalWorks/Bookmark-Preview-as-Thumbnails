@@ -33,6 +33,30 @@ describe('TRASH_DELETE', () => {
         expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ type: 'TRASH_CHANGED' }));
     });
 
+    it('a bookmark moved into the folder during the delete is in the snapshot too', async () => {
+        const { folder } = seedRecipes();
+        const stray = fakeBookmarks.seed('2', 'Moved in', 'https://moved.example/');
+        const { service } = makeService();
+        const set = chrome.storage.local.set as unknown as ReturnType<typeof vi.fn>;
+        const real = set.getMockImplementation()!;
+        let moved = false;
+        set.mockImplementation((items: Record<string, unknown>) => {
+            // While the snapshot is being written, another tab moves a bookmark in.
+            if (!moved && Object.keys(items).some(k => k.startsWith('trash_v1_'))) {
+                moved = true;
+                fakeBookmarks.relocate(stray.id, folder.id);
+            }
+            return real(items);
+        });
+        await service.deleteItems({ ids: [folder.id] });
+        set.mockImplementation(real);
+        const entry = entries()[0];
+        expect(entry.tree.children!.map(c => c.title)).toContain('Moved in');
+        expect(entry.bookmarkCount).toBe(5);
+        await service.restore({ operationId: entry.operationId });
+        expect(fakeBookmarks.allBookmarks().some(b => b.url === 'https://moved.example/')).toBe(true);
+    });
+
     it('stores no image data in the entry', async () => {
         const { soup } = seedRecipes();
         localStore['thumb_https://soup.example/'] = { id: 'https://soup.example/', base64: 'data:image/webp;base64,AAAA' };

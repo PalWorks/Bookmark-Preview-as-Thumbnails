@@ -28,7 +28,7 @@
 
 import {
     TRASH_ENTRY_PREFIX, TRASH_PROGRESS_PREFIX, TRASH_REQUEST_PREFIX, TRASH_REV_KEY, TRASH_PURGE_KEY,
-    TRASH_RESTORING_KEY, TRASH_RETENTION_MS, RESTORED_KEEP_MS, REQUEST_KEEP_MS,
+    TRASH_RESTORING_KEY, TRASH_RECREATED_KEY, TRASH_RETENTION_MS, RESTORED_KEEP_MS, REQUEST_KEEP_MS,
     entryKey, progressKey, requestKey, listLocalKeys, readTrash, collectUrls, countSaved,
     type TrashEntry, type TrashProgress, type TrashItem, type TrashOrigin, type TrashDeleteResult,
     type TrashRestoreResult, type TrashRestoreItemResult, type TrashEmptyResult, type TrashRejectReason,
@@ -41,7 +41,6 @@ import { db } from '../lib/indexeddb';
 
 const RESTORE_GUARD_MS = 60 * 1000;
 const CHECKPOINT_EVERY = 25;
-const PURGE_TOMBSTONE_MS = 5 * 60 * 1000;
 /** Upper bound for one delete request; Duplicate Finder sends at most a few thousand ids. */
 const MAX_DELETE_IDS = 10000;
 
@@ -80,7 +79,6 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
     let queue: Promise<unknown> = Promise.resolve();
     let restoringUntil = 0;
     let restoringWrittenUntil = 0;
-    const recentlyPurged = new Map<string, number>();
 
     /** Run `fn` after every earlier mutation, with crash recovery first. */
     function enqueue<T>(fn: () => Promise<T>): Promise<T> {
@@ -274,7 +272,21 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         const settled: Record<string, unknown> = {};
         for (const e of entries) {
             try {
-                if (e.isFolder) await chrome.bookmarks.removeTree(e.tree.oldId);
+                if (e.isFolder) {
+                    // Something may have been moved into the folder while the snapshot was
+                    // being written (another tab, Chrome's manager, sync). Re-check right
+                    // before removing, so nothing is removed that Undo could not restore.
+                    const fresh = (await chrome.bookmarks.getSubTree(e.tree.oldId))[0];
+                    const freshTree = toSavedNode(fresh);
+                    if (JSON.stringify(freshTree) !== JSON.stringify(e.tree)) {
+                        const counts = countSaved(freshTree);
+                        e.tree = freshTree;
+                        e.bookmarkCount = counts.bookmarks;
+                        e.nodeCount = counts.nodes;
+                        await chrome.storage.local.set({ [entryKey(e.entryId)]: e });
+                    }
+                    await chrome.bookmarks.removeTree(e.tree.oldId);
+                }
                 else await chrome.bookmarks.remove(e.tree.oldId);
                 settled[progressKey(e.entryId)] = { entryId: e.entryId, state: 'deleted', updatedAt: now() } satisfies TrashProgress;
                 done.push(e);
@@ -322,12 +334,22 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         return root.id === scope.rootId;
     }
 
+    async function recreatedFolderIds(): Promise<Set<string>> {
+        const data = await chrome.storage.local.get(TRASH_RECREATED_KEY);
+        return new Set(Object.keys((data[TRASH_RECREATED_KEY] as Record<string, number> | undefined) ?? {}));
+    }
+
     async function findOrCreateFolder(parentId: string, title: string): Promise<BookmarkNode> {
         const children = await chrome.bookmarks.getChildren(parentId);
         const existing = children.find(c => !c.url && c.title === title && !isManaged(c));
         if (existing) return existing;
         markRestoring();
-        return chrome.bookmarks.create({ parentId, title });
+        const folder = await chrome.bookmarks.create({ parentId, title });
+        // Remember it, so a later restore of the original folder merges into it.
+        const data = await chrome.storage.local.get(TRASH_RECREATED_KEY);
+        const map = { ...((data[TRASH_RECREATED_KEY] as Record<string, number> | undefined) ?? {}), [folder.id]: now() };
+        await chrome.storage.local.set({ [TRASH_RECREATED_KEY]: map });
+        return folder;
     }
 
     /**
@@ -373,7 +395,9 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         // Resume only when an earlier attempt actually created something. Reuse is
         // limited to nodes created between that attempt's start and its failure
         // record, so a bookmark the user added later is never taken over.
-        const resume = prior.restoreStartedAt !== undefined && ((prior.created ?? 0) > 0 || prior.partialRootId !== undefined);
+        // Any earlier attempt counts: the worker can die after a create() but before
+        // its checkpoint, so "nothing recorded" does not mean "nothing created".
+        const resume = prior.restoreStartedAt !== undefined;
         const startedAt = resume ? prior.restoreStartedAt! : now();
         const resumeUntil = prior.updatedAt + 2000;
         let created = resume ? (prior.created ?? 0) : 0;
@@ -426,10 +450,12 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             return i < 0 ? undefined : list.splice(i, 1)[0];
         };
         // A folder whose child was restored earlier (delete "Soup", then delete
-        // "Recipes", then Undo both) already has a recreated copy: merge into it.
+        // "Recipes", then Undo both) already has a copy recreated by that restore:
+        // merge into it. A folder the user made themselves is never merged into.
         const recreatedFolder = async (pid: string) => {
+            const recreated = await recreatedFolderIds();
             const children = await chrome.bookmarks.getChildren(pid).catch(() => [] as BookmarkNode[]);
-            return children.find(c => !c.url && c.title === entry.title && !isManaged(c) && (c.dateAdded ?? 0) >= entry.deletedAt);
+            return children.find(c => !c.url && c.title === entry.title && !isManaged(c) && recreated.has(c.id));
         };
 
         try {
@@ -531,7 +557,6 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             try {
                 await chrome.storage.local.remove([`thumb_${url}`, `meta_${url}`]);
                 await db.deleteThumbnail(url);
-                recentlyPurged.set(url, now());
                 purged++;
             } catch (err) {
                 console.warn('[Trash] asset purge failed, will retry', url, err);
@@ -549,9 +574,9 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         const urls = new Set<string>();
         let removedBookmarks = 0;
         for (const i of removable) {
-            if (i.progress.state === 'restored') continue;
+            // Restored URLs too: the sweep keeps every URL a live bookmark still uses.
             collectUrls(i.entry.tree, urls);
-            removedBookmarks += Math.max(1, i.entry.bookmarkCount);
+            if (i.progress.state !== 'restored') removedBookmarks += Math.max(1, i.entry.bookmarkCount);
         }
         try {
             await addPurgePending(urls);
@@ -580,10 +605,19 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             return false;
         });
         const urls = new Set<string>();
-        for (const i of expired) if (i.progress.state !== 'restored') collectUrls(i.entry.tree, urls);
+        for (const i of expired) collectUrls(i.entry.tree, urls);
         if (expired.length) {
             await addPurgePending(urls);
             await removeItems(expired.map(i => i.entry.entryId));
+        }
+
+        // Recreated-folder ids only matter while their Trash entries can still be restored.
+        const rec = await chrome.storage.local.get(TRASH_RECREATED_KEY);
+        const recMap = (rec[TRASH_RECREATED_KEY] as Record<string, number> | undefined) ?? {};
+        const keep = Object.fromEntries(Object.entries(recMap).filter(([, at]) => at + TRASH_RETENTION_MS > t));
+        if (Object.keys(keep).length !== Object.keys(recMap).length) {
+            if (Object.keys(keep).length) await chrome.storage.local.set({ [TRASH_RECREATED_KEY]: keep });
+            else await chrome.storage.local.remove(TRASH_RECREATED_KEY);
         }
 
         // Cached delete responses only matter for a few minutes.
@@ -609,13 +643,6 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         reconcile: () => enqueue(async () => true),
         /** True while a restore is creating bookmarks (auto-capture skips them). */
         isRestoreActive: () => restoringUntil > now(),
-        /** A capture finishing after its URL's assets were purged must not write them back. */
-        wasRecentlyPurged: (url: string) => {
-            const at = recentlyPurged.get(url);
-            if (at === undefined) return false;
-            if (now() - at > PURGE_TOMBSTONE_MS) { recentlyPurged.delete(url); return false; }
-            return true;
-        },
     };
 }
 

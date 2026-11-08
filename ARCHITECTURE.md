@@ -67,8 +67,9 @@ every preview image a capture writes).
 - **Delete.** Validate every id (missing ids are skipped; a permanent or managed node
   rejects the whole request so one action is always one Undo). Drop ids nested in another
   selected folder. Snapshot each root (subtree, index, ancestors, storage scope) and write
-  all snapshots in one `storage.local.set` before the first removal. Remove each root;
-  failures drop only that root's entry.
+  all snapshots in one `storage.local.set` before the first removal. Just before removing a
+  folder, re-read it and update the snapshot if something was moved in meanwhile. Remove
+  each root; failures drop only that root's entry.
 - **Restore.** Put roots back in ascending original index. Parent lookup: the deepest
   surviving ancestor in the same storage scope (recreating missing folders below it by
   title, reusing a same-titled folder), else a permanent folder with the same
@@ -79,9 +80,12 @@ every preview image a capture writes).
   `prepared` with the bookmark still present is dropped (the delete never happened),
   otherwise promoted to `deleted`; a `restoring` entry is stale and becomes `failed`.
   A retried restore reuses nodes the interrupted attempt created (same parent, title and
-  URL, created after the first attempt began), so Retry never duplicates. Progress is a
-  small separate record, checkpointed every 25 creates, so large restores do not rewrite
-  the snapshot.
+  URL, created between that attempt's start and its failure record), so Retry never
+  duplicates, even when the worker died before any checkpoint. A partial copy moves with the
+  user to a new Restore to... destination. A folder restored after one of its children
+  merges into the copy that child's restore recreated (never into a folder the user made).
+  Progress is a small separate record, checkpointed every 25 creates, so large restores do
+  not rewrite the snapshot.
 - **Auto-capture guard.** While a restore creates bookmarks, `onCreated` auto-capture is
   skipped for 60 seconds after the last create (the incognito worker reads the same
   deadline from storage).
@@ -89,7 +93,8 @@ every preview image a capture writes).
   opens); restored entries linger 10 minutes so a repeated Undo is a no-op. Empty and
   expiry run an asset sweep journaled in `trash_purge_pending`: a URL's `thumb_`, `meta_`
   and legacy IndexedDB preview are removed only when no live bookmark and no remaining
-  entry uses it. A capture that finishes for a just-purged URL writes nothing.
+  entry uses it. A capture that finishes after its bookmark was deleted writes nothing (the
+  worker checks the bookmark still exists right before writing).
 - **Incognito.** With `incognito: "split"`, the incognito worker answers `TRASH_*` with a
   read-only error and incognito pages disable delete. Trash covers deletions made in this
   extension only; deletions in Chrome's own manager are not captured (see ROADMAP).

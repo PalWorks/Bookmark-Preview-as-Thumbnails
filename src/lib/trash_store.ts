@@ -10,6 +10,7 @@
 //   trash_rev              number bumped after every trash mutation (change signal)
 //   trash_purge_pending    URLs whose cached previews still need the asset sweep
 //   trash_restoring_until  timestamp; auto-capture skips bookmark creations until then
+//   trash_recreated_folders  ids of folders a restore recreated (merge target, 30 days)
 //
 // Entries hold metadata only. Previews come from the existing thumb_<url> records,
 // which stay in place while the bookmark sits in Trash.
@@ -20,6 +21,8 @@ export const TRASH_REQUEST_PREFIX = 'trash_req_';
 export const TRASH_REV_KEY = 'trash_rev';
 export const TRASH_PURGE_KEY = 'trash_purge_pending';
 export const TRASH_RESTORING_KEY = 'trash_restoring_until';
+/** Folders recreated by a restore (id -> time), so a later restore merges into them. */
+export const TRASH_RECREATED_KEY = 'trash_recreated_folders';
 
 const MINUTE = 60 * 1000;
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * MINUTE;

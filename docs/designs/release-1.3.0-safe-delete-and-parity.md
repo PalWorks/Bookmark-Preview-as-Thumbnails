@@ -1184,3 +1184,9 @@ build differs from or settles parts of this document:
 - **TODOS.md** was folded into [ROADMAP.md](../../ROADMAP.md) (rows 1 to 8).
 - **CI**: `scripts/check-bundle.mjs` implements A10 and also scans for secrets and source maps.
 - Permission gate passed: identical warning lists for the 1.2.1 and 1.3.0 manifests.
+- **Master audit** (Claude reviewer and Codex, 2026-11-08): 15 findings fixed with regression
+  tests (resume after a crash before any checkpoint, partial copy follows Restore to...,
+  folder merge only into restore-recreated folders, snapshot refreshed before removal, retry
+  continues the same operation, capture skips deleted bookmarks, drawer and menu focus,
+  picker selection, AI Settings at 360px). Declined: emptying Trash after a failed partial
+  restore leaves the partial copy as ordinary bookmarks rather than deleting them.

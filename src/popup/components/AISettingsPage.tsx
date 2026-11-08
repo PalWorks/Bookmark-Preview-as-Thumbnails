@@ -681,7 +681,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         <div
                             className={`ai-card ${mode === 'builtin' ? 'ai-card--selected' : ''}`}
                             onClick={() => setMode('builtin')}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMode('builtin'); } }}
                             role="button"
+                            tabIndex={0}
                             aria-pressed={mode === 'builtin'}
                         >
                             {mode === 'builtin' && <div className="ai-card-check">✓</div>}
@@ -699,7 +701,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         <div
                             className={`ai-card ${mode === 'cloud' ? 'ai-card--selected' : ''}`}
                             onClick={() => setMode('cloud')}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMode('cloud'); } }}
                             role="button"
+                            tabIndex={0}
                             aria-pressed={mode === 'cloud'}
                         >
                             {mode === 'cloud' && <div className="ai-card-check">✓</div>}

@@ -56,8 +56,18 @@ describe('TRASH_EMPTY and the asset sweep', () => {
         expect(localStore['thumb_https://cake.example/']).toBeDefined();
         expect(localStore['meta_https://cake.example/']).toBeDefined();
         expect(localStore.trash_purge_pending).toBeUndefined();
-        expect(service.wasRecentlyPurged('https://soup.example/')).toBe(true);
-        expect(service.wasRecentlyPurged('https://cake.example/')).toBe(false);
+    });
+
+    it('expiring a restored entry still purges previews nothing uses any more', async () => {
+        const { soup } = seedRecipes();
+        thumb('https://soup.example/');
+        const { service } = makeService();
+        const del = await service.deleteItems({ ids: [soup.id] });
+        const res = await service.restore({ operationId: del.operationId });
+        await chrome.bookmarks.remove(res.results![0].restoredTo!.rootId); // later deleted elsewhere
+        clock.t += 11 * 60 * 1000;
+        await service.purgeExpired();
+        expect(localStore['thumb_https://soup.example/']).toBeUndefined();
     });
 
     it('also deletes a legacy IndexedDB preview', async () => {

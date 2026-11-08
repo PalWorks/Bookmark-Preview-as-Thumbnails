@@ -17,10 +17,11 @@ All data is local to the browser profile. There is no server.
 | `hasSeenWelcome` | page | `true` | |
 | `trash_v1_<entryId>` | worker only | `TrashEntry` (below) | Immutable snapshot of one deleted root. |
 | `trash_prog_<entryId>` | worker only | `TrashProgress` (below) | State machine and restore progress. |
-| `trash_req_<requestId>` | worker only | `{ at, result }` | Cached `TRASH_DELETE` answer, so a retried message is a no-op. Removed after 10 minutes. |
+| `trash_req_<requestId>` | worker only | `{ at, operationId, result? }` | Written with the snapshot; the answer is added at the end. A retry returns the answer, or continues the same operation if the worker died part-way. Removed after 10 minutes. |
 | `trash_rev` | worker only | number (ms) | Bumped after every Trash change; `TRASH_CHANGED` carries it. |
 | `trash_purge_pending` | worker only | `{ urls: string[], at }` | Asset sweep journal; a crash resumes it. |
 | `trash_restoring_until` | worker only | number (ms) | Auto-capture skips bookmark creations until then (read by the incognito worker). |
+| `trash_recreated_folders` | worker only | `{ [folderId]: ms }` | Folders a restore recreated; a later restore of the original folder merges into them, never into a folder the user made. Pruned after 30 days. |
 
 ### TrashEntry
 
@@ -45,7 +46,7 @@ Trash.
 ```ts
 { entryId, state: 'prepared' | 'deleted' | 'restoring' | 'restored' | 'failed',
   updatedAt, restoreStartedAt?, created?, error?, needsDestination?,
-  restoredTo?: { parentId, rootId, path }, keepUntil? }
+  restoredTo?: { parentId, rootId, path }, partialRootId?, keepUntil? }
 ```
 
 ## chrome.storage.sync (settings)

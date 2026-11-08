@@ -93,7 +93,7 @@ Priority, Size and Impact are separate columns because they answer separate ques
 
 ### 2.1 Status: 1.3.0 built and verified, release pending row 9 (updated 2026-11-08T09:06:39+00:00)
 
-1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0`: 244 tests, lint, build and
+1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0`: 256 tests, lint, build and
 bundle check pass; update from 1.2.1, Trash flows and layouts verified on Chrome 156.
 
 ### 2.2 The ledger: every backlog item, pending first, done at the bottom
