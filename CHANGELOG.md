@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-11-08T13:24:59+00:00
+
+Organise and recover: the rest of the requests from the user who asked for bookmark manager
+parity, plus recovery of bookmarks deleted outside this extension.
+
+### Added
+
+- **Deletes made outside the extension go to Trash.** Bookmarks and folders deleted in Chrome's
+  own bookmark manager, by sync or on your other devices land in Trash while Chrome is open on
+  this computer, as one row per burst marked "Deleted outside this extension", and restore like
+  any other delete (to the original place, in the original order, or a folder you pick). A
+  bookmark or folder that already came back from another device is not duplicated. A switch at
+  the top of Trash turns this off; what is already kept stays.
+- **Select several items.** A **Select** button in the top bar, checkboxes on tiles and rows,
+  Shift+click for a range, Ctrl/Cmd+A for everything in view, Escape to stop. The selection bar
+  (bottom of the screen on phones) offers **Move to...**, **Delete** and **Open**. Delete is one
+  Undo; Move has Undo in its toast; opening more than 20 tabs asks first, inside the bar.
+- **Folder colours**: eight colours plus the default yellow, from a folder's **More actions**
+  menu, shown in the folder panel, tiles, list rows, Trash and the folder picker.
+- **Hide folders from search**: from a folder's **More actions** menu. Matches inside hidden
+  folders (and their subfolders) are held back with "N more matches in folders hidden from
+  search · Show them". Smart Search leaves them out too.
+- **List view columns**: Added, Opened (from this page or Chrome's bookmark manager), Rating (1
+  to 5 stars, per link), and with Chrome's optional history permission Visits and Last visited.
+  A **Columns** menu chooses them; Sort gains Recently opened, Rating and Most visited.
+- **Backups** now include ratings, tags and opened times for every link, and folder colours and
+  hidden folders by folder path; settings exports include the folder choices too.
+
+### Changed
+
+- The top bar never truncates the title between 720 and 1599 px: Filter and Sort become icon
+  buttons below 1280 px, the Select label below 1440 px.
+- Restoring a delete also brings back the folder's colour and search setting.
+
+### Fixed
+
+- Metadata written by extension pages and backups is checked field by field: wrong types, unknown
+  fields and oversized values are dropped. Importing a backup never overwrites a rating or tags
+  you set on this device.
+
+### Permissions
+
+- Adds `history` as an **optional** permission, requested only when you turn on Visits or Last
+  visited. Install warnings are identical to 1.3.0 (checked on Chrome 156).
+
+### Developer
+
+- `src/sw/folder_prefs.ts` (single writer of `fpref_*`), `src/lib/metadata_sanitize.ts`
+  (allowlist), `src/lib/bulk_move.ts`, `src/lib/list_columns.ts`; hooks `useSelection`,
+  `useLinkMeta`, `useHistoryStats`, `useFolderPrefs`.
+- `npm run e2e`: a real-Chrome smoke test in a throwaway headless profile.
+- 322 tests (257 before).
+
 ## [1.3.0] - 2026-11-08T12:18:14+00:00
 
 A safer, more familiar bookmark manager: every delete can be undone, and the

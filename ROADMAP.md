@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T12:18:14+00:00 (1.3.0 verified on the owner's profile; licence confirmed by the owner)._
+> _Last updated: 2026-11-08T13:24:59+00:00 (1.4.0 built and verified: rows 1 to 5 done on the branch; rows 12 to 14 added)._
 
 ## 0. North star: every open item, one row each
 
@@ -19,17 +19,15 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 
 | # | Bucket | Priority | State | Size | Impact | Raised | Problem | Solution or next step |
 |---|---|---|---|---|---|---|---|---|
-| 1 | §3.2 | P2 | **Open** | M | M | 2026-11-08 | Bookmarks deleted in Chrome's own manager or by sync cannot be recovered from Trash. | Build on the 1.3.0 coordinator. Chrome 156 facts verified 2026-11-08: one `onRemoved` per removed root, with the full subtree in `node`. Still open: incognito storage sharing, and hiding Restore for synced removals after sign-out. |
-| 2 | §3.2 | P2 | **Open** | S | M | 2026-11-08 | Utility folders (for example bookmarklets) pollute search results (user request, item 5). | Store excluded folder ids in sync storage; filter `bookmarks.search` results by an ancestor set built from the in-memory tree. |
-| 3 | §3.2 | P2 | **Open** | M | M | 2026-11-08 | List view lacks "last opened", date created, a rating and visit count (user request, item 7). | Columns from `dateLastUsed` and `dateAdded` (no new permission); visit count needs the optional `history` permission, requested only when that column is turned on. |
-| 4 | §3.2 | P2 | **Open** | M | M | 2026-11-08 | No range selection or bulk actions (user request, item 9). | Selection model in a new hook; bulk delete goes through the Trash service as one operation. |
-| 7 | §3.3 | P2 | **Open** | M | M | 2026-11-08 | Chrome-only behaviour (update path, Trash, 360px layout) is checked with ad hoc CDP scripts, not in CI. | Playwright harness that loads `dist/` in Chromium and runs the update, delete and Undo, restore and 360px checks. |
-| 5 | §3.2 | P3 | **Open** | S | L | 2026-11-08 | All folders are the same yellow; users want colours (user request, item 2). | Store `{ folderId: colour }` in sync storage and reuse the 1.3.0 folder tokens. |
-| 6 | §3.2 | P3 | **Open** | M | L | 2026-11-08 | Rename and move have no Undo, unlike delete. | Extend the Trash operation journal to rename, cut and paste, and move. |
+| 7 | §3.3 | P2 | **Open** | S | M | 2026-11-08 | The real-Chrome checks run locally (`npm run e2e`, added in 1.4.0) but not in CI. | Add a CI job that installs Chrome and runs `npm run e2e` after the build; it needs `--enable-unsafe-extension-debugging` on the runner. |
+| 6 | §3.2 | P3 | **Open** | M | L | 2026-11-08 | Rename and single move have no Undo; bulk move's Undo lasts only as long as its toast (D14). | Extend the Trash operation journal to rename and move, persisted in the worker. |
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
-| 9 | §3.1 | P1 | **Decision** | S | H | 2026-11-08 | 1.3.0 is built and verified on branch `release/1.3.0` (also on the owner's own profile, 2026-11-08T12:18:14+00:00); users get the Trash and parity fixes only once it is submitted. | 1.2.1 is live (Web Store PUBLISHED, checked 2026-11-08T09:14:11+00:00), so nothing is in review. Recommendation: merge PR #2, tag v1.3.0 and submit. Owner decides. |
-| 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. Recommendation: spike only after rows 1 to 4. |
-| 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.3.0 is live on the Web Store, listing what shipped and what is planned (rows 1 to 4). |
+| 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
+| 9 | §3.1 | P1 | **Decision** | S | H | 2026-11-08 | 1.3.0 is built and verified on `release/1.3.0` (also on the owner's profile); users get Trash and the parity fixes only once it is submitted. | 1.2.1 is live, nothing is in review. Recommendation: merge PR #2, tag v1.3.0 and submit. Owner decides. |
+| 12 | §3.1 | P1 | **Decision** | S | H | 2026-11-08 | 1.4.0 (rows 1 to 5) is built and verified on `release/1.4.0`, stacked on 1.3.0. Both review models suggested shipping 1.3.0 first and waiting for feedback before 1.4.0. | Recommendation: submit 1.3.0 now, then 1.4.0 once 1.3.0 is approved (about a week), so a problem in either release is easy to place. Owner decides. |
+| 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
+| 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.3.0 is live, listing what shipped and that their remaining requests (rows 1 to 5) are built for 1.4.0. |
+| 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 
 **Reading the narrow columns.** Bucket is the §3 area: 3.1 Release, 3.2 Features, 3.3 Engineering.
 Size: T trivial, S small, M medium, L large, ? unknown. Impact: H high, M medium, L low.
@@ -88,17 +86,18 @@ Priority, Size and Impact are separate columns because they answer separate ques
 | AI Auto-Tag, Smart Search, Duplicate Finder (on-device or bring your own key) | 1.2.0 |
 | Safe updates (schema-gated migration), tags kept on recapture, API key bound to its provider | 1.2.1 (live 2026-11-08) |
 | Trash with Undo, favicon previews, deep counts, folder panel toggle, 360px layout, settings export | 1.3.0 (built, not yet released) |
+| Deletes made outside the extension in Trash, folder colours, hidden from search, multi-select with bulk delete/move/open, list columns and ratings | 1.4.0 (built, not yet released) |
 
 ## 2. Next up
 
-### 2.1 Status: 1.3.0 built and verified, release pending row 9 (updated 2026-11-08T12:18:14+00:00)
+### 2.1 Status: 1.3.0 and 1.4.0 built and verified, releases pending rows 9 and 12 (updated 2026-11-08T13:24:59+00:00)
 
-1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0`: 257 tests, lint, build and
-bundle check pass; update from 1.2.1, Trash flows and layouts verified on Chrome 156, then
-again on the owner's own profile (794 bookmarks, 29 folders, local only): update in place,
-delete, Undo, Delete key, Ctrl+Z, Trash, Restore, Restore to..., Empty Trash, search, list and
-grid at 360 to 1920px in both themes, Duplicate Finder scan, no console errors, bookmarks
-unchanged afterwards. Five small fixes from that pass are in the 1.3.0 CHANGELOG.
+1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0` (PR #2). 1.4.0 is on
+`release/1.4.0`, stacked on 1.3.0: 322 tests, lint, build, bundle check and `npm run e2e` pass;
+the update from 1.3.0, the permission gate (identical install warnings), deletes made outside the
+extension, selection, columns and dialogs were checked in headless Chrome 156 and again on the
+owner's profile (794 bookmarks, unchanged afterwards). Design and review record:
+[docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
 
 ### 2.2 The ledger: every backlog item, pending first, done at the bottom
 
@@ -107,17 +106,20 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 
 | # | Item | Section | State | Size | Impact |
 |---|---|---|---|---|---|
-| 1 | Record deletions made outside the extension | §3.2 | **Open** | M | M |
-| 2 | Exclude chosen folders from search | §3.2 | **Open** | S | M |
-| 3 | List view columns | §3.2 | **Open** | M | M |
-| 4 | Range multi-select with bulk actions | §3.2 | **Open** | M | M |
-| 7 | Automated browser E2E for the extension | §3.3 | **Open** | M | M |
-| 5 | Per-folder colours | §3.2 | **Open** | S | L |
+| 7 | Real-Chrome checks in CI | §3.3 | **Open** | S | M |
 | 6 | Undo for rename and move | §3.2 | **Open** | M | L |
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
+| 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 9 | Release 1.3.0 to the Web Store | §3.1 | **Decision** | S | H |
+| 12 | Release 1.4.0 to the Web Store | §3.1 | **Decision** | S | H |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.3.0 is live | T | M |
+| 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
+| 1 | Record deletions made outside the extension | §3.2 | **Done** 2026-11-08 (built in 1.4.0, ships with row 12) | Was M | M |
+| 2 | Exclude chosen folders from search | §3.2 | **Done** 2026-11-08 (1.4.0) | Was S | M |
+| 3 | List view columns | §3.2 | **Done** 2026-11-08 (1.4.0) | Was M | M |
+| 4 | Range multi-select with bulk actions | §3.2 | **Done** 2026-11-08 (1.4.0) | Was M | M |
+| 5 | Per-folder colours | §3.2 | **Done** 2026-11-08 (1.4.0) | Was S | L |
 
 ---
 
@@ -129,13 +131,14 @@ Release steps are in [PLAYBOOK.md](PLAYBOOK.md).
 
 ### 3.2 Features
 
-Rows 2 to 5 come from the 2026-11-06 user email (items 2, 5, 7 and 9). Row 1 was chosen by the
-owner in office hours and deferred from 1.3.0 at the review gate because it depended on untested
-Chrome behaviour; part of that is now verified (see ARCHITECTURE.md).
+Rows 1 to 5 (the 2026-11-06 user email, items 2, 5, 7 and 9, plus recovery of deletes made in
+Chrome) are built in 1.4.0. Row 13 is the larger safety-net idea from the 1.4.0 review; row 14 is
+the per-device limit of folder prefs (DECISIONS D12).
 
 ### 3.3 Engineering
 
-Rows 7 and 8 are debt recorded during the 1.3.0 review.
+Rows 7 and 8 are debt recorded during the 1.3.0 review; 1.4.0 added the local half of row 7
+(`npm run e2e`).
 
 ## 5. Not doing: decided against, with the reason
 
@@ -146,10 +149,11 @@ Rows 7 and 8 are debt recorded during the 1.3.0 review.
 
 ## 6. Where the detail lives
 
-1 document:
+2 documents:
 
 | Document | Covers |
 |---|---|
+| [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md) | 1.4.0 design, CEO, design and engineering reviews with both models, the final build spec |
 | [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) | 1.3.0 design, reviews, decisions, and the deferred external-capture notes (row 1) |
 
 ## 7. Closed, kept for the reasoning

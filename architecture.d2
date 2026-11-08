@@ -36,7 +36,13 @@ Browser: {
     TrashCoordinator: {
       label: "Trash coordinator (sw/trash.ts)"
       shape: rectangle
-      tooltip: "Single writer of trash_* keys; promise queue; reconcile on start; resumable restore"
+      tooltip: "Single writer of trash_* keys; promise queue; reconcile on start; resumable restore; records deletes made outside the extension (onRemoved)"
+    }
+
+    FolderPrefs: {
+      label: "Folder prefs (sw/folder_prefs.ts)"
+      shape: rectangle
+      tooltip: "Single writer of fpref_* (colour, hidden from search); daily prune with a grace period"
     }
 
     ContentScript: {
@@ -52,7 +58,7 @@ Browser: {
 
     Storage: {
       shape: cylinder
-      tooltip: "storage.local: thumb_, meta_, trash_*, ai_*; storage.sync: settings; IndexedDB: legacy previews"
+      tooltip: "storage.local: thumb_, meta_, trash_*, fpref_*, ai_*; storage.sync: settings; IndexedDB: legacy previews"
     }
 
     ChromeBookmarks: {
@@ -80,6 +86,12 @@ Browser: {
     ChromeBookmarks -> Popup: "Bookmark events (reactive tree)"
     Popup -> Storage: "Reads (getKeys + targeted get)"
     PurgeAlarm -> TrashCoordinator: Expire after 30 days
+    PurgeAlarm -> FolderPrefs: Prune
+    ChromeBookmarks -> TrashCoordinator: "onRemoved (deleted outside)"
+    Popup -> FolderPrefs: "FOLDER_PREFS_SET"
+    FolderPrefs -> Popup: "FOLDER_PREFS_CHANGED"
+    FolderPrefs -> Storage: "fpref_*"
+    TrashCoordinator -> FolderPrefs: "Re-apply prefs on restore"
   }
 
   Website: {

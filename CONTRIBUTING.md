@@ -1,6 +1,6 @@
 # Contributing to Bookmarks Thumbnails
 
-_Last updated: 2026-11-08T10:20:54+00:00 (licence terms for contributions, checks before a PR)._
+_Last updated: 2026-11-08T13:24:59+00:00 (npm run e2e added to the checks)._
 
 Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome contributions from everyone.
 
@@ -37,6 +37,7 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
     npm run lint
     npm test -- --run
     npm run build && npm run check:bundle
+    npm run e2e   # optional locally: real Chrome, headless, throwaway profile
     ```
 
     Read [AGENTS.md](AGENTS.md) first: it lists the rules that must not be broken (for

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-11-08T10:20:54+00:00 (rewritten for 1.3.0; CLAUDE.md now points here)._
+_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: folder prefs writer, metadata allowlist, external deletes, e2e)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,
@@ -20,6 +20,7 @@ npm run build          # tsc -b && vite build -> dist/
 npm run lint           # ESLint flat config, React Compiler rules; CI gate
 npm test -- --run      # Vitest once, as CI runs it
 npm run check:bundle   # worker hygiene, secret and source-map scan of dist/
+npm run e2e            # real-Chrome smoke test of dist/ in a throwaway headless profile
 npm run zip            # build + check + extension.zip for the Web Store
 ```
 
@@ -28,7 +29,8 @@ npm run zip            # build + check + extension.zip for the Web Store
 | Path | What |
 |---|---|
 | `src/sw.ts` | Service worker: message router, capture, AI batches, migration, Trash upkeep |
-| `src/sw/trash.ts` | Trash coordinator (single writer of `trash_*`), no import side effects |
+| `src/sw/trash.ts` | Trash coordinator (single writer of `trash_*`), also records deletes made outside the extension; no import side effects |
+| `src/sw/folder_prefs.ts` | Folder colour and hidden-from-search writer (single writer of `fpref_*`) |
 | `src/lib/` | Shared modules; keep DOM and React out of anything the worker imports |
 | `src/popup/App.tsx` | Composes hooks and renders; no logic of its own |
 | `src/popup/hooks/` | All page behaviour (`useTrash`, `useBookmarkTree`, `useThumbnails`, `useToast`, ...) |
@@ -36,6 +38,7 @@ npm run zip            # build + check + extension.zip for the Web Store
 | `src/content/capture.ts` | Content script used during capture |
 | `tests/` | Vitest; `tests/fakes/chrome_bookmarks.ts`, `tests/sw_bridge.ts` |
 | `scripts/check-bundle.mjs` | Post-build checks (CI) |
+| `scripts/e2e/smoke.mjs` | `npm run e2e`: real Chrome, headless, throwaway profile |
 | `website/` | Marketing site, deployed to GitHub Pages from `main` |
 | `docs/designs/` | Design documents with review history |
 
@@ -47,9 +50,12 @@ npm run zip            # build + check + extension.zip for the Web Store
 2. **Never write a "rename unknown keys" migration.** Gate migrations on
    `storage_schema_version` and check record shape (DECISIONS D1).
 3. **Metadata writes merge**: `storageIndex.patch` in the worker, `patchMetadata` (sends
-   `META_PATCH`) in pages. Never `storageIndex.set` a fresh record; it drops AI tags.
+   `META_PATCH`) in pages. Never `storageIndex.set` a fresh record; it drops AI tags. Every
+   page-sent field passes `sanitizePagePatch` (`src/lib/metadata_sanitize.ts`); add a field
+   there before a page can write it.
 4. **Deletes go through Trash**: `useTrash().deleteItems` in pages. Nothing calls
-   `chrome.bookmarks.remove` or `removeTree` directly except `src/sw/trash.ts`.
+   `chrome.bookmarks.remove` or `removeTree` directly except `src/sw/trash.ts`. (A direct
+   removal would be recorded as "deleted outside this extension".)
 5. **Only the worker writes `trash_*`**, inside its queue. Pages refresh on `TRASH_CHANGED`,
    never on `chrome.storage.onChanged`.
 6. **Restore never crosses storage scopes** (local vs synced) without the user choosing.
@@ -69,6 +75,12 @@ npm run zip            # build + check + extension.zip for the Web Store
     changes that install, so build QA copies into a scratch folder, never take focus in a
     browser someone is using, and QA in a separate headless Chrome (PLAYBOOK.md). Machine-specific
     notes live in the gitignored `LOCAL.md`.
+16. **Only the worker writes `fpref_*`** (folder prefs, keyed by device-local folder id).
+    Pages send `FOLDER_PREFS_SET` and refresh on `FOLDER_PREFS_CHANGED`. Exports name folders
+    by title path, never by id.
+17. **Optional permissions** (`history`) are requested only from a click handler, as the first
+    call, and every use checks `chrome.permissions.contains` first; the feature must work
+    without them.
 
 ## Allowed without asking
 

@@ -1,7 +1,7 @@
 <!-- /autoplan restore point: /home/palani/.gstack/projects/PalWorks-Bookmark-Preview-as-Thumbnails/release-1.4.0-autoplan-restore-20261108-175145.md -->
 # Design: Release 1.4.0, organise and recover
 
-_Created: 2026-11-08T12:20:43+00:00. Status: draft for review (autoplan)._
+_Created: 2026-11-08T12:20:43+00:00. Status: built and verified on `release/1.4.0` (2026-11-08T13:24:59+00:00); see "Implementation status" at the end._
 
 Base: `release/1.3.0` (Trash, Undo, parity). Source of scope: ROADMAP rows 1 to 5, which come
 from the 2026-11-06 user email (items 2, 5, 7, 9) and the external-capture work deferred from
@@ -896,3 +896,28 @@ they change it.
 | Design | 12 decisions resolved | scores 3 to 6 -> 8 to 9 |
 | Eng | issues resolved in final spec | 19 decisions, test plan written |
 | Voices | codex + subagent, all phases | consensus 6/6 CEO, 6/6 eng |
+
+
+## Implementation status (2026-11-08T13:24:59+00:00)
+
+Built as specified in the final build spec, with these changes from the master audit (an
+independent Claude reviewer and Codex, then a Codex verification pass):
+
+| Change | Why |
+|---|---|
+| External entries store original positions (burst replayed backwards) instead of restoring in reverse event order | Restoring to another folder kept the reverse order |
+| Restore of external entries also reuses a folder with the same title and links; each existing node is matched once | Same folder coming back from another device was duplicated |
+| Policy-managed removals are not kept | Their restore can never succeed |
+| A failed own delete un-marks its ids | A later delete in Chrome was hidden for 60 s |
+| Backup metadata merge runs in the worker's per-URL queue | A rating saved in another tab meanwhile was overwritten |
+| Folder prefs prune: after the Trash buffer is written, and only for folders missing at a prune 10 minutes earlier | Prefs could be pruned before an external delete saved them |
+| Smart Search scope: automatic choice follows the current folder unless it is hidden; list counts from the same data | Hidden folder could be searched by default |
+| List columns are one meta line under the title at every width (no aligned header) | Simpler and never misaligned; deviation from Pass 1's desktop column header |
+| Top bar breakpoints (Filter and Sort icon-only below 1280 px, full title from 1600 px, title never shrinks) | The title truncated at 1024, 1181 and 1440 px (already so in 1.3.0) |
+
+Verification: 322 tests, lint, type checks, build, bundle check, `npm run e2e`; headless Chrome 156
+(update from 1.3.0, permission gate, external delete and restore with colour, selection bar at 360
+and 1280 px, list columns and rating, colour dialog at 360 px, Trash in dark mode, top bar from 360
+to 1920 px); the owner's profile in background tabs (hidden from search, external delete and
+restore, range selection, list view on 794 real bookmarks, no console errors, bookmarks unchanged
+afterwards).

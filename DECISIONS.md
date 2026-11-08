@@ -1,10 +1,56 @@
 # Decisions
 
-_Last updated: 2026-11-08T12:18:14+00:00 (D9 confirmed by the owner)._
+_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: D10 to D14)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
-the rule it imposes. Detailed reasoning for 1.3.0 is in
-[docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md).
+the rule it imposes. Detailed reasoning is in
+[docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
+[docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D14. Bulk move Undo lives in the page, as long as its toast (2026-11-08)
+
+A persisted move journal is the larger "Undo for rename and move" work (ROADMAP row 6). Bulk move
+records every original position before moving, so its Undo is exact while the page is open.
+
+**Rule: the move toast offers Undo and promises nothing beyond it; do not describe moves as
+recoverable from Trash.**
+
+## D13. History is an optional permission, read for what is on screen (2026-11-08)
+
+Visit counts need `history`. As a required permission it would add an install warning (D3) and
+disable the extension for every user until re-approved.
+
+**Rule: `history` stays in `optional_permissions`, is requested only from a click (first call),
+is checked before every use, and its data is read per visible link and never stored.**
+
+## D12. Folder prefs are per device, keyed by folder id, exported by path (2026-11-08)
+
+Bookmark ids differ between devices, so sync storage keyed by id would apply colours to the
+wrong folders. Title paths are not unique enough to be the key.
+
+**Rule: `fpref_<id>` lives in `chrome.storage.local`, written only by the worker; exports name
+folders by title path and import applies an item only to the one folder with that exact path.
+The UI says "on this device".**
+
+## D11. Page-written metadata passes an allowlist (2026-11-08)
+
+`META_PATCH` used to spread whatever a page sent into `meta_<url>`. Ratings and opened times made
+pages write more fields, and backups feed the same path.
+
+**Rule: every field a page or a backup may write is listed with its validator in
+`src/lib/metadata_sanitize.ts`; conditional merges (backup import) run inside the worker's
+per-URL queue.**
+
+## D10. Deletes made outside the extension go to Trash too (owner direction, 2026-11-08)
+
+The user's main remaining loss was a folder deleted in Chrome's own manager or by sync. The
+Chrome behaviour this depends on was verified on Chrome 156. Recording is best effort: only while
+Chrome runs on this device, and never for an account tree disappearing at sign-out or for
+policy-managed bookmarks. Users can turn it off in the Trash view (default on).
+
+**Rule: external entries are written only from `chrome.bookmarks.onRemoved`, buffered and
+recorded inside the Trash queue; the extension's own removals must be marked before they
+happen so they are never recorded twice.**
 
 ## D9. Licence: AGPL-3.0-only plus a paid commercial licence (owner, 2026-11-08)
 
@@ -15,7 +61,7 @@ have changed terms going forward only and contradicted the published pricing.
 **Rule: `LICENSE` holds the unmodified AGPL 3.0 text; every source file carries
 `SPDX-License-Identifier: AGPL-3.0-only`; commercial terms live in COMMERCIAL-LICENSE.md.**
 
-## D8. Trash is owned by the service worker, for extension deletes only (owner, 2026-11-08)
+## D8. Trash is owned by the service worker (owner, 2026-11-08; extended by D10)
 
 A popup-owned Trash would race between two open tabs and lose deletes when a tab closes. The
 regular-profile worker is the single writer, behind one promise queue, with `reconcile()` for

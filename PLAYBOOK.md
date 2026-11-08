@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-08T10:20:54+00:00 (release, permission gate, rollback and QA steps for 1.3.0)._
+_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: e2e smoke, optional permissions in the gate, folder prefs rules)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -14,7 +14,7 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
    Write metadata through `storageIndex.patch` (worker) or `patchMetadata` (page).
 4. Add tests next to the area (`tests/`); use the bookmarks fake for anything that touches
    `chrome.bookmarks`, and `tests/sw_bridge.ts` to run page code against the real worker logic.
-5. `npm run lint`, `npm test -- --run`, `npm run build`, `npm run check:bundle`.
+5. `npm run lint`, `npm test -- --run`, `npm run build`, `npm run check:bundle`, `npm run e2e`.
 6. Check 360px and desktop widths, light and dark (see "Browser QA" below).
 
 ## Release to the Chrome Web Store
@@ -45,7 +45,9 @@ await chrome.management.getPermissionWarningsByManifest(oldManifestJson);
 await chrome.management.getPermissionWarningsByManifest(newManifestJson);
 ```
 
-The two lists must be identical. Remove the helper afterwards.
+The two lists must be identical. Remove the helper afterwards. Optional permissions
+(`optional_permissions`, such as `history` in 1.4.0) are not part of the install warnings; still
+run the gate when they change, and ask for them only from a click.
 
 ## Browser QA
 
@@ -65,6 +67,17 @@ the owner's own browser.
 
 Check: update path (saved API key decrypts, tags kept, `trash-purge` alarm present); delete,
 Undo, Trash, Restore to..., Empty; no horizontal scroll at 360px; no console errors.
+
+1.4.0 additions: delete a folder with the bookmarks API from the extension page (as Chrome's
+manager would) and confirm one "Deleted outside this extension" row after 3 seconds that restores
+with its colour; select a range and bulk delete, move and Undo; list view columns and the Rating
+dialog; turn on Visits (Chrome's permission prompt) and decline once; the top bar from 720 to
+1599 px never truncates the title. When QA runs in a maintainer's own browser, use background
+targets only and expect slower timers there.
+
+Owner-profile QA (a real profile with real bookmarks) puts its test data in its own folder,
+snapshots bookmark and folder counts first, and removes the data and its Trash entries
+afterwards.
 
 ## Roll back
 
