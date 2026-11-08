@@ -3,6 +3,7 @@
 // Real-Chrome smoke test of a built extension (default: dist/). Starts its own
 // headless Chrome with a throwaway profile, so it never touches a browser you are
 // using. Needs Chrome or Chromium on PATH (CHROME=/path/to/chrome to override).
+// CI runners without user namespaces set E2E_NO_SANDBOX=1 (adds --no-sandbox).
 //
 //   npm run build && npm run e2e
 //
@@ -27,7 +28,8 @@ const port = 9300 + Math.floor(Math.random() * 400);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'bpt-e2e-'));
 const chrome = spawn(chromeBin, [
     '--headless=new', `--remote-debugging-port=${port}`, '--enable-unsafe-extension-debugging',
-    `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', 'about:blank',
+    `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
+    ...(process.env.E2E_NO_SANDBOX === '1' ? ['--no-sandbox'] : []), 'about:blank',
 ], { stdio: 'ignore' });
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
