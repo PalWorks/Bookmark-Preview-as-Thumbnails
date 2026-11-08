@@ -10,6 +10,7 @@
     "test": "vitest",
     "preview": "vite preview",
     "check:bundle": "node scripts/check-bundle.mjs dist",
+    "e2e": "node scripts/e2e/smoke.mjs dist",
     "zip": "npm run build && npm run check:bundle && cd dist && zip -r ../extension.zip ."
   },
   "license": "AGPL-3.0-only",
