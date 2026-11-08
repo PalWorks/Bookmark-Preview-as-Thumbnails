@@ -317,10 +317,18 @@ function App() {
         return [...new Set(urls)];
     })();
 
-    const bulkOpen = () => {
-        for (const url of bulkOpenUrls) chrome.tabs.create({ url, active: false });
-        linkMeta.markOpened(bulkOpenUrls);
-        toast.show({ message: `Opened ${plural(bulkOpenUrls.length, 'tab')} in the background.` });
+    const bulkOpen = async () => {
+        // Read folders' current contents at the moment of opening (they may have changed).
+        const urls: string[] = [];
+        for (const n of selectedNodes) {
+            if (n.url) { urls.push(n.url); continue; }
+            const kids = await chrome.bookmarks.getChildren(n.id).catch(() => [] as Node[]);
+            for (const k of kids) if (k.url) urls.push(k.url);
+        }
+        const unique = [...new Set(urls)];
+        for (const url of unique) chrome.tabs.create({ url, active: false });
+        linkMeta.markOpened(unique);
+        toast.show({ message: `Opened ${plural(unique.length, 'tab')} in the background.` });
     };
 
     const bulkMove = async (targetId: string) => {
@@ -692,7 +700,7 @@ function App() {
                                 openCount={bulkOpenUrls.length}
                                 canDelete={canDelete}
                                 busy={bulkBusy}
-                                onOpen={bulkOpen}
+                                onOpen={() => { void bulkOpen(); }}
                                 onMove={() => setMovePicker(true)}
                                 onDelete={() => { void bulkDelete(); }}
                                 onSelectAll={selection.selectAll}

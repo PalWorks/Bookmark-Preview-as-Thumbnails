@@ -43,11 +43,17 @@ export function useLinkMeta(urls: string[]) {
     // Another page or the worker changed some links: re-read those that are on screen.
     useEffect(() => {
         if (updated.rev === 0) return;
+        if (updated.urls.length === 0) return;
         const onScreen = new Set(key ? key.split('\n') : []);
-        const list = updated.urls.filter(u => onScreen.has(u));
-        if (list.length === 0) return;
+        const pending = updated.urls;
+        const list = pending.filter(u => onScreen.has(u));
         let cancelled = false;
-        load(list, false, () => cancelled).catch(err => console.error('[LinkMeta] refresh failed', err));
+        // Drain what this pass handles (links not on screen are re-read when they appear).
+        const drain = () => setUpdated(d => ({ rev: d.rev, urls: d.urls.filter(u => !pending.includes(u)) }));
+        if (list.length === 0) { Promise.resolve().then(() => { if (!cancelled) drain(); }); return () => { cancelled = true; }; }
+        load(list, false, () => cancelled)
+            .then(() => { if (!cancelled) drain(); })
+            .catch(err => console.error('[LinkMeta] refresh failed', err));
         return () => { cancelled = true; };
         // Only on a new broadcast; `key` changes are covered by the full load above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,7 +64,7 @@ export function useLinkMeta(urls: string[]) {
             if (m?.type !== 'META_UPDATED' || !Array.isArray(m.urls)) return;
             const urls = m.urls.filter((u): u is string => typeof u === 'string');
             // Add to the pending list: two broadcasts before a render must both refresh.
-            setUpdated(d => ({ rev: d.rev + 1, urls: [...new Set([...d.urls, ...urls])].slice(-500) }));
+            setUpdated(d => ({ rev: d.rev + 1, urls: [...new Set([...d.urls, ...urls])] }));
         };
         chrome.runtime.onMessage.addListener(onMessage);
         return () => chrome.runtime.onMessage.removeListener(onMessage);

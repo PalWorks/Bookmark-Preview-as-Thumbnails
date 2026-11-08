@@ -13,15 +13,20 @@ import { getNode, ROOT_ID } from '../lib/bookmark_tree';
 
 /** Folders changed by one message; Select all in a big view stays well under this. */
 const MAX_IDS = 5000;
+/** Folders seen missing at a prune, with the time; removed at a later prune. */
+const PRUNE_KEY = 'fprefs_prune_pending';
+const PRUNE_GRACE_MS = 10 * 60 * 1000;
 
 export interface FolderPrefsServiceDeps {
     broadcast?: (message: { type: 'FOLDER_PREFS_CHANGED'; ids: string[] }) => void;
+    now?: () => number;
 }
 
 export function createFolderPrefsService(deps: FolderPrefsServiceDeps = {}) {
     const broadcast = deps.broadcast ?? ((message) => {
         chrome.runtime.sendMessage(message).catch(() => { /* no extension page open */ });
     });
+    const now = deps.now ?? (() => Date.now());
     let queue: Promise<unknown> = Promise.resolve();
     const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
         const run = queue.catch(() => undefined).then(fn);
@@ -67,16 +72,27 @@ export function createFolderPrefsService(deps: FolderPrefsServiceDeps = {}) {
     /**
      * Remove prefs of folders that no longer exist. Trash entries keep their own
      * copy, so this never loses a pref Undo could bring back. Daily alarm only, after
-     * Trash has written any buffered deletes (sw.ts), and never for `keep` ids.
+     * Trash has written any buffered deletes (sw.ts), never for `keep` ids, and only
+     * for folders already missing at an earlier prune at least 10 minutes before.
      */
     async function pruneNow(keep: Set<string>): Promise<number> {
+        const t = now();
         const prefs: FolderPrefs = await readFolderPrefs();
+        const stored = await chrome.storage.local.get(PRUNE_KEY);
+        const missingSince = { ...((stored[PRUNE_KEY] as Record<string, number> | undefined) ?? {}) };
         const gone: string[] = [];
         for (const id of Object.keys(prefs)) {
-            if (keep.has(id)) continue;
-            if (!(await getNode(id))) gone.push(id);
+            if (keep.has(id) || (await getNode(id))) { delete missingSince[id]; continue; }
+            // Remove only after the folder has been missing for a while: a delete
+            // made in Chrome reaches Trash (which saves the prefs) within seconds.
+            const since = missingSince[id];
+            if (since === undefined) missingSince[id] = t;
+            else if (t - since >= PRUNE_GRACE_MS) { gone.push(id); delete missingSince[id]; }
         }
+        for (const id of Object.keys(missingSince)) if (!(id in prefs)) delete missingSince[id];
         if (gone.length) await chrome.storage.local.remove(gone.map(folderPrefKey));
+        if (Object.keys(missingSince).length) await chrome.storage.local.set({ [PRUNE_KEY]: missingSince });
+        else await chrome.storage.local.remove(PRUNE_KEY);
         return gone.length;
     }
 

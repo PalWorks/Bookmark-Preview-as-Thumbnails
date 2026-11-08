@@ -549,17 +549,23 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             return out;
         };
         const sameLinks = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join('\0') === [...b].sort().join('\0');
+        // Each existing node is matched at most once (two identical siblings stay two).
+        const consumed = new Set<string>();
         const alreadyPresent = async (pid: string, saved: SavedNode): Promise<BookmarkNode | undefined> => {
-            const children = await chrome.bookmarks.getChildren(pid).catch(() => [] as BookmarkNode[]);
-            if (saved.url) return children.find(c => c.url === saved.url && c.title === saved.title);
-            const candidates = children.filter(c => !c.url && c.title === saved.title && !isManaged(c));
-            if (reusedFolders.has(pid)) return candidates[0];
-            const want = linksOf(saved);
-            for (const c of candidates) {
-                const sub = (await chrome.bookmarks.getSubTree(c.id).catch(() => []))[0];
-                if (sub && sameLinks(linksOf(sub), want)) return c;
+            const children = (await chrome.bookmarks.getChildren(pid).catch(() => [] as BookmarkNode[]))
+                .filter(c => !consumed.has(c.id));
+            let found: BookmarkNode | undefined;
+            if (saved.url) {
+                found = children.find(c => c.url === saved.url && c.title === saved.title);
+            } else {
+                const want = linksOf(saved);
+                for (const c of children.filter(x => !x.url && x.title === saved.title && !isManaged(x))) {
+                    const sub = (await chrome.bookmarks.getSubTree(c.id).catch(() => []))[0];
+                    if (sub && sameLinks(linksOf(sub), want)) { found = c; break; }
+                }
             }
-            return undefined;
+            if (found) consumed.add(found.id);
+            return found;
         };
         const prefsToApply: Array<{ newId: string; pref: SavedFolderPref }> = [];
 

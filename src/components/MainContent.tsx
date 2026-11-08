@@ -383,7 +383,9 @@ export const MainContent: React.FC<MainContentProps> = ({
                     <div className="empty-state">
                         {allHidden ? (
                             <>
-                                <p>All {plural(hiddenResultCount, 'match', 'matches')} are in folders hidden from search.</p>
+                                <p>{hiddenResultCount === 1
+                                    ? 'The only match is in a folder hidden from search.'
+                                    : `All ${hiddenResultCount} matches are in folders hidden from search.`}</p>
                                 <p className="sub-text">
                                     <button type="button" className="link-btn" onClick={onShowHidden}>Show them</button>
                                 </p>

@@ -216,6 +216,8 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         [searchRoots, hiddenKey],
     );
     const [searchFolderId, setSearchFolderId] = useState<string>(ALL_FOLDERS_ID);
+    // True until the user picks a scope in the list.
+    const searchScopeAuto = useRef(true);
 
     // ── Duplicate Finder tab state ────────────────────────────────────────────
     const [isScanning, setIsScanning] = useState(false);
@@ -365,7 +367,10 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
             const preferred = currentFolder?.id && !currentHidden && folders.some(f => f.id === currentFolder.id)
                 ? currentFolder.id
                 : ALL_FOLDERS_ID;
-            setSearchFolderId(prev => (prev === ALL_FOLDERS_ID ? preferred : prev));
+            // An automatic choice follows the current folder (and leaves it when that
+            // folder is hidden from search); a scope the user picked stays.
+            if (searchScopeAuto.current) setSearchFolderId(preferred);
+            else setSearchFolderId(prev => (prev === ALL_FOLDERS_ID ? preferred : prev));
 
             setAiReady((availRes as { available: AIAvailability })?.available ?? 'unsupported');
             const s = savedSettings.settings;
@@ -1135,7 +1140,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                             <select
                                 className="ai-inline-select"
                                 value={searchFolderId}
-                                onChange={e => setSearchFolderId(e.target.value)}
+                                onChange={e => { searchScopeAuto.current = false; setSearchFolderId(e.target.value); }}
                             >
                                 <option value={ALL_FOLDERS_ID}>All bookmarks ({allBookmarks.length})</option>
                                 {searchOptions.map(f => (

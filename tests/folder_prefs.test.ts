@@ -39,15 +39,21 @@ describe('folder prefs', () => {
         expect(r.skipped).toEqual([b.id, '404', '0']);
     });
 
-    it('prunes prefs of folders that no longer exist', async () => {
+    it('prunes prefs of folders still missing at a later prune (10 minutes grace)', async () => {
         const f = fakeBookmarks.seed('1', 'Gone');
         const keep = fakeBookmarks.seed('1', 'Kept');
         localStore[`fpref_${f.id}`] = { color: 'red' };
         localStore[`fpref_${keep.id}`] = { color: 'blue' };
         await chrome.bookmarks.removeTree(f.id);
-        const svc = createFolderPrefsService({ broadcast: vi.fn() });
+        let t = 1_000_000;
+        const svc = createFolderPrefsService({ broadcast: vi.fn(), now: () => t });
+        expect(await svc.prune()).toBe(0); // first sighting only
+        t += 5 * 60 * 1000;
+        expect(await svc.prune()).toBe(0); // still inside the grace period
+        t += 6 * 60 * 1000;
         expect(await svc.prune()).toBe(1);
         expect(await readFolderPrefs()).toEqual({ [keep.id]: { color: 'blue' } });
+        expect(localStore.fprefs_prune_pending).toBeUndefined();
     });
 
     it('applySnapshot does not overwrite prefs set meanwhile', async () => {

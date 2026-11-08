@@ -248,4 +248,26 @@ describe('external deletes', () => {
         expect(recipes).toHaveLength(1);
         expect(shape((await chrome.bookmarks.getSubTree(recipes[0].id))[0])).toEqual(original);
     });
+
+    it('two same-named sibling folders that came back are each matched once', async () => {
+        const parent = fakeBookmarks.seed('1', 'Parent');
+        const a1 = fakeBookmarks.seed(parent.id, 'Archive');
+        fakeBookmarks.seed(a1.id, 'A', 'https://a.example/');
+        const a2 = fakeBookmarks.seed(parent.id, 'Archive');
+        fakeBookmarks.seed(a2.id, 'B', 'https://b.example/');
+        const original = shape((await chrome.bookmarks.getSubTree(parent.id))[0]);
+        const service = makeWired();
+        await chrome.bookmarks.removeTree(parent.id);
+        await service.flushExternal();
+        // An identical copy syncs back first.
+        const back = await chrome.bookmarks.create({ parentId: '1', title: 'Parent' });
+        const b1 = await chrome.bookmarks.create({ parentId: back.id, title: 'Archive' });
+        await chrome.bookmarks.create({ parentId: b1.id, title: 'A', url: 'https://a.example/' });
+        const b2 = await chrome.bookmarks.create({ parentId: back.id, title: 'Archive' });
+        await chrome.bookmarks.create({ parentId: b2.id, title: 'B', url: 'https://b.example/' });
+        await service.restore({ operationId: external()[0].operationId });
+        const parents = (await chrome.bookmarks.getChildren('1')).filter(c => c.title === 'Parent');
+        expect(parents).toHaveLength(1);
+        expect(shape((await chrome.bookmarks.getSubTree(parents[0].id))[0])).toEqual(original);
+    });
 });
