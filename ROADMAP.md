@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T10:20:54+00:00 (created from TODOS.md and the 1.3.0 design; 1.3.0 built, awaiting release)._
+> _Last updated: 2026-11-08T12:18:14+00:00 (1.3.0 verified on the owner's profile; licence confirmed by the owner)._
 
 ## 0. North star: every open item, one row each
 
@@ -27,7 +27,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 5 | §3.2 | P3 | **Open** | S | L | 2026-11-08 | All folders are the same yellow; users want colours (user request, item 2). | Store `{ folderId: colour }` in sync storage and reuse the 1.3.0 folder tokens. |
 | 6 | §3.2 | P3 | **Open** | M | L | 2026-11-08 | Rename and move have no Undo, unlike delete. | Extend the Trash operation journal to rename, cut and paste, and move. |
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
-| 9 | §3.1 | P1 | **Decision** | S | H | 2026-11-08 | 1.3.0 is built and verified on branch `release/1.3.0`; users get the Trash and parity fixes only once it is submitted. | 1.2.1 is live (Web Store PUBLISHED, checked 2026-11-08T09:14:11+00:00), so nothing is in review. Recommendation: merge the PR after review, tag v1.3.0 and submit. Owner decides. |
+| 9 | §3.1 | P1 | **Decision** | S | H | 2026-11-08 | 1.3.0 is built and verified on branch `release/1.3.0` (also on the owner's own profile, 2026-11-08T12:18:14+00:00); users get the Trash and parity fixes only once it is submitted. | 1.2.1 is live (Web Store PUBLISHED, checked 2026-11-08T09:14:11+00:00), so nothing is in review. Recommendation: merge PR #2, tag v1.3.0 and submit. Owner decides. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. Recommendation: spike only after rows 1 to 4. |
 | 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.3.0 is live on the Web Store, listing what shipped and what is planned (rows 1 to 4). |
 
@@ -91,10 +91,14 @@ Priority, Size and Impact are separate columns because they answer separate ques
 
 ## 2. Next up
 
-### 2.1 Status: 1.3.0 built and verified, release pending row 9 (updated 2026-11-08T10:20:54+00:00)
+### 2.1 Status: 1.3.0 built and verified, release pending row 9 (updated 2026-11-08T12:18:14+00:00)
 
-1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0`: 256 tests, lint, build and
-bundle check pass; update from 1.2.1, Trash flows and layouts verified on Chrome 156.
+1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0`: 257 tests, lint, build and
+bundle check pass; update from 1.2.1, Trash flows and layouts verified on Chrome 156, then
+again on the owner's own profile (794 bookmarks, 29 folders, local only): update in place,
+delete, Undo, Delete key, Ctrl+Z, Trash, Restore, Restore to..., Empty Trash, search, list and
+grid at 360 to 1920px in both themes, Duplicate Finder scan, no console errors, bookmarks
+unchanged afterwards. Five small fixes from that pass are in the 1.3.0 CHANGELOG.
 
 ### 2.2 The ledger: every backlog item, pending first, done at the bottom
 

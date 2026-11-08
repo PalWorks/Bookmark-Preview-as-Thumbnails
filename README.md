@@ -8,7 +8,7 @@ A Chrome extension that turns your bookmarks into a visual grid of page previews
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-08T10:20:54+00:00 (1.3.0)._
+_Last updated: 2026-11-08T12:18:14+00:00 (1.3.0)._
 
 ## Contents
 
@@ -140,7 +140,7 @@ npm test -- --run
 npm run build && npm run check:bundle
 ```
 
-256 tests cover migration, metadata merges, API key binding, Trash (delete, restore, crash
+257 tests cover migration, metadata merges, API key binding, Trash (delete, restore, crash
 recovery, expiry, asset sweep), the reactive bookmark tree, backups, and the whole app in jsdom.
 Chrome-only behaviour is verified in a real browser. See [TESTING.md](TESTING.md).
 

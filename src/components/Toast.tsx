@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { X } from 'lucide-react';
 import type { ToastState } from '../popup/hooks/useToast';
 
@@ -15,9 +15,16 @@ function isEditable(target: EventTarget | null): boolean {
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 }
 
+function subscribeVisibility(onChange: () => void): () => void {
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+}
+const isPageHidden = () => document.hidden;
+
 /**
  * Bottom toast. Announced politely and never takes focus, but is reachable with
- * Tab. Hides after its timeout unless hovered or focused. Ctrl/Cmd+Z undoes the
+ * Tab. Hides after its timeout unless hovered, focused or the tab is in the
+ * background (the timer restarts when the user comes back). Ctrl/Cmd+Z undoes the
  * operation it shows, except while typing in a field (native undo wins there).
  */
 export const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => (
@@ -30,7 +37,8 @@ export const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => (
 const ToastCard: React.FC<{ toast: ToastState; onDismiss: (id: number) => void }> = ({ toast, onDismiss }) => {
     const [hovered, setHovered] = useState(false);
     const [focused, setFocused] = useState(false);
-    const paused = hovered || focused;
+    const pageHidden = useSyncExternalStore(subscribeVisibility, isPageHidden, () => false);
+    const paused = hovered || focused || pageHidden;
     // The parent passes a new function each render; a ref keeps the timer stable.
     const dismissRef = useRef(onDismiss);
     useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);

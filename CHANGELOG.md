@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - 2026-11-08T10:20:54+00:00
+## [1.3.0] - 2026-11-08T12:18:14+00:00
 
 A safer, more familiar bookmark manager: every delete can be undone, and the
 gaps against Chrome's own bookmark manager reported by a daily user are closed.
@@ -56,6 +56,12 @@ gaps against Chrome's own bookmark manager reported by a daily user are closed.
 - The storage warning banner was unstyled outside list view.
 - Opening a folder after it was deleted elsewhere now falls back to its parent.
 - Faint helper text did not meet contrast guidelines.
+- The browser tab was titled "bookmarks-thumbnails"; it now reads "Bookmarks as Thumbnails".
+- The search box showed a second, square focus ring inside the rounded field.
+- In narrow windows the preview and view buttons were 24px tall; they are now 40px.
+- The Undo toast no longer runs out while the tab is in the background; its 8 seconds
+  restart when you come back.
+- In the Restore to... picker, long folder paths no longer shrink the radio button.
 
 ### Permissions
 
@@ -73,7 +79,7 @@ gaps against Chrome's own bookmark manager reported by a daily user are closed.
 
 - Trash runs in the service worker (`src/sw/trash.ts`) as the single writer, with crash
   recovery and resumable restores; see `ARCHITECTURE.md` and `DATA_MODEL.md`.
-- In-memory Chrome bookmarks fake for tests; 256 tests (160 before).
+- In-memory Chrome bookmarks fake for tests; 257 tests (160 before).
 - CI runs `npm run check:bundle` after the build: no DOM or React in the service worker,
   no secrets, no source maps.
 

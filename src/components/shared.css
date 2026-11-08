@@ -570,6 +570,12 @@
     margin: 0;
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
+}
+
+/* Long paths wrap; the radio and folder icon keep their size. */
+.picker-option svg {
+    flex-shrink: 0;
 }
 
 .picker-path {

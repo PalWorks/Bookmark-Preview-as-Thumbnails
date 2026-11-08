@@ -110,6 +110,16 @@
     outline: none;
 }
 
+.search-input:focus-visible {
+    /* The whole field turns white on focus; a second ring inside it looked broken. */
+    outline: none;
+}
+
+.search-input-wrapper:has(.search-input:focus-visible) {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+}
+
 .search-input::placeholder {
     color: rgba(255, 255, 255, 0.7);
 }
@@ -765,6 +775,14 @@
 
     .action-btn span {
         display: none;
+    }
+
+    /* 40px targets on narrow windows, mouse or touch. */
+    .capture-buttons .icon-btn,
+    .view-btn {
+        min-width: 40px;
+        min-height: 40px;
+        justify-content: center;
     }
 
     .capture-controls-wrapper {

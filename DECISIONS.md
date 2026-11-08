@@ -1,12 +1,12 @@
 # Decisions
 
-_Last updated: 2026-11-08T10:20:54+00:00 (1.2.1 and 1.3.0 decisions recorded)._
+_Last updated: 2026-11-08T12:18:14+00:00 (D9 confirmed by the owner)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning for 1.3.0 is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md).
 
-## D9. Licence: AGPL-3.0-only plus a paid commercial licence (recommended and applied 2026-11-08; owner to confirm before release)
+## D9. Licence: AGPL-3.0-only plus a paid commercial licence (owner, 2026-11-08)
 
 The repository already offered "free (AGPL) plus commercial", 1.2.x shipped under AGPL, and
 the website prices a commercial licence. PolyForm Noncommercial was the alternative; it would

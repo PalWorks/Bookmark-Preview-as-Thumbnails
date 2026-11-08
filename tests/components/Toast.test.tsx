@@ -57,6 +57,26 @@ describe('Toast', () => {
         expect(dismiss).toHaveBeenLastCalledWith(2);
     });
 
+    it('does not hide while the tab is in the background, then gets a full 8 seconds', () => {
+        vi.useFakeTimers();
+        const dismiss = vi.fn();
+        const hidden = vi.spyOn(document, 'hidden', 'get');
+        try {
+            hidden.mockReturnValue(true);
+            render(<Toast toast={base()} onDismiss={dismiss} />);
+            act(() => { vi.advanceTimersByTime(60000); });
+            expect(dismiss).not.toHaveBeenCalled();
+            hidden.mockReturnValue(false);
+            act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+            act(() => { vi.advanceTimersByTime(7999); });
+            expect(dismiss).not.toHaveBeenCalled();
+            act(() => { vi.advanceTimersByTime(2); });
+            expect(dismiss).toHaveBeenCalledWith(1);
+        } finally {
+            hidden.mockRestore();
+        }
+    });
+
     it('a busy toast has no close button and does not hide', () => {
         vi.useFakeTimers();
         const dismiss = vi.fn();
