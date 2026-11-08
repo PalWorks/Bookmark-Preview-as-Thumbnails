@@ -1,11 +1,25 @@
 # Decisions
 
-_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: D10 to D14)._
+_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0: D15)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D15. Undo for rename and move lives in the toast and never overwrites a newer change (2026-11-08)
+
+ROADMAP row 6 proposed a persisted journal of renames and moves in the worker. 1.5.0 ships the
+part users reach for (Undo right after the change, by button or Ctrl/Cmd+Z) in the page, like
+bulk move (D14), and defers the journal (ROADMAP row 15): it needs a history view and rules for
+changes made in Chrome's manager or by sync in between, for a mistake users notice at once. Each
+Undo checks first: a rename is reverted only while the item still has the name we gave it, a move
+only while the item is still in the folder we moved it to. Two gaps are accepted: Chrome has no
+compare-and-set, so a rename landing between the check and the write can still be overwritten,
+and a reorder inside the destination folder does not block a move's Undo.
+
+**Rule: rename and move Undo never overwrite a change made after ours; anything that cannot be
+reverted says so in the toast.**
 
 ## D14. Bulk move Undo lives in the page, as long as its toast (2026-11-08)
 

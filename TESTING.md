@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-08T13:42:32+00:00 (e2e smoke runs in CI)._
+_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0: rename and paste Undo; 338 tests)._
 
 ## Commands
 
@@ -53,7 +53,9 @@ storage and bookmarks to test crash recovery.
 | Deletes made outside the extension: recording, own deletes, child-first bursts, sign-out and policy shapes, order, dedupe, prefs | `trash_external.test.ts` |
 | Folder prefs writer, concurrency, prune grace, message checks | `folder_prefs.test.ts` |
 | Metadata allowlist and the import merge | `metadata_sanitize.test.ts`, `backup_manager.test.ts` |
-| Bulk move and its Undo | `bulk_move.test.ts` |
+| Bulk move and its Undo (skips items moved again) | `bulk_move.test.ts` |
+| Rename and its Undo (never overwrites a newer name) | `rename.test.ts` |
+| Whole app 1.5.0 flows: rename Undo (button, Ctrl+Z, newer name), Cut and Paste Undo, a folder into itself | `components/Edits.test.tsx` |
 | Selection, history permission, link metadata refresh | `hooks/useSelection.test.ts`, `hooks/useHistoryStats.test.tsx`, `hooks/useLinkMeta.test.ts` |
 | List column values and sorting | `list_columns.test.ts` |
 | Whole app 1.4.0 flows: range select and bulk delete, bulk move and Undo, Ctrl+A, colour, hidden from search, rating, Trash switch | `components/Bulk.test.tsx` |

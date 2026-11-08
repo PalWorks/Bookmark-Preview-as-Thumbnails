@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T13:46:58+00:00 (1.4.0 uploaded; the Web Store asks for permission justifications before review; row 7 done)._
+> _Last updated: 2026-11-08T13:54:32+00:00 (row 6 built in 1.5.0, row 15 deferred; 1.4.0 uploaded; the Web Store asks for permission justifications before review; row 7 done)._
 
 ## 0. North star: every open item, one row each
 
@@ -19,13 +19,13 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 
 | # | Bucket | Priority | State | Size | Impact | Raised | Problem | Solution or next step |
 |---|---|---|---|---|---|---|---|---|
-| 6 | §3.2 | P3 | **Open** | M | L | 2026-11-08 | Rename and single move have no Undo; bulk move's Undo lasts only as long as its toast (D14). | Extend the Trash operation journal to rename and move, persisted in the worker. |
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
 | 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.4.0 (which contains 1.3.0, owner decision 2026-11-08) is merged, tagged v1.4.0 and uploaded as the Web Store draft, but publishing was refused: "does not meet the requirements". [Inference] The Privacy practices tab needs justifications for the new `favicon`, `alarms` and optional `history` permissions. | Owner: paste the three justifications from PRIVACY_DETAILS.md §2 into the dashboard's Privacy practices tab and submit for review. When approved: run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1), then row 10 and the website feature list. |
 | 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.4.0 is live, listing what shipped (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
+| 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 
 **Reading the narrow columns.** Bucket is the §3 area: 3.1 Release, 3.2 Features, 3.3 Engineering.
 Size: T trivial, S small, M medium, L large, ? unknown. Impact: H high, M medium, L low.
@@ -106,18 +106,19 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 
 | # | Item | Section | State | Size | Impact |
 |---|---|---|---|---|---|
-| 6 | Undo for rename and move | §3.2 | **Open** | M | L |
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.4.0 to the Web Store | §3.1 | **Waiting**: dashboard justifications, then review | S | H |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.4.0 is live | T | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
+| 15 | Undo history beyond the toast | §3.2 | **Deferred** | M | L |
 | 1 | Record deletions made outside the extension | §3.2 | **Done** 2026-11-08 (built in 1.4.0, ships with row 12) | Was M | M |
 | 2 | Exclude chosen folders from search | §3.2 | **Done** 2026-11-08 (1.4.0) | Was S | M |
 | 3 | List view columns | §3.2 | **Done** 2026-11-08 (1.4.0) | Was M | M |
 | 4 | Range multi-select with bulk actions | §3.2 | **Done** 2026-11-08 (1.4.0) | Was M | M |
 | 5 | Per-folder colours | §3.2 | **Done** 2026-11-08 (1.4.0) | Was S | L |
+| 6 | Undo for rename and move | §3.2 | **Done** 2026-11-08 (built in 1.5.0, `release/1.5.0`; toast Undo, journal deferred as row 15) | Was M | L |
 | 7 | Real-Chrome checks in CI | §3.3 | **Done** 2026-11-08 (CI job "Real-Chrome smoke test") | Was S | M |
 | 9 | Release 1.3.0 to the Web Store | §3.1 | **Done** 2026-11-08 (ships inside 1.4.0, row 12) | Was S | H |
 

@@ -4,6 +4,8 @@
 // back. Runs in the page; DOM-free so it can be unit tested. Every original
 // position is recorded before the first move, so Undo does not depend on the order
 // things were moved in. Closing the page mid-move leaves the moves made so far.
+// Undo leaves alone anything that was moved again since (here, in Chrome's manager
+// or by sync), so it never undoes a newer change. Also used for Cut and Paste.
 
 import { getAncestors, getNode, isManaged, isPermanent, type BookmarkNode } from './bookmark_tree';
 
@@ -12,10 +14,14 @@ export interface MoveRecord {
     title: string;
     parentId: string;
     index: number;
+    /** The folder it was moved to. */
+    to: string;
 }
 
 export interface MoveResult {
     moved: MoveRecord[];
+    /** Title of the destination folder, read before moving (for the toast). */
+    targetTitle?: string;
     /** Items that could not be moved, with a short reason. */
     failed: Array<{ id: string; title: string; reason: string }>;
 }
@@ -24,6 +30,8 @@ export interface UndoMoveResult {
     restored: number;
     /** Items that are gone, or whose original folder is gone. */
     missing: number;
+    /** Items moved again since, left where they are now. */
+    changed: number;
 }
 
 function message(err: unknown): string {
@@ -62,7 +70,7 @@ export async function moveNodes(ids: string[], targetId: string): Promise<MoveRe
     }
 
     // Record every original position first.
-    const records: MoveRecord[] = roots.map(n => ({ id: n.id, title: n.title, parentId: n.parentId ?? '', index: n.index ?? 0 }));
+    const records: MoveRecord[] = roots.map(n => ({ id: n.id, title: n.title, parentId: n.parentId ?? '', index: n.index ?? 0, to: targetId }));
     const moved: MoveRecord[] = [];
     for (const r of records) {
         try {
@@ -72,7 +80,7 @@ export async function moveNodes(ids: string[], targetId: string): Promise<MoveRe
             failed.push({ id: r.id, title: r.title, reason: message(err) });
         }
     }
-    return { moved, failed };
+    return { moved, failed, targetTitle: target.title };
 }
 
 /** Put moved items back: per original folder, lowest original position first. */
@@ -80,16 +88,23 @@ export async function undoMoves(records: MoveRecord[]): Promise<UndoMoveResult> 
     const ordered = [...records].sort((a, b) => a.parentId.localeCompare(b.parentId) || a.index - b.index);
     let restored = 0;
     let missing = 0;
+    let changed = 0;
+    // Earlier items of the same folder that stay away shift the later ones up.
+    const skipped = new Map<string, number>();
+    const skip = (r: MoveRecord) => skipped.set(r.parentId, (skipped.get(r.parentId) ?? 0) + 1);
     for (const r of ordered) {
         const [node, parent] = await Promise.all([getNode(r.id), getNode(r.parentId)]);
-        if (!node || !parent || parent.url) { missing++; continue; }
+        if (!node || !parent || parent.url) { missing++; skip(r); continue; }
+        if (node.parentId !== r.to) { changed++; skip(r); continue; }
         try {
             const count = (await chrome.bookmarks.getChildren(r.parentId)).length;
-            await chrome.bookmarks.move(r.id, { parentId: r.parentId, index: Math.min(r.index, count) });
+            const index = Math.max(0, r.index - (skipped.get(r.parentId) ?? 0));
+            await chrome.bookmarks.move(r.id, { parentId: r.parentId, index: Math.min(index, count) });
             restored++;
         } catch {
             missing++;
+            skip(r);
         }
     }
-    return { restored, missing };
+    return { restored, missing, changed };
 }

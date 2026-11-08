@@ -241,6 +241,7 @@ export class FakeBookmarks {
                 return this.clone(n, false);
             }, cb),
             update: (id: string, changes: { title?: string; url?: string }, cb?: unknown) => this.wrap(() => {
+                this.checkFault('update');
                 const n = this.need(id);
                 if (changes.title !== undefined) n.title = changes.title;
                 if (changes.url !== undefined && n.url) n.url = changes.url;

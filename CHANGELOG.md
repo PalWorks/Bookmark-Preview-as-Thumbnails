@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-11-08T13:54:32+00:00
+
+Undo for rename and move (ROADMAP row 6). Not yet released.
+
+### Added
+
+- **Rename has Undo.** After renaming from the menu, the toast offers Undo (also Ctrl/Cmd+Z while
+  it shows). Undo puts the old name back only if nobody renamed it since; otherwise it says so
+  and leaves the newer name.
+- **Cut and Paste has Undo.** Pasting a cut bookmark or folder now says where it went ("Moved
+  'Alpha' to 'Recipes'.") with Undo, which puts it back in its original place.
+
+### Changed
+
+- Cut and Paste uses the same move as Move to…: a folder can't be pasted into itself or into one
+  of its own subfolders, and Chrome's own folders can't be moved; the toast says why, and the
+  clipboard keeps the item so it can be pasted elsewhere.
+- Undo of a move (Move to… or Paste) leaves anything that was moved again since where it is now,
+  and the rest return in their original order.
+- A cut item that was deleted elsewhere no longer stays on the clipboard after a failed Paste.
+- Rename is greyed out for Chrome's own folders (Bookmarks bar, Other bookmarks, Mobile bookmarks).
+
+### Developer
+
+- `src/lib/rename.ts` (`renameNode`, `undoRename`); `MoveRecord.to` and
+  `UndoMoveResult.changed` in `src/lib/bulk_move.ts`.
+- DECISIONS D15. Tests: `rename.test.ts`, `components/Edits.test.tsx`, three more in
+  `bulk_move.test.ts` (one for the order fix below).
+
 ## [1.4.0] - 2026-11-08T13:24:59+00:00
 
 Organise and recover: the rest of the requests from the user who asked for bookmark manager
