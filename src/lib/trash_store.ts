@@ -83,6 +83,8 @@ export interface TrashProgress {
     /** The original location is gone; the user has to pick a destination. */
     needsDestination?: boolean;
     restoredTo?: RestoredTo;
+    /** Root node created by an unfinished restore; a retry to another folder moves it there. */
+    partialRootId?: string;
     /** Restored entries are purged after this time. */
     keepUntil?: number;
 }
@@ -142,6 +144,7 @@ export interface TrashEmptyResult {
     ok: boolean;
     removedEntries?: number;
     removedBookmarks?: number;
+    /** Entries left in place (mid-restore); reconcile normally settles these first. */
     keptEntries?: number;
     error?: string;
 }

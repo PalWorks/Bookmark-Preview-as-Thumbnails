@@ -677,7 +677,8 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1);
     padding: 4px 0;
     min-width: 160px;
-    z-index: 1000;
+    /* Above the phone folders drawer (1500) and the toast (2000), below dialogs (3000). */
+    z-index: 2500;
     font-size: 13px;
     color: #202124;
 }

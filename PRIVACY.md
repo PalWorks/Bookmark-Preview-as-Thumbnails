@@ -21,7 +21,8 @@ servers):
 4. **Trash.** When you delete a bookmark or folder in the extension, a copy of its
    titles, links, folder location and dates is kept in `chrome.storage.local` for
    30 days so you can restore it. After 30 days, or when you empty Trash, the copy
-   is removed together with cached previews that no other bookmark uses.
+   is removed together with cached previews that no other bookmark uses. Preview
+   files already saved to a folder you connected on disk stay there.
 5. **Site icons.** Bookmarks without a preview show their site icon from Chrome's
    own local favicon cache. This is read on your device; no request goes to the
    site or to us.

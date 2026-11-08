@@ -28,7 +28,8 @@ export const EmptyTrashDialog: React.FC<EmptyTrashDialogProps> = ({ count, busy,
             <form onSubmit={submit} className="empty-trash-form">
                 <p className="modal-text">
                     Permanently delete {plural(count, 'bookmark')}? This can't be undone.
-                    Previews still used by other bookmarks are kept.
+                    Previews still used by other bookmarks are kept. Copies saved to a connected
+                    storage folder on your disk are not removed.
                 </p>
                 <label className="field-label" htmlFor="empty-trash-confirm">
                     Type <strong>{CONFIRM_WORD}</strong> to confirm

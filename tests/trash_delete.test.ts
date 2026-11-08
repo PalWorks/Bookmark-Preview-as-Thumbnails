@@ -108,6 +108,47 @@ describe('TRASH_DELETE', () => {
         expect(entries()).toHaveLength(1);
     });
 
+    it('a retry after the worker died mid-delete continues the same operation', async () => {
+        const { soup, cake, pie } = seedRecipes();
+        const { service } = makeService();
+        // First attempt: snapshot written and Soup removed, then the worker dies.
+        fakeBookmarks.failAfter('remove', 1, 'worker killed');
+        const first = await service.deleteItems({ ids: [soup.id, cake.id, pie.id], requestId: 'rq' });
+        // Simulate the crash: the answer was never cached.
+        const cached = localStore['trash_req_rq'] as { operationId: string };
+        localStore['trash_req_rq'] = { at: 1, operationId: cached.operationId };
+        const fresh = makeService();
+        const retry = await fresh.service.deleteItems({ ids: [soup.id, cake.id, pie.id], requestId: 'rq' });
+        expect(retry.operationId).toBe(first.operationId);
+        expect(new Set(entries().map(e => e.operationId)).size).toBe(1);
+    });
+
+    it('still reports success when recording the outcome fails after removal', async () => {
+        const { soup } = seedRecipes();
+        const { service } = makeService();
+        const set = chrome.storage.local.set as unknown as ReturnType<typeof vi.fn>;
+        const real = set.getMockImplementation()!;
+        let calls = 0;
+        set.mockImplementation((items: Record<string, unknown>) => {
+            calls++;
+            // Call 1 is the snapshot; call 2 is the outcome write.
+            return calls === 2 ? Promise.reject(new Error('disk full')) : real(items);
+        });
+        const res = await service.deleteItems({ ids: [soup.id] });
+        set.mockImplementation(real);
+        expect(res.ok).toBe(true);
+        expect(fakeBookmarks.has(soup.id)).toBe(false);
+        await makeService().service.reconcile();
+        expect(progressOf(entries()[0].entryId).state).toBe('deleted');
+    });
+
+    it('a delete above the size limit gets a readable error', async () => {
+        const { service } = makeService();
+        const res = await handleTrashMessage(service, { type: 'TRASH_DELETE', ids: Array.from({ length: 10001 }, (_, i) => String(i)) },
+            { url: `${EXTENSION_ORIGIN}index.html` } as chrome.runtime.MessageSender, false);
+        expect((res as { error: string }).error).toMatch(/Too many items for one delete/);
+    });
+
     it('records per-root outcomes when one removal fails', async () => {
         const { soup, cake, pie } = seedRecipes();
         fakeBookmarks.failAfter('remove', 1, 'Boom');

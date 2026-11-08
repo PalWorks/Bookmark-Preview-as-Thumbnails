@@ -184,10 +184,14 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
     // ── Delete ───────────────────────────────────────────────────────────────
 
     async function deleteNow(req: DeleteRequest): Promise<TrashDeleteResult> {
+        // A retried message is a no-op; if the first attempt died part-way, the
+        // retry continues the same operation so one Undo still covers it all.
+        let resumedOperationId: string | undefined;
         if (req.requestId) {
             const cached = await chrome.storage.local.get(requestKey(req.requestId));
-            const hit = cached[requestKey(req.requestId)] as { at: number; result: TrashDeleteResult } | undefined;
+            const hit = cached[requestKey(req.requestId)] as { at: number; result?: TrashDeleteResult; operationId?: string } | undefined;
             if (hit?.result) return hit.result;
+            resumedOperationId = hit?.operationId;
         }
 
         const ids = [...new Set(req.ids)];
@@ -219,7 +223,7 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         const roots = found.filter(n => !(chains.get(n.id) ?? []).some(a => selected.has(a.id)));
         if (roots.length === 0) return { ok: true, removedCount: 0, removedRoots: 0, skipped };
 
-        const operationId = uuid();
+        const operationId = resumedOperationId ?? uuid();
         const deletedAt = now();
         const origin: TrashOrigin = req.origin === 'duplicate-finder' ? 'duplicate-finder' : 'manual';
         const entries: TrashEntry[] = roots.map(node => {
@@ -257,6 +261,7 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             prepared[entryKey(e.entryId)] = e;
             prepared[progressKey(e.entryId)] = { entryId: e.entryId, state: 'prepared', updatedAt: deletedAt } satisfies TrashProgress;
         }
+        if (req.requestId) prepared[requestKey(req.requestId)] = { at: deletedAt, operationId };
         try {
             await chrome.storage.local.set(prepared);
         } catch (err) {
@@ -278,9 +283,14 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
                 console.error('[Trash] remove failed', operationId, e.tree.oldId, err);
             }
         }
-        if (Object.keys(settled).length) await chrome.storage.local.set(settled);
-        const failedEntryIds = entries.filter(e => !done.includes(e)).map(e => e.entryId);
-        await removeItems(failedEntryIds);
+        // The bookmarks are already removed. If recording that fails, reconcile
+        // promotes the prepared entries later; the answer must still say "deleted".
+        try {
+            if (Object.keys(settled).length) await chrome.storage.local.set(settled);
+            await removeItems(entries.filter(e => !done.includes(e)).map(e => e.entryId));
+        } catch (err) {
+            console.error('[Trash] could not record delete outcome; reconcile will finish it', operationId, err);
+        }
 
         const result: TrashDeleteResult = {
             ok: done.length > 0,
@@ -294,9 +304,9 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             ...(done.length === 0 ? { error: failed[0]?.error ?? 'Nothing was deleted.' } : {}),
         };
         if (req.requestId) {
-            await chrome.storage.local.set({ [requestKey(req.requestId)]: { at: now(), result } });
+            await chrome.storage.local.set({ [requestKey(req.requestId)]: { at: now(), operationId, result } }).catch(() => undefined);
         }
-        if (done.length) await bumpRev();
+        if (done.length) await bumpRev().catch(() => undefined);
         console.log('[Trash] deleted', { operationId, roots: done.length, failed: failed.length, skipped: skipped.length });
         return result;
     }
@@ -360,10 +370,15 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
     async function restoreOne(item: TrashItem, targetParentId?: string): Promise<TrashRestoreItemResult> {
         const { entry } = item;
         const prior = item.progress;
-        const resume = prior.restoreStartedAt !== undefined;
-        const startedAt = prior.restoreStartedAt ?? now();
-        let created = prior.created ?? 0;
-        const base: TrashProgress = { entryId: entry.entryId, state: 'restoring', updatedAt: now(), restoreStartedAt: startedAt, created };
+        // Resume only when an earlier attempt actually created something. Reuse is
+        // limited to nodes created between that attempt's start and its failure
+        // record, so a bookmark the user added later is never taken over.
+        const resume = prior.restoreStartedAt !== undefined && ((prior.created ?? 0) > 0 || prior.partialRootId !== undefined);
+        const startedAt = resume ? prior.restoreStartedAt! : now();
+        const resumeUntil = prior.updatedAt + 2000;
+        let created = resume ? (prior.created ?? 0) : 0;
+        let partialRootId = resume ? prior.partialRootId : undefined;
+        const base: TrashProgress = { entryId: entry.entryId, state: 'restoring', updatedAt: now(), restoreStartedAt: startedAt, created, partialRootId };
         await setProgress(base);
         markRestoring();
 
@@ -384,41 +399,66 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             await setProgress({ ...base, state: 'failed', error, needsDestination: true });
             return { entryId: entry.entryId, state: 'failed', error, needsDestination: true };
         }
+        const targetId = target.id;
 
-        // On a retry, reuse what the interrupted attempt already created.
-        const claimed = new Map<string, BookmarkNode[]>();
-        const findExisting = resume
-            ? async (pid: string, saved: TrashEntry['tree']) => {
-                let list = claimed.get(pid);
-                if (!list) {
-                    const children = await chrome.bookmarks.getChildren(pid).catch(() => [] as BookmarkNode[]);
-                    list = children.filter(c => (c.dateAdded ?? 0) >= startedAt - 2000);
-                    claimed.set(pid, list);
+        // A half-restored copy from an earlier attempt moves to the new destination,
+        // so the retry finishes it there instead of leaving a partial copy behind.
+        if (resume && partialRootId) {
+            const partial = await getNode(partialRootId);
+            if (partial && partial.parentId !== targetId) {
+                try {
+                    await chrome.bookmarks.move(partialRootId, { parentId: targetId });
+                } catch (err) {
+                    console.warn('[Trash] could not move the partial copy', partialRootId, err);
                 }
-                const i = list.findIndex(c => c.title === saved.title && (c.url ?? '') === (saved.url ?? ''));
-                if (i < 0) return undefined;
-                return list.splice(i, 1)[0];
             }
-            : undefined;
+        }
+
+        const claimed = new Map<string, BookmarkNode[]>();
+        const fromInterruptedAttempt = async (pid: string, saved: TrashEntry['tree']) => {
+            let list = claimed.get(pid);
+            if (!list) {
+                const children = await chrome.bookmarks.getChildren(pid).catch(() => [] as BookmarkNode[]);
+                list = children.filter(c => (c.dateAdded ?? 0) >= startedAt - 2000 && (c.dateAdded ?? 0) <= resumeUntil);
+                claimed.set(pid, list);
+            }
+            const i = list.findIndex(c => c.title === saved.title && (c.url ?? '') === (saved.url ?? ''));
+            return i < 0 ? undefined : list.splice(i, 1)[0];
+        };
+        // A folder whose child was restored earlier (delete "Soup", then delete
+        // "Recipes", then Undo both) already has a recreated copy: merge into it.
+        const recreatedFolder = async (pid: string) => {
+            const children = await chrome.bookmarks.getChildren(pid).catch(() => [] as BookmarkNode[]);
+            return children.find(c => !c.url && c.title === entry.title && !isManaged(c) && (c.dateAdded ?? 0) >= entry.deletedAt);
+        };
 
         try {
-            const root = await createSubtree(entry.tree, target.id, {
+            const root = await createSubtree(entry.tree, targetId, {
                 index: target.original ? entry.index : undefined,
-                findExisting,
-                onNode: async (_saved, _node, wasCreated) => {
+                findExisting: async (pid, saved) => {
+                    const reused = resume ? await fromInterruptedAttempt(pid, saved) : undefined;
+                    if (reused) return reused;
+                    if (saved === entry.tree && entry.isFolder && pid === targetId) return recreatedFolder(pid);
+                    return undefined;
+                },
+                onNode: async (saved, node, wasCreated) => {
+                    if (saved === entry.tree) {
+                        partialRootId = node.id;
+                        await setProgress({ ...base, created, partialRootId });
+                    }
                     if (!wasCreated) return;
                     created++;
                     markRestoring();
-                    if (created % CHECKPOINT_EVERY === 0) await setProgress({ ...base, created });
+                    if (created % CHECKPOINT_EVERY === 0) await setProgress({ ...base, created, partialRootId });
                 },
             });
-            const restoredTo = { parentId: target.id, rootId: root.id, path: await pathOf(target.id) };
-            await setProgress({ ...base, state: 'restored', created, restoredTo, keepUntil: now() + RESTORED_KEEP_MS });
+            const restoredTo = { parentId: targetId, rootId: root.id, path: await pathOf(targetId) };
+            await setProgress({ ...base, state: 'restored', created, partialRootId, restoredTo, keepUntil: now() + RESTORED_KEEP_MS });
             return { entryId: entry.entryId, state: 'restored', restoredTo };
         } catch (err) {
             const error = `Restore stopped: ${errorMessage(err)}`;
             console.error('[Trash] restore failed', entry.entryId, err);
-            await setProgress({ ...base, state: 'failed', created, error });
+            await setProgress({ ...base, state: 'failed', created, partialRootId, error });
             return { entryId: entry.entryId, state: 'failed', error };
         }
     }
@@ -613,7 +653,10 @@ export async function handleTrashMessage(
     switch (message.type) {
         case 'TRASH_DELETE': {
             const ids = message.ids;
-            if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_DELETE_IDS || !ids.every(isStr)) {
+            if (Array.isArray(ids) && ids.length > MAX_DELETE_IDS) {
+                return { ok: false, error: `Too many items for one delete (${MAX_DELETE_IDS.toLocaleString('en')} at most). Delete them in smaller groups.` };
+            }
+            if (!Array.isArray(ids) || ids.length === 0 || !ids.every(isStr)) {
                 return { ok: false, error: 'Invalid TRASH_DELETE message' };
             }
             const requestId = isStr(message.requestId) ? message.requestId : undefined;

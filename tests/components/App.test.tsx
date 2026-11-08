@@ -146,6 +146,22 @@ describe('App', { timeout: 20000 }, () => {
         await screen.findByRole('heading', { name: 'Other bookmarks' });
     });
 
+    it('Escape in a context menu opened from the drawer closes only the menu', async () => {
+        narrow = true;
+        connectTrash();
+        seed();
+        render(<App />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Folders' }));
+        const drawer = await screen.findByRole('dialog', { name: 'Folders' });
+        expect(drawer.getAttribute('aria-modal')).toBe('true');
+        const item = within(drawer).getByRole('button', { name: /^Other bookmarks/ });
+        fireEvent.contextMenu(item);
+        const menu = await screen.findByRole('menu');
+        fireEvent.keyDown(within(menu).getAllByRole('menuitem')[0], { key: 'Escape' });
+        await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+        expect(screen.getByRole('dialog', { name: 'Folders' })).toBeTruthy();
+    });
+
     it('on desktop the Folders button hides the panel and remembers it', async () => {
         connectTrash();
         seed();

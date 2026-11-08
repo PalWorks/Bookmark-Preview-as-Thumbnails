@@ -47,6 +47,8 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({ roots, subject, busy
     const all = listFolders(roots);
     const q = query.trim().toLowerCase();
     const visible = q ? all.filter(f => f.path.join(' ').toLowerCase().includes(q)) : all;
+    // A choice hidden by the search box no longer counts as chosen.
+    const chosen = selected && visible.some(f => f.id === selected) ? selected : null;
     const local = visible.filter(f => !f.synced);
     const synced = visible.filter(f => f.synced);
     const twoGroups = all.some(f => f.synced) && all.some(f => !f.synced);
@@ -55,12 +57,12 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({ roots, subject, busy
         <fieldset className="picker-group">
             {label && <legend className="picker-group-label">{label}</legend>}
             {items.map(f => (
-                <label key={f.id} className={`picker-option ${selected === f.id ? 'picker-option--selected' : ''}`}>
+                <label key={f.id} className={`picker-option ${chosen === f.id ? 'picker-option--selected' : ''}`}>
                     <input
                         type="radio"
                         name="restore-target"
                         value={f.id}
-                        checked={selected === f.id}
+                        checked={chosen === f.id}
                         onChange={() => setSelected(f.id)}
                     />
                     <FolderGlyph size={16} />
@@ -82,8 +84,8 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({ roots, subject, busy
                     <button
                         type="button"
                         className="btn btn--primary btn--grow"
-                        disabled={!selected || busy}
-                        onClick={() => selected && onPick(selected)}
+                        disabled={!chosen || busy}
+                        onClick={() => chosen && onPick(chosen)}
                     >
                         {busy && <span className="btn-spinner" aria-hidden="true" />}
                         <span>Restore here</span>

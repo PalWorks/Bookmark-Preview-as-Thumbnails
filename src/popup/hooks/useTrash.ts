@@ -254,8 +254,6 @@ export function useTrash({ toast, onOpenFolder, onOpenTrash, onRestoredFocus, re
             const res = await sendTrashMessage<TrashEmptyResult>({ type: 'TRASH_EMPTY' });
             if (!res.ok) {
                 toast.show({ message: res.error ?? "Couldn't empty Trash.", tone: 'error' });
-            } else if (res.keptEntries) {
-                toast.show({ message: `Emptied ${plural(res.removedEntries ?? 0, 'item')}. ${res.keptEntries} still restoring and kept.`, tone: 'info' });
             } else {
                 toast.show({ message: 'Trash emptied', tone: 'success' });
             }

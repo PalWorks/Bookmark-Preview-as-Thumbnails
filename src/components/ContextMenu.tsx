@@ -70,7 +70,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ position, items, onClo
             case 'ArrowUp': e.preventDefault(); focusAt(i - 1); break;
             case 'Home': e.preventDefault(); focusAt(0); break;
             case 'End': e.preventDefault(); focusAt(buttons.length - 1); break;
-            case 'Escape': case 'Tab': e.preventDefault(); onClose(); break;
+            case 'Escape': case 'Tab':
+                // preventDefault also tells the folders drawer not to close on this Escape.
+                e.preventDefault();
+                onClose();
+                break;
         }
     };
 

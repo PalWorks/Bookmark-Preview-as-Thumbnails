@@ -49,8 +49,14 @@ describe('TrashView', () => {
         const dialog = await screen.findByRole('dialog', { name: 'Restore to…' });
         expect(within(dialog).getByText('On this device')).toBeTruthy();
         expect(within(dialog).getByText('Synced to your account')).toBeTruthy();
+        fireEvent.click(within(dialog).getAllByRole('radio')[0]);
+        const restoreHere = within(dialog).getByRole('button', { name: 'Restore here' }) as HTMLButtonElement;
+        expect(restoreHere.disabled).toBe(false);
         fireEvent.change(within(dialog).getByLabelText('Search folders'), { target: { value: 'local' } });
         expect(within(dialog).getAllByRole('radio')).toHaveLength(1);
+        // The earlier choice is hidden by the search, so it no longer counts.
+        const visibleChecked = (within(dialog).getAllByRole('radio') as HTMLInputElement[]).some(r => r.checked);
+        expect(restoreHere.disabled).toBe(!visibleChecked);
     });
 
     it('incognito: read-only banner and disabled actions', async () => {

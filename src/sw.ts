@@ -316,8 +316,8 @@ async function processBatchCapture(
             });
 
             if (navError) {
-                // Deleted and purged from Trash while this capture ran: write nothing.
-                if (trash.wasRecentlyPurged(url)) {
+                // Deleted while this capture ran: write nothing.
+                if (await isNoLongerBookmarked(url)) {
                     chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
                     return;
                 }
@@ -347,7 +347,7 @@ async function processBatchCapture(
                     ? String((rawError as { message: unknown }).message)
                     : 'Capture Failed';
             console.error('Failed to capture', url, rawError);
-            if (trash.wasRecentlyPurged(url)) {
+            if (await isNoLongerBookmarked(url)) {
                 chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
                 return;
             }
@@ -384,6 +384,19 @@ async function processBatchCapture(
             if (captureWindow?.id) await chrome.windows.remove(captureWindow.id);
         } catch (_) { /* window already closed */ }
         resetBatchState();
+    }
+}
+
+// A capture can finish after its bookmark was deleted (and maybe emptied from
+// Trash). Writing then would leave an orphaned preview, so captures of
+// bookmarks check right before writing. A bookmark sitting in Trash keeps its
+// older preview for a restore.
+async function isNoLongerBookmarked(url: string): Promise<boolean> {
+    if (trash.wasRecentlyPurged(url)) return true;
+    try {
+        return (await chrome.bookmarks.search({ url })).length === 0;
+    } catch {
+        return false; // unsearchable URL: keep the old behaviour
     }
 }
 
@@ -426,7 +439,9 @@ async function persistCapture(
     id: string,
     useActiveTabCapture: boolean,
     renderDelay?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    /** Bookmark captures skip the write if the bookmark was deleted meanwhile. */
+    requireBookmark = true,
 ): Promise<{ success: boolean; id: string; dataUrl: string }> {
     const tab = await chrome.tabs.get(tabId);
     if (!tab.url) throw new Error('Tab has no URL');
@@ -435,12 +450,6 @@ async function persistCapture(
     // A stop that landed mid-capture: drop the result rather than writing a tile
     // (and broadcasting an update) after the user asked to stop.
     if (signal?.aborted) throw new DOMException('Capture aborted', 'AbortError');
-    // The bookmark was deleted and emptied from Trash while it was being captured:
-    // writing now would leave an orphaned preview behind.
-    if (trash.wasRecentlyPurged(id)) {
-        chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url: id, error: 'Bookmark was deleted' }).catch(() => { });
-        return { success: false, id, dataUrl: '' };
-    }
     const result = await captureManager.resizeAndCompress(dataUrl, 600, 0.8);
 
     let status: 'saved_indexeddb' | 'saved_disk' = 'saved_indexeddb';
@@ -456,6 +465,13 @@ async function persistCapture(
         }
     } catch (fsError) {
         console.warn('Failed to save to disk:', fsError);
+    }
+
+    // Checked as late as possible: the bookmark may have been deleted during the
+    // capture, resize or disk write above.
+    if (requireBookmark && await isNoLongerBookmarked(id)) {
+        chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url: id, error: 'Bookmark was deleted' }).catch(() => { });
+        return { success: false, id, dataUrl: '' };
     }
 
     // Use `id` (the original bookmark URL) for both key and url field.
@@ -490,7 +506,8 @@ async function captureActiveTab(): Promise<{ success: boolean; id: string; dataU
     const tab = tabs[0];
     if (!tab?.id) throw new Error('No active tab found');
     if (!tab.url) throw new Error('Tab has no URL');
-    return persistCapture(tab.id, tab.url, false);
+    // The active tab need not be bookmarked.
+    return persistCapture(tab.id, tab.url, false, undefined, undefined, false);
 }
 
 // Capture a specific tab with an explicit target URL (batch capture + auto-capture path)

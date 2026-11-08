@@ -42,7 +42,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ?? panel?.querySelector<HTMLElement>('button');
         target?.focus();
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') { e.preventDefault(); onClose?.(); }
+            // An open context menu handles its own Escape first.
+            if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onClose?.(); return; }
+            // Keep Tab inside the drawer while it covers the page.
+            if (e.key !== 'Tab' || !panel) return;
+            const items = [...panel.querySelectorAll<HTMLElement>('button:not([disabled])')];
+            if (items.length === 0) return;
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            else if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
         };
         document.addEventListener('keydown', onKey);
         return () => {
@@ -165,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     if (!isDrawer) return panel;
     return (
-        <div className="drawer-root">
+        <div className="drawer-root" role="dialog" aria-modal="true" aria-label="Folders">
             <div className="drawer-scrim" onClick={onClose} aria-hidden="true" />
             {panel}
         </div>

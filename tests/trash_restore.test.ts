@@ -200,4 +200,76 @@ describe('TRASH_RESTORE', () => {
         const biggest = Math.max(...set.mock.calls.slice(before).map(c => JSON.stringify(c[0]).length));
         expect(biggest).toBeLessThan(2000);
     });
+
+    it('a worker killed before the first checkpoint still resumes without duplicates', async () => {
+        const { folder } = seedRecipes();
+        const original = shape(fakeBookmarks.tree(folder.id));
+        const { service } = makeService();
+        const del = await service.deleteItems({ ids: [folder.id] });
+        const entryId = del.entryIds![0];
+        clock.t += 1000;
+        // Two creates happen, then the worker dies: progress says restoring, created 0.
+        fakeBookmarks.failAfter('create', 2, 'killed');
+        await service.restore({ entryId });
+        localStore[`trash_prog_${entryId}`] = { ...progressOf(entryId), state: 'restoring', created: 0 };
+        clock.t += 1000;
+        const fresh = makeService();
+        await fresh.service.reconcile();
+        clock.t += 1000;
+        expect((await fresh.service.restore({ entryId })).ok).toBe(true);
+        const copies = fakeBookmarks.tree('1').children!.filter(c => c.title === 'Recipes');
+        expect(copies).toHaveLength(1);
+        expect(shape(copies[0])).toEqual(original);
+    });
+
+    it('Restore to... after a partial restore moves the partial copy instead of leaving it behind', async () => {
+        const { folder } = seedRecipes();
+        const original = shape(fakeBookmarks.tree(folder.id));
+        const { service } = makeService();
+        const del = await service.deleteItems({ ids: [folder.id] });
+        clock.t += 1000;
+        fakeBookmarks.failAfter('create', 3, 'Boom');
+        const broken = await service.restore({ operationId: del.operationId });
+        expect(broken.results![0].state).toBe('failed');
+        expect(fakeBookmarks.titlesIn('1')).toContain('Recipes'); // partial copy
+        clock.t += 1000;
+        const res = await service.restore({ operationId: del.operationId, targetParentId: '2' });
+        expect(res.ok).toBe(true);
+        expect(fakeBookmarks.titlesIn('1')).not.toContain('Recipes');
+        const moved = fakeBookmarks.tree('2').children!.filter(c => c.title === 'Recipes');
+        expect(moved).toHaveLength(1);
+        expect(shape(moved[0])).toEqual(original);
+    });
+
+    it('a late retry never takes over a bookmark the user added after the failure', async () => {
+        const { folder } = seedRecipes();
+        const { service } = makeService();
+        const del = await service.deleteItems({ ids: [folder.id] });
+        clock.t += 1000;
+        fakeBookmarks.failAfter('create', 1, 'Boom'); // only the folder gets created
+        await service.restore({ operationId: del.operationId });
+        const partial = fakeBookmarks.tree('1').children!.find(c => c.title === 'Recipes')!;
+        clock.t += 60 * 60 * 1000; // an hour later the user adds "Soup" there by hand
+        const mine = await chrome.bookmarks.create({ parentId: partial.id, title: 'Soup', url: 'https://soup.example/' });
+        clock.t += 1000;
+        expect((await service.restore({ operationId: del.operationId })).ok).toBe(true);
+        const soups = fakeBookmarks.tree(partial.id).children!.filter(c => c.title === 'Soup');
+        expect(soups).toHaveLength(2); // the user's own copy plus the restored one
+        expect(soups.some(c => c.id === mine.id)).toBe(true);
+    });
+
+    it('undoing a bookmark and then its deleted parent folder gives one folder, not two', async () => {
+        const { folder, soup } = seedRecipes();
+        const { service } = makeService();
+        const op1 = await service.deleteItems({ ids: [soup.id] });
+        clock.t += 1000;
+        const op2 = await service.deleteItems({ ids: [folder.id] });
+        clock.t += 1000;
+        await service.restore({ operationId: op1.operationId }); // recreates "Recipes" holding Soup
+        clock.t += 1000;
+        await service.restore({ operationId: op2.operationId });
+        const recipes = fakeBookmarks.tree('1').children!.filter(c => c.title === 'Recipes');
+        expect(recipes).toHaveLength(1);
+        expect(recipes[0].children!.map(c => c.title).sort()).toEqual(['Cake', 'Drinks', 'Pie', 'Soup']);
+    });
 });

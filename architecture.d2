@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 title: Bookmarks Thumbnails Architecture
 direction: right
 
@@ -29,33 +30,58 @@ Browser: {
     
     ServiceWorker: {
       shape: rectangle
-      tooltip: "Background logic (sw.ts)"
+      tooltip: "sw.ts: message router, capture pool, AI batches, update migration"
     }
-    
+
+    TrashCoordinator: {
+      label: "Trash coordinator (sw/trash.ts)"
+      shape: rectangle
+      tooltip: "Single writer of trash_* keys; promise queue; reconcile on start; resumable restore"
+    }
+
     ContentScript: {
       shape: rectangle
-      tooltip: "Runs on web pages"
+      tooltip: "Capture helper injected into capture tabs"
     }
-    
+
     Popup: {
+      label: "Extension page (React)"
       shape: square
-      tooltip: "Extension UI"
+      tooltip: "index.html: hooks (useTrash, useBookmarkTree, useThumbnails, useToast) and components"
     }
-    
+
     Storage: {
       shape: cylinder
-      tooltip: "Local/Sync Storage"
+      tooltip: "storage.local: thumb_, meta_, trash_*, ai_*; storage.sync: settings; IndexedDB: legacy previews"
+    }
+
+    ChromeBookmarks: {
+      label: "chrome.bookmarks"
+      shape: cylinder
+    }
+
+    PurgeAlarm: {
+      label: "alarm trash-purge (daily)"
+      shape: oval
     }
 
     Manifest -> ServiceWorker: Defines
     Manifest -> ContentScript: Defines
     Manifest -> Popup: Defines
-    
-    Popup -> ServiceWorker: Messages
+
+    Popup -> ServiceWorker: "Messages (BATCH_CAPTURE, META_PATCH, AUTO_TAG)"
+    Popup -> TrashCoordinator: "TRASH_DELETE / RESTORE / EMPTY / PURGE"
+    TrashCoordinator -> Popup: "TRASH_CHANGED broadcast"
+    ServiceWorker -> TrashCoordinator: Routes
     ContentScript -> ServiceWorker: Messages
     ServiceWorker -> Storage: Reads/Writes
+    TrashCoordinator -> Storage: "Snapshots, progress, asset sweep"
+    TrashCoordinator -> ChromeBookmarks: "remove / removeTree / create"
+    ChromeBookmarks -> Popup: "Bookmark events (reactive tree)"
+    Popup -> Storage: "Reads (getKeys + targeted get)"
+    PurgeAlarm -> TrashCoordinator: Expire after 30 days
   }
-  
+
   Website: {
     class: browser_component
     tooltip: "Landing Page / Docs"
@@ -127,6 +153,7 @@ Deployment: {
   GitHub.Actions -> BuildEnv.BuildWebsite: Triggers
   BuildEnv.BuildWebsite -> Hosting.GitHubPages: Deploys
   
-  User -> BuildEnv.BuildExtension: Manual Build (Currently)
+  GitHub.Actions -> BuildEnv.BuildExtension: "CI: lint, test, build, bundle check"
+  User -> BuildEnv.BuildExtension: "Release: npm run zip"
   BuildEnv.BuildExtension -> Hosting.ChromeWebStore: Upload Zip
 }

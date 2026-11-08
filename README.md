@@ -1,106 +1,178 @@
-# Bookmarks Thumbnails
+# Bookmarks as Thumbnails
 
-**Bookmarks Thumbnails** is a Chrome extension that transforms your standard bookmarks into a visually appealing, Safari-style grid of thumbnails. It provides a modern and intuitive way to browse and manage your saved sites.
+**See your bookmarks as pictures, delete without fear, and find anything fast.**
+A Chrome extension that turns your bookmarks into a visual grid of page previews, with a
+30-day Trash, optional AI tagging and search, and nothing sent to a server.
+
+[![Extension CI](https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/actions/workflows/extension-ci.yml/badge.svg)](https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/actions/workflows/extension-ci.yml)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
+
+_Last updated: 2026-11-08T09:06:39+00:00 (1.3.0)._
+
+## Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Project structure](#project-structure)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+
+## Overview
+
+Chrome's bookmark manager is a text list. People with hundreds of bookmarks recognise pages by
+how they look, not by their titles. This extension opens a full-page view of your bookmarks as a
+grid (or list) of screenshots, captured in the background, with folders, search, sorting and
+filters. It is for anyone who keeps many bookmarks and wants to find and tidy them quickly.
+
+Everything stays in your browser profile. The optional AI features run on Chrome's built-in
+on-device model by default, or with your own API key; see [PRIVACY.md](PRIVACY.md).
 
 ## Features
 
-- **Visual Previews**: Automatically generates thumbnail previews for your bookmarks.
-- **Grid & List Layouts**: Responsive, easy-to-scan views with filtering and sorting.
-- **Folder Navigation**: Navigate through your bookmark folders seamlessly.
-- **Search**: Quickly find bookmarks by title or URL.
-- **AI features (opt-in, bring-your-own-AI)**:
-  - **Auto-Tag** — categorise bookmarks into topic tags (with your own preferred tags).
-  - **Smart Search** — find bookmarks with natural language.
-  - **Duplicate Finder** — find and merge duplicate bookmarks (no AI needed).
-  - Runs on **Chrome's built-in Gemini Nano on-device by default** (nothing leaves
-    your device), or with **your own API key** for a cloud provider (OpenAI,
-    Anthropic, Google Gemini, Groq, Mistral, and more) or a local server
-    (Ollama / LM Studio). See [PRIVACY.md](PRIVACY.md) for exactly what data the
-    cloud option sends.
-- **Offline backup**: Export/import your thumbnails and settings as JSON; optionally
-  save thumbnails to a folder on disk.
-- **Dark Mode**: Light, dark, and system themes.
+- **Visual previews**: batch capture in a hidden window, automatic capture when you bookmark the
+  page you are on, regenerate one or all, error images for pages that fail to load.
+- **Site icons when there is no preview yet**, from Chrome's local favicon cache, with the domain.
+- **Trash with Undo** (1.3.0): delete from a tile, a list row, the right-click menu, the Delete key
+  or Duplicate Finder; undo from the toast or with Ctrl/Cmd+Z; restore from Trash for 30 days, to
+  the original place or a folder you choose. Empty Trash needs a typed confirmation.
+- **Folders like Chrome's manager**: yellow folder icons, counts that include subfolders, a
+  folder panel you can hide, and a drawer on phones and narrow windows.
+- **Grid and list views**, search, sort (title, domain, date added), filter (folders, bookmarks,
+  AI tag).
+- **AI features, opt-in**: Auto-Tag, Smart Search (natural language), Duplicate Finder (no AI
+  needed). On-device Gemini Nano by default, or OpenAI, Anthropic, Google Gemini, Groq, Mistral,
+  DeepSeek, xAI, Together, Cerebras, Perplexity, OpenRouter, Ollama or any OpenAI-compatible
+  server with your own key.
+- **Backup**: export everything (settings and previews) or settings only; import either. Optionally
+  save previews to a folder on disk.
+- **Light, dark and system themes**; works from 360px wide up; keyboard and screen reader support.
 
-## Tech Stack
+## Architecture
 
-- **Frontend**: React 19, TypeScript, Vite
-- **Styling**: Vanilla CSS (with some utility classes)
-- **Icons**: Lucide React
-- **Extension API**: Chrome Extension Manifest V3
-- **Testing**: Vitest, React Testing Library
+Three browser contexts and no server:
+
+| Context | File | Role |
+|---|---|---|
+| Service worker | `src/sw.ts`, `src/sw/trash.ts` | Message router, capture pool, AI batches, update migration, Trash coordinator (single writer) |
+| Extension page | `index.html` → `src/popup/` | React UI; behaviour in hooks, `App.tsx` only composes |
+| Content script | `src/content/capture.ts` | Page-side capture helper |
+
+Data lives in `chrome.storage.local` (previews `thumb_<url>`, metadata `meta_<url>`, Trash
+`trash_*`), `chrome.storage.sync` (settings) and IndexedDB (legacy previews, folder handle).
+Details: [ARCHITECTURE.md](ARCHITECTURE.md), [DATA_MODEL.md](DATA_MODEL.md),
+[DECISIONS.md](DECISIONS.md).
+
+## Tech stack
+
+React 19, TypeScript 5.9, Vite 7, lucide-react icons, plain CSS with design tokens, Chrome
+Manifest V3 APIs (bookmarks, storage, tabs, scripting, webNavigation, favicon, alarms).
+Tests: Vitest, jsdom, React Testing Library, fake-indexeddb.
 
 ## Installation
 
-### From Source
+**From the Chrome Web Store**: [Bookmarks as Thumbnails](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj).
 
-1. Clone the repository:
+**From source** (Node 20 or newer):
 
-    ```bash
-    git clone https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails.git
-    cd Bookmark-Preview-as-Thumbnails
-    ```
+```bash
+git clone https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails.git
+cd Bookmark-Preview-as-Thumbnails
+npm ci
+npm run build
+```
 
-2. Install dependencies:
+Then open `chrome://extensions`, turn on Developer mode, choose **Load unpacked** and select
+`dist/`.
 
-    ```bash
-    npm install
-    ```
+## Configuration
 
-3. Build the extension:
+There are no environment variables. Everything is set in the extension:
 
-    ```bash
-    npm run build
-    ```
-
-4. Load into Chrome:
-    - Open Chrome and navigate to `chrome://extensions`.
-    - Enable "Developer mode" in the top right corner.
-    - Click "Load unpacked".
-    - Select the `dist` directory created in the previous step.
+| Setting | Where | Stored in |
+|---|---|---|
+| Theme, capture delay, active-tab capture, incognito window, folder panel | Top bar, settings menu | `chrome.storage.sync` |
+| AI engine, provider, model, server address, preferred tags | AI Settings | `chrome.storage.sync` |
+| AI API key | AI Settings | `chrome.storage.local`, encrypted, bound to its provider |
+| Storage folder for previews | Settings menu → Choose storage folder | IndexedDB (folder handle) |
 
 ## Usage
 
-1. Click the extension icon in the Chrome toolbar.
-2. Grant necessary permissions if prompted (e.g., reading bookmarks).
-3. Browse your bookmarks in the new visual grid.
-4. Click on a thumbnail to open the site.
+1. Click the extension icon; the manager opens in a tab.
+2. Pick a folder on the left (or **Folders** on a phone). Press the play button to capture
+   previews for the folder; Shift+click recaptures all, Ctrl+click retries failed ones.
+3. Click a tile to open the page. Use the trash icon to delete it; **Undo** brings it back.
+4. **Trash** (sidebar or settings menu) lists deletions from the last 30 days. **Restore**,
+   **Restore to...**, or **Empty Trash** (type EMPTY).
+5. **AI Settings** turns on Auto-Tag, Smart Search and Duplicate Finder.
 
-## Website
+## Project structure
 
-The project includes a companion website located in the `website` directory.
+```
+src/
+  sw.ts                 service worker entry (router, capture, AI, migration)
+  sw/trash.ts           Trash coordinator
+  lib/                  shared modules (storage, trash_store, bookmark_tree, AI, backup, utils)
+  popup/                React app: App.tsx, hooks/, components/ (AI Settings, tiles)
+  components/           TopBar, Sidebar, MainContent, TrashView, FolderPicker, Modal, Toast, ...
+  content/capture.ts    content script
+public/manifest.json    extension manifest
+tests/                  Vitest suites, fakes/, sw_bridge.ts
+scripts/check-bundle.mjs  post-build checks
+website/                marketing site (GitHub Pages)
+docs/designs/           design documents
+```
 
-### Running the Website Locally
+## Testing
 
-1. Navigate to the website directory:
+```bash
+npm run lint
+npm test -- --run
+npm run build && npm run check:bundle
+```
 
-    ```bash
-    cd website
-    ```
+244 tests cover migration, metadata merges, API key binding, Trash (delete, restore, crash
+recovery, expiry, asset sweep), the reactive bookmark tree, backups, and the whole app in jsdom.
+Chrome-only behaviour is verified in a real browser. See [TESTING.md](TESTING.md).
 
-2. Install dependencies:
+## Deployment
 
-    ```bash
-    npm install
-    ```
+CI (`.github/workflows/extension-ci.yml`) runs lint, tests, build and the bundle check on every
+push and pull request. Releases are uploaded to the Chrome Web Store by the maintainer; the
+website deploys to GitHub Pages from `main`. Steps, the permission gate and rollback:
+[PLAYBOOK.md](PLAYBOOK.md).
 
-3. Start the development server:
+## Roadmap
 
-    ```bash
-    npm run dev
-    ```
+Next: recover bookmarks deleted outside the extension, exclude folders from search, list
+columns (last opened, date added, rating), range selection with bulk actions, folder colours.
+See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature/amazing-feature`).
-3. Make your changes.
-4. Commit your changes (`git commit -m 'Add some amazing feature'`).
-5. Push to the branch (`git push origin feature/amazing-feature`).
-6. Open a Pull Request.
+Issues and pull requests are welcome. Read [AGENTS.md](AGENTS.md) for the rules and
+[CONTRIBUTING.md](CONTRIBUTING.md) for the workflow. Contributions are accepted under
+AGPL-3.0-only.
 
 ## License
 
-Dual-licensed: **AGPL-3.0** for free/open-source use, or a **Commercial License**
-for proprietary use. See [`LICENSE`](LICENSE) for details.
+Dual-licensed:
+
+- **[GNU AGPL 3.0 only](LICENSE)** (`AGPL-3.0-only`): use, change and share the software, including
+  commercially, under the AGPL's conditions.
+- **Commercial licence** for use without the AGPL obligations, for example in a closed-source
+  product. See [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+## Acknowledgements
+
+Icons by [Lucide](https://lucide.dev). Site icons come from Chrome's own favicon cache. Thanks to
+the users whose feedback shaped the 1.3.0 release.

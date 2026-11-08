@@ -1,5 +1,7 @@
 # Contributing to Bookmarks Thumbnails
 
+_Last updated: 2026-11-08T09:06:39+00:00 (licence terms for contributions, checks before a PR)._
+
 Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome contributions from everyone.
 
 ## Getting Started
@@ -8,8 +10,8 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
 2. **Clone your fork**:
 
     ```bash
-    git clone https://github.com/yourusername/bookmarks-thumbnails.git
-    cd bookmarks-thumbnails
+    git clone https://github.com/<your-username>/Bookmark-Preview-as-Thumbnails.git
+    cd Bookmark-Preview-as-Thumbnails
     ```
 
 3. **Install dependencies**:
@@ -29,11 +31,16 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
     ```
 
 2. **Make changes**: Implement your feature or fix.
-3. **Test**: Run tests to ensure nothing is broken.
+3. **Test**: Run the same checks as CI.
 
     ```bash
-    npm test
+    npm run lint
+    npm test -- --run
+    npm run build && npm run check:bundle
     ```
+
+    Read [AGENTS.md](AGENTS.md) first: it lists the rules that must not be broken (for
+    example, deletes always go through Trash, and new files carry an SPDX header).
 
 4. **Commit**: Use descriptive commit messages.
 
@@ -50,9 +57,16 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
 3. Fill out the PR template with details about your changes.
 4. Wait for review. We will do our best to review your PR as soon as possible.
 
+## Licence of contributions
+
+This project is dual-licensed (AGPL-3.0-only and a commercial licence, see
+[COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)). By opening a pull request you confirm that you
+have the right to submit the change and agree that it is licensed under AGPL-3.0-only and may
+also be offered by the maintainers under the commercial licence. Say so in the PR description.
+
 ## Code Style
 
-- Use **TypeScript** for all new code.
+- Use **TypeScript** for all new code, starting with `// SPDX-License-Identifier: AGPL-3.0-only`.
 - Follow the existing project structure.
 - Ensure code is formatted (Prettier is configured).
 - Run `npm run lint` to check for linting errors.
