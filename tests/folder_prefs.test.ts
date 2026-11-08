@@ -78,7 +78,7 @@ describe('folder prefs', () => {
         expect(isInHiddenFolder('1', parentOf, hidden)).toBe(false);
         expect(hiddenAncestor('b', parentOf, hidden)).toBe('a');
         expect(hiddenAncestor('a', parentOf, hidden)).toBeUndefined();
-        const map = buildParentMap([{ id: '1', parentId: '0', title: '', children: [{ id: '5', parentId: '1', title: 'x' }] }]);
+        const map = buildParentMap([{ id: '1', parentId: '0', title: '', syncing: false, children: [{ id: '5', parentId: '1', title: 'x', syncing: false }] }]);
         expect(map.get('5')).toBe('1');
     });
 });

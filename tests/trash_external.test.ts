@@ -7,7 +7,8 @@ import { makeService, entries, progressOf, seedRecipes, shape } from './trash_he
 import { createTrashService } from '../src/sw/trash';
 
 /** A worker with the onRemoved listener wired like sw.ts. */
-function makeWired(opts: { applyFolderPrefs?: ReturnType<typeof vi.fn> } = {}) {
+type ApplyPrefs = (map: Array<{ newId: string; pref: unknown }>) => Promise<void>;
+function makeWired(opts: { applyFolderPrefs?: ApplyPrefs } = {}) {
     const made = opts.applyFolderPrefs
         ? (() => {
             let n = 0;
@@ -15,7 +16,7 @@ function makeWired(opts: { applyFolderPrefs?: ReturnType<typeof vi.fn> } = {}) {
             return { service };
         })()
         : makeService();
-    const listener = (id: string, info: chrome.bookmarks.RemoveInfo) => made.service.noteRemoved(id, info as never);
+    const listener = (id: string, info: unknown) => made.service.noteRemoved(id, info as never);
     fakeBookmarks.onRemoved.addListener(listener as never);
     return made.service;
 }
@@ -163,7 +164,7 @@ describe('external deletes', () => {
         const { folder, sub } = seedRecipes();
         localStore[`fpref_${folder.id}`] = { color: 'red' };
         localStore[`fpref_${sub.id}`] = { hideFromSearch: true };
-        const applyFolderPrefs = vi.fn(async () => undefined);
+        const applyFolderPrefs = vi.fn<ApplyPrefs>(async () => undefined);
         const service = makeWired({ applyFolderPrefs });
         await chrome.bookmarks.removeTree(folder.id);
         await service.flushExternal();
@@ -171,7 +172,7 @@ describe('external deletes', () => {
         expect(entry.folderPrefs).toEqual({ [folder.id]: { color: 'red' }, [sub.id]: { hideFromSearch: true } });
 
         await service.restore({ operationId: entry.operationId });
-        const map = applyFolderPrefs.mock.calls[0][0] as Array<{ newId: string; pref: unknown }>;
+        const map = applyFolderPrefs.mock.calls[0][0];
         const recipes = (await chrome.bookmarks.getChildren('1')).find(c => c.title === 'Recipes')!;
         const drinks = (await chrome.bookmarks.getChildren(recipes.id)).find(c => c.title === 'Drinks')!;
         expect(map).toEqual(expect.arrayContaining([

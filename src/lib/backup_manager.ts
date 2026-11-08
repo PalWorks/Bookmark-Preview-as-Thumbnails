@@ -3,6 +3,15 @@ import { thumbnailStorage } from './thumbnail_storage';
 import { patchMetadata } from './metadata_client';
 import type { ThumbnailStatus } from './storage_index';
 import { PROVIDERS } from './ai_settings_storage';
+import { sanitizeListColumns } from './list_columns';
+import { sanitizeBackupMeta, type BackupMeta } from './metadata_sanitize';
+import { readFolderPrefs, sanitizeFolderPref, type FolderPref, type FolderPrefPatch } from './folder_prefs';
+import { storageIndex } from './storage_index';
+
+/** A folder pref in an export: the folder is named by its title path, never its id. */
+export interface BackupFolderPref extends FolderPref {
+    path: string[];
+}
 
 export interface BackupData {
     version: number;
@@ -18,6 +27,10 @@ export interface BackupData {
         status?: ThumbnailStatus;
         image_data?: string; // Base64 image data
     }>;
+    /** Ratings, tags and "opened" times for every link (full backups, 1.4.0+). */
+    metadata?: BackupMeta[];
+    /** Folder colours and search visibility, by folder path (1.4.0+). */
+    folderPrefs?: BackupFolderPref[];
 }
 
 export interface ImportResult {
@@ -35,6 +48,93 @@ export interface ImportResult {
      */
     aiProviderHeld: boolean;
     kind: 'full' | 'settings';
+    /** Links whose rating, tags or opened time were restored. */
+    metadataApplied?: number;
+    /** Folder prefs applied, and those whose folder path was not found (or not unique). */
+    folderPrefsApplied?: number;
+    folderPrefsSkipped?: number;
+}
+
+const MAX_FOLDER_PREFS = 2000;
+const MAX_PATH_DEPTH = 64;
+const MAX_PATH_PART = 1000;
+
+/** Title path of every folder (permanent folder first), and folders by joined path. */
+function folderPaths(roots: chrome.bookmarks.BookmarkTreeNode[]): { pathOf: Map<string, string[]>; byPath: Map<string, string[]> } {
+    const pathOf = new Map<string, string[]>();
+    const byPath = new Map<string, string[]>();
+    const walk = (n: chrome.bookmarks.BookmarkTreeNode, parent: string[]) => {
+        if (n.url) return;
+        const path = [...parent, n.title ?? ''];
+        pathOf.set(n.id, path);
+        const key = JSON.stringify(path);
+        byPath.set(key, [...(byPath.get(key) ?? []), n.id]);
+        for (const c of n.children ?? []) walk(c, path);
+    };
+    for (const r of roots) walk(r, []);
+    return { pathOf, byPath };
+}
+
+async function exportFolderPrefs(): Promise<BackupFolderPref[]> {
+    const prefs = await readFolderPrefs();
+    if (Object.keys(prefs).length === 0) return [];
+    const roots = (await chrome.bookmarks.getTree())[0]?.children ?? [];
+    const { pathOf } = folderPaths(roots);
+    const out: BackupFolderPref[] = [];
+    for (const [id, pref] of Object.entries(prefs)) {
+        const path = pathOf.get(id);
+        if (path) out.push({ path, ...pref });
+    }
+    return out;
+}
+
+function sanitizeBackupFolderPref(raw: unknown): BackupFolderPref | undefined {
+    if (typeof raw !== 'object' || raw === null) return undefined;
+    const path = (raw as { path?: unknown }).path;
+    if (!Array.isArray(path) || path.length === 0 || path.length > MAX_PATH_DEPTH
+        || !path.every(p => typeof p === 'string' && p.length <= MAX_PATH_PART)) return undefined;
+    const pref = sanitizeFolderPref(raw);
+    return pref ? { path: path as string[], ...pref } : undefined;
+}
+
+/** Apply exported folder prefs to folders with exactly the same title path. */
+async function importFolderPrefs(raw: unknown): Promise<{ applied: number; skipped: number }> {
+    if (!Array.isArray(raw) || raw.length === 0) return { applied: 0, skipped: 0 };
+    const roots = (await chrome.bookmarks.getTree())[0]?.children ?? [];
+    const { byPath } = folderPaths(roots);
+    let applied = 0, skipped = 0;
+    for (const item of raw.slice(0, MAX_FOLDER_PREFS)) {
+        const pref = sanitizeBackupFolderPref(item);
+        const ids = pref ? byPath.get(JSON.stringify(pref.path)) : undefined;
+        if (!pref || !ids || ids.length !== 1) { skipped++; continue; }
+        const patch: FolderPrefPatch = { color: pref.color ?? null, hideFromSearch: !!pref.hideFromSearch };
+        const res = await chrome.runtime.sendMessage({ type: 'FOLDER_PREFS_SET', ids, patch }).catch(() => undefined) as { ok?: boolean; changed?: string[] } | undefined;
+        if (res?.ok && res.changed?.length) applied++; else skipped++;
+    }
+    skipped += Math.max(0, raw.length - MAX_FOLDER_PREFS);
+    return { applied, skipped };
+}
+
+/**
+ * Restore ratings, tags and opened times without overwriting the user's newer
+ * choices: rating and tags only where this device has none; the later opened time.
+ */
+async function importMetadata(raw: unknown): Promise<number> {
+    if (!Array.isArray(raw)) return 0;
+    let applied = 0;
+    for (const item of raw) {
+        const m = sanitizeBackupMeta(item);
+        if (!m) continue;
+        const existing = await storageIndex.get(m.url);
+        const patch: { rating?: number; tags?: string[]; lastOpenedAt?: number } = {};
+        if (m.rating && !existing?.rating) patch.rating = m.rating;
+        if (m.tags?.length && !existing?.tags?.length) patch.tags = m.tags;
+        if (m.lastOpenedAt && m.lastOpenedAt > (existing?.lastOpenedAt ?? 0)) patch.lastOpenedAt = m.lastOpenedAt;
+        if (Object.keys(patch).length === 0) continue;
+        await patchMetadata(m.url, patch);
+        applied++;
+    }
+    return applied;
 }
 
 /** Thrown when the file is not a backup from this extension. */
@@ -89,6 +189,8 @@ export const SETTINGS_SCHEMA: Readonly<Record<string, Validator>> = {
     captureDelay: v => (typeof v === 'number' && Number.isFinite(v) && v >= 100 && v <= 30000 ? Math.round(v) : undefined),
     useActiveTabCapture: bool,
     sidebarHidden: bool,
+    trashExternal: bool,
+    listColumns: v => sanitizeListColumns(v),
     ai_mode: oneOf(['builtin', 'cloud']),
     ai_provider: oneOf(PROVIDERS.map(p => p.id)),
     ai_model: text(200),
@@ -134,7 +236,7 @@ export class BackupManager {
 
         // Extract metadata from the same read instead of a second full-storage fetch
         const META_PREFIX = 'meta_';
-        const allMeta: Record<string, { title?: string; status?: ThumbnailStatus }> = Object.fromEntries(
+        const allMeta: Record<string, { url?: string; title?: string; status?: ThumbnailStatus }> = Object.fromEntries(
             Object.entries(allData)
                 .filter(([k]) => k.startsWith(META_PREFIX))
                 .map(([k, v]) => [k.slice(META_PREFIX.length), v as { title?: string; status?: ThumbnailStatus }])
@@ -161,12 +263,22 @@ export class BackupManager {
             }
         }
 
+        // The user's own fields for every link, previews or not.
+        const metadata: BackupMeta[] = [];
+        for (const [id, v] of Object.entries(allMeta)) {
+            // Keyed by the bookmark URL (the record id), never the captured tab's URL (D0).
+            const m = sanitizeBackupMeta({ ...(v as object), url: id });
+            if (m) metadata.push(m);
+        }
+
         const backupData: BackupData = {
             version: 1,
             kind: 'full',
             timestamp: Date.now(),
             settings,
             thumbnails: exportThumbnails,
+            metadata,
+            folderPrefs: await exportFolderPrefs(),
         };
         return jsonBlob(backupData);
     }
@@ -178,6 +290,7 @@ export class BackupManager {
             kind: 'settings',
             timestamp: Date.now(),
             settings: await exportableSettings(),
+            folderPrefs: await exportFolderPrefs(),
         };
         return jsonBlob(backupData);
     }
@@ -266,9 +379,14 @@ export class BackupManager {
                 }
             }
         }
+        const metadataApplied = kind === 'full' ? await importMetadata(data.metadata) : 0;
+        const prefs = await importFolderPrefs(data.folderPrefs);
         return {
             success: true,
             count,
+            metadataApplied,
+            folderPrefsApplied: prefs.applied,
+            folderPrefsSkipped: prefs.skipped,
             settingsApplied: Object.keys(settings).length,
             settingsSkipped: skipped.length,
             aiProviderHeld,
