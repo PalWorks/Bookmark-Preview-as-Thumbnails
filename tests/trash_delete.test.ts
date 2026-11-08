@@ -38,7 +38,7 @@ describe('TRASH_DELETE', () => {
         const stray = fakeBookmarks.seed('2', 'Moved in', 'https://moved.example/');
         const { service } = makeService();
         const set = chrome.storage.local.set as unknown as ReturnType<typeof vi.fn>;
-        const real = set.getMockImplementation()!;
+        const real = set.getMockImplementation() as (items: Record<string, unknown>) => Promise<void>;
         let moved = false;
         set.mockImplementation((items: Record<string, unknown>) => {
             // While the snapshot is being written, another tab moves a bookmark in.
@@ -71,7 +71,7 @@ describe('TRASH_DELETE', () => {
         const { folder } = seedRecipes();
         const { service } = makeService();
         const set = chrome.storage.local.set as unknown as ReturnType<typeof vi.fn>;
-        const real = set.getMockImplementation()!;
+        const real = set.getMockImplementation() as (items: Record<string, unknown>) => Promise<void>;
         set.mockImplementationOnce(() => Promise.reject(new Error('QUOTA_BYTES quota exceeded')));
         set.mockImplementation(real);
         const res = await service.deleteItems({ ids: [folder.id] });
@@ -151,7 +151,7 @@ describe('TRASH_DELETE', () => {
         const { soup } = seedRecipes();
         const { service } = makeService();
         const set = chrome.storage.local.set as unknown as ReturnType<typeof vi.fn>;
-        const real = set.getMockImplementation()!;
+        const real = set.getMockImplementation() as (items: Record<string, unknown>) => Promise<void>;
         let calls = 0;
         set.mockImplementation((items: Record<string, unknown>) => {
             calls++;
