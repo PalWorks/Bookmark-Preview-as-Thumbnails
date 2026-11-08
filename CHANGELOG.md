@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-11-08T03:30:39+00:00
+
+### Fixed
+
+- **Updates no longer touch saved AI settings.** The update step used to rename every
+  extension-local storage key it did not recognise, which would have removed the saved
+  AI API key on the first update after 1.2.0. It now runs once per storage version and
+  only moves old-format preview records.
+- **AI tags survive a recapture.** Regenerating a preview, a failed capture, a backup
+  import or a manual tag edit no longer overwrites the bookmark's tags. Writes for the
+  same bookmark are applied one after another.
+
+### Security
+
+- **The saved API key stays with its provider.** The key is now tied to the provider
+  (and, for custom or local servers, the server address) it was entered for. If the
+  provider or address changes without the key being re-entered, the key is not sent and
+  AI Settings asks for it again. Keys saved by earlier versions are tied to the current
+  settings during this update.
+
 ## [1.2.0] — 2026-06-03
 
 ### Added

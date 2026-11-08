@@ -4,7 +4,7 @@
 //   • Cloud     — OpenAI / Anthropic / Gemini / Groq / Mistral / xAI / DeepSeek /
 //                 Together / Cerebras / Perplexity / OpenRouter / Ollama / Custom
 
-import { loadAISettings, getDecryptedApiKey, type AIProvider, type AICloudConfig } from './ai_settings_storage';
+import { loadAISettings, getBoundApiKey, type AIProvider, type AICloudConfig } from './ai_settings_storage';
 
 export const AI_TAGS = [
     'Dev', 'Design', 'Finance', 'Shopping', 'News',
@@ -48,7 +48,7 @@ export function friendlyError(err: unknown): string {
 // rate-limit, a single odd response, a transient network blip) is per-item and
 // safe to skip-and-continue. Classifies the normalised friendlyError() text.
 export function isFatalAIError(friendlyMessage: string): boolean {
-    return /invalid or missing api key|access denied|model not found|quota or billing|no api key configured|no model name configured|custom endpoint url not configured|not available|chrome 138/i.test(friendlyMessage);
+    return /invalid or missing api key|access denied|model not found|quota or billing|no api key configured|no model name configured|custom endpoint url not configured|different provider or endpoint|not available|chrome 138/i.test(friendlyMessage);
 }
 
 // The curated list is now a STEER, not a hard whitelist: the model is encouraged
@@ -220,7 +220,10 @@ async function callCloudRaw(
     if (!cloud.model || !cloud.model.trim()) {
         throw new Error('No model name configured. Open Provider Settings to set one.');
     }
-    const apiKey = await getDecryptedApiKey();
+    const { key: apiKey, mismatch } = await getBoundApiKey(cloud.provider, cloud.customUrl);
+    if (mismatch) {
+        throw new Error('Your saved API key was entered for a different provider or endpoint. Re-enter it in Provider Settings.');
+    }
     if (!apiKey && cloud.provider !== 'ollama' && cloud.provider !== 'custom') {
         throw new Error('No API key configured. Open Provider Settings to add one.');
     }

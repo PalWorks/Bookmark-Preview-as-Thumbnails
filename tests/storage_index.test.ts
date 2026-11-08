@@ -165,3 +165,43 @@ describe('StorageIndex', () => {
         await expect(index.clear()).resolves.not.toThrow();
     });
 });
+
+// ── patch (1.2.1 regression: recapture must not drop AI tags) ─────────────────
+
+describe('StorageIndex.patch', () => {
+    const URL_A = 'https://example.com/a';
+
+    it('keeps existing tags when a capture updates title/status', async () => {
+        const index = new StorageIndex();
+        await index.set({ id: URL_A, url: URL_A, title: 'Old', status: 'none', tags: ['Dev', 'News'] });
+        await index.patch(URL_A, { title: 'New', status: 'saved_indexeddb', lastCaptureAt: 5 });
+        expect(localStore[`meta_${URL_A}`]).toEqual({
+            id: URL_A, url: URL_A, title: 'New', status: 'saved_indexeddb', lastCaptureAt: 5, tags: ['Dev', 'News'],
+        });
+    });
+
+    it('creates a full record with defaults when none exists', async () => {
+        const index = new StorageIndex();
+        const rec = await index.patch(URL_A, { tags: ['Dev'] });
+        expect(rec).toEqual({ id: URL_A, url: URL_A, title: '', status: 'none', tags: ['Dev'] });
+    });
+
+    it('serialises concurrent patches for the same id so neither update is lost', async () => {
+        const index = new StorageIndex();
+        await index.set({ id: URL_A, url: URL_A, title: 'T', status: 'none' });
+        await Promise.all([
+            index.patch(URL_A, { tags: ['Dev'] }),
+            index.patch(URL_A, { status: 'saved_indexeddb', lastCaptureAt: 9 }),
+        ]);
+        expect(localStore[`meta_${URL_A}`]).toMatchObject({ tags: ['Dev'], status: 'saved_indexeddb', lastCaptureAt: 9 });
+    });
+
+    it('continues the queue after a failed write', async () => {
+        const index = new StorageIndex();
+        const setSpy = chrome.storage.local.set as unknown as { mockImplementationOnce: (fn: () => Promise<void>) => void };
+        setSpy.mockImplementationOnce(() => Promise.reject(new Error('disk full')));
+        await expect(index.patch(URL_A, { tags: ['A'] })).rejects.toThrow('disk full');
+        await index.patch(URL_A, { tags: ['B'] });
+        expect(localStore[`meta_${URL_A}`]).toMatchObject({ tags: ['B'] });
+    });
+});

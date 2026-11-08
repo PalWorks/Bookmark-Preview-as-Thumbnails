@@ -36,6 +36,39 @@ export class StorageIndex {
         await chrome.storage.local.set({ [this.key(record.id)]: record });
     }
 
+    // Per-id write queue: patch() is read-merge-write, so two patches for the same
+    // URL in this context must not interleave or one would drop the other's fields.
+    private queues = new Map<string, Promise<unknown>>();
+
+    /**
+     * Merge `update` into the stored record (creating it if missing) without
+     * dropping fields the caller did not mention, such as AI `tags` when a
+     * preview is recaptured. Writes for the same id are serialised.
+     */
+    patch(id: string, update: Partial<Omit<MetadataRecord, 'id'>>): Promise<MetadataRecord> {
+        const previous = this.queues.get(id) ?? Promise.resolve();
+        const next = previous
+            .catch(() => undefined)
+            .then(async () => {
+                const existing = await this.get(id);
+                const merged: MetadataRecord = {
+                    id,
+                    url: id,
+                    title: '',
+                    status: 'none',
+                    ...existing,
+                    ...update,
+                };
+                await this.set(merged);
+                return merged;
+            });
+        this.queues.set(id, next);
+        void next.finally(() => {
+            if (this.queues.get(id) === next) this.queues.delete(id);
+        }).catch(() => undefined);
+        return next;
+    }
+
     async remove(id: string): Promise<void> {
         await chrome.storage.local.remove(this.key(id));
     }

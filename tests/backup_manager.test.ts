@@ -194,6 +194,19 @@ describe('BackupManager', () => {
             expect(rec?.base64).toBeFalsy();
         });
 
+        it('keeps existing AI tags when importing a record for the same URL (1.2.1 regression)', async () => {
+            localStore['meta_https://tagged.example'] = {
+                id: 'https://tagged.example', url: 'https://tagged.example', title: 'Old', status: 'none', tags: ['Dev'],
+            };
+            const file = makeBackupFile({
+                thumbnails: [
+                    { id: 'https://tagged.example', url: 'https://tagged.example', title: 'New', image_data: 'data:image/webp;base64,ZmFrZQ==' },
+                ],
+            });
+            await manager.importBackup(file);
+            expect(localStore['meta_https://tagged.example']).toMatchObject({ title: 'New', tags: ['Dev'] });
+        });
+
         it('stores imported thumbnails under thumb_ prefix in storage', async () => {
             const file = makeBackupFile({
                 thumbnails: [

@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Eye, EyeOff, CheckCircle2, Search, Copy, Trash2, ExternalLink, Sparkles, Plus, X, StopCircle, ChevronDown } from 'lucide-react';
 import './AISettingsPage.css';
 import {
-    loadAISettings, saveAISettings, getDecryptedApiKey, saveCustomTags, parseCustomTags, PROVIDERS,
+    loadAISettings, saveAISettings, getBoundApiKey, saveCustomTags, parseCustomTags, PROVIDERS,
     type AIMode, type AIProvider,
 } from '../../lib/ai_settings_storage';
 import { AI_TAGS, validateProviderKey, SEARCH_CAP_BUILTIN, SEARCH_CAP_CLOUD, type AIAvailability } from '../../lib/ai_tagger';
 import { storageIndex } from '../../lib/storage_index';
+import { patchMetadata } from '../../lib/metadata_client';
 
 type KeepPolicy = 'oldest' | 'newest';
 
@@ -159,6 +160,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
     const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
     const [keyModels, setKeyModels] = useState<string[]>([]);
     const [keyMessage, setKeyMessage] = useState('');
+    const [keyBindingMismatch, setKeyBindingMismatch] = useState(false);
 
     // ── Chrome Built-in AI status ─────────────────────────────────────────────
     const [builtinStatus, setBuiltinStatus] = useState<BuiltinStatus>('checking');
@@ -210,8 +212,12 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
             setModel(settings.cloud.model);
             setCustomUrl(settings.cloud.customUrl ?? '');
             if (hasApiKey) {
-                const key = await getDecryptedApiKey();
-                if (!cancelled) setApiKey(key);
+                // Never load (and so never auto-validate) a key against a provider or
+                // endpoint it was not entered for, e.g. after a synced settings change.
+                const { key, mismatch } = await getBoundApiKey(settings.cloud.provider, settings.cloud.customUrl);
+                if (cancelled) return;
+                setApiKey(key);
+                setKeyBindingMismatch(mismatch);
             }
         };
         void load();
@@ -531,15 +537,12 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         });
     };
 
-    // Manual tag edits write straight to storageIndex and notify the popup (via a
+    // Manual tag edits go through the service worker (META_PATCH) and notify the popup (via a
     // TAG_EDITED broadcast) so its filter pills stay in sync.
     const persistTags = async (row: TagRow, newTags: string[]) => {
-        const existing = await storageIndex.get(row.url);
-        if (existing) {
-            await storageIndex.set({ ...existing, tags: newTags });
-        } else {
-            await storageIndex.set({ id: row.url, url: row.url, title: row.title, status: 'none', tags: newTags });
-        }
+        // Routed through the service worker so it serialises with capture and
+        // auto-tag writes for the same URL (no lost updates).
+        await patchMetadata(row.url, { tags: newTags }, row.title);
         setTagRows(prev => prev.map(r => (r.url === row.url ? { ...r, tags: newTags } : r)));
         // Distinct from TAG_UPDATED so the popup syncs filter pills without the
         // batch-progress listener counting a manual edit as a tagged bookmark.
@@ -802,7 +805,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                             className="ai-form-input ai-key-input"
                                             type={keyVisible ? 'text' : 'password'}
                                             value={apiKey}
-                                            onChange={e => setApiKey(e.target.value)}
+                                            onChange={e => { setApiKey(e.target.value); setKeyBindingMismatch(false); }}
                                             placeholder={currentMeta?.requiresKey
                                                 ? currentMeta.keyPlaceholder
                                                 : 'Leave blank if your server needs no key'}
@@ -813,6 +816,11 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                             {keyVisible ? <EyeOff size={15} /> : <Eye size={15} />}
                                         </button>
                                     </div>
+                                    {keyBindingMismatch && (
+                                        <div className="ai-key-feedback ai-key-feedback--invalid" role="status">
+                                            Your saved key was entered for a different provider or endpoint, so it was not used. Enter the key for this provider.
+                                        </div>
+                                    )}
                                     {keyStatus === 'idle' || keyStatus === 'invalid' ? (
                                         <span className="ai-form-hint">
                                             {currentMeta?.requiresKey

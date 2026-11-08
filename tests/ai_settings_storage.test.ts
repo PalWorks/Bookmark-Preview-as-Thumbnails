@@ -60,3 +60,51 @@ describe('saveAISettings trimming', () => {
         expect(key).toBe('sk-clean');
     });
 });
+
+// 1.2.1: the saved key is bound to the provider and endpoint it was entered for,
+// so a changed provider or custom URL (sync, restored backup) cannot redirect it.
+import { getBoundApiKey, apiKeyBinding, bindLegacyApiKey, encryptApiKey } from '../src/lib/ai_settings_storage';
+import { localStore as boundLocal, syncStore as boundSync } from './setup';
+
+describe('API key binding', () => {
+    it('returns the key for the provider it was saved for', async () => {
+        await saveAISettings({ mode: 'cloud', cloud: { provider: 'groq', model: 'm' } }, 'gsk_1');
+        expect(await getBoundApiKey('groq')).toEqual({ key: 'gsk_1', mismatch: false });
+    });
+
+    it('withholds the key when the provider changed', async () => {
+        await saveAISettings({ mode: 'cloud', cloud: { provider: 'groq', model: 'm' } }, 'gsk_1');
+        expect(await getBoundApiKey('custom', 'https://attacker.example')).toEqual({ key: '', mismatch: true });
+    });
+
+    it('withholds the key when a custom endpoint origin changed', async () => {
+        await saveAISettings({ mode: 'cloud', cloud: { provider: 'custom', model: 'm', customUrl: 'https://llm.mine.example/v1' } }, 'k');
+        expect((await getBoundApiKey('custom', 'https://llm.mine.example/v2')).key).toBe('k');
+        expect(await getBoundApiKey('custom', 'https://evil.example/v1')).toEqual({ key: '', mismatch: true });
+    });
+
+    it('binding ignores path for custom endpoints and URL entirely for fixed providers', () => {
+        expect(apiKeyBinding('custom', 'https://h.example/a/b')).toBe('custom|https://h.example');
+        expect(apiKeyBinding('openai', 'https://ignored.example')).toBe('openai|');
+        expect(apiKeyBinding('custom', 'not a url')).toBe('custom|invalid');
+    });
+
+    it('binds a legacy (unbound) key to the current settings once', async () => {
+        boundLocal.ai_api_key_encrypted = await encryptApiKey('legacy_key');
+        boundSync.ai_provider = 'openai';
+        expect(await bindLegacyApiKey()).toBe(true);
+        expect(boundLocal.ai_api_key_binding).toBe('openai|');
+        expect(await bindLegacyApiKey()).toBe(false);
+        expect((await getBoundApiKey('openai')).key).toBe('legacy_key');
+        expect((await getBoundApiKey('anthropic')).mismatch).toBe(true);
+    });
+
+    it('accepts an unbound legacy key before binding runs', async () => {
+        boundLocal.ai_api_key_encrypted = await encryptApiKey('legacy_key');
+        expect(await getBoundApiKey('anthropic')).toEqual({ key: 'legacy_key', mismatch: false });
+    });
+
+    it('reports no mismatch when no key is saved', async () => {
+        expect(await getBoundApiKey('openai')).toEqual({ key: '', mismatch: false });
+    });
+});

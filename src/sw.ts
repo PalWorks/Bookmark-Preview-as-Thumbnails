@@ -6,7 +6,8 @@ import { storageIndex } from './lib/storage_index';
 import { fsAccess } from './lib/fsaccess';
 import { generateErrorImage } from './lib/error_generator';
 import { checkAIAvailability, tagBookmark, invalidateAITemplate, searchBookmarks, friendlyError, isFatalAIError } from './lib/ai_tagger';
-import { loadAISettings } from './lib/ai_settings_storage';
+import { loadAISettings, bindLegacyApiKey } from './lib/ai_settings_storage';
+import { migrateStorageSchema, markFreshInstall, repairMisMigratedKeys } from './lib/storage_migration';
 
 // Service Worker for BookmarksThumbnails
 
@@ -55,6 +56,34 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         batchController?.abort();
         sendResponse({ status: 'stopping' });
         return false;
+    }
+
+    if (message.type === 'META_PATCH') {
+        const { id, update, titleIfNew } = message as {
+            id?: unknown; update?: unknown; titleIfNew?: unknown;
+        };
+        // Only extension pages may write metadata; content scripts run inside
+        // third-party pages.
+        if (!_sender.url?.startsWith(chrome.runtime.getURL(''))) {
+            sendResponse({ ok: false, error: 'META_PATCH rejected: not an extension page' });
+            return false;
+        }
+        if (typeof id !== 'string' || !id || typeof update !== 'object' || update === null) {
+            sendResponse({ ok: false, error: 'Invalid META_PATCH message' });
+            return false;
+        }
+        const patch = { ...(update as Record<string, unknown>) };
+        delete patch.id;
+        storageIndex.get(id)
+            .then(existing => storageIndex.patch(id, existing || typeof titleIfNew !== 'string'
+                ? patch
+                : { title: titleIfNew, ...patch }))
+            .then(() => sendResponse({ ok: true }))
+            .catch((err: unknown) => {
+                console.error('[Metadata] META_PATCH failed', id, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
     }
 
     if (message.type === 'PING') {
@@ -279,8 +308,8 @@ async function processBatchCapture(
                     id: url, url, mime: 'image/jpeg', blob,
                     updatedAt: Date.now(), width: 600, height: 400, sizeBytes: blob.size
                 });
-                await storageIndex.set({
-                    id: url, url, title: 'Navigation Error', status: 'error', lastCaptureAt: Date.now()
+                await storageIndex.patch(url, {
+                    title: 'Navigation Error', status: 'error', lastCaptureAt: Date.now()
                 });
                 chrome.runtime.sendMessage({ type: 'THUMBNAIL_UPDATED', url, id: url }).catch(() => { });
             } else {
@@ -306,8 +335,8 @@ async function processBatchCapture(
                     id: url, url, mime: 'image/jpeg', blob,
                     updatedAt: Date.now(), width: 600, height: 400, sizeBytes: blob.size
                 });
-                await storageIndex.set({
-                    id: url, url, title: 'Capture Error', status: 'error', lastCaptureAt: Date.now()
+                await storageIndex.patch(url, {
+                    title: 'Capture Error', status: 'error', lastCaptureAt: Date.now()
                 });
                 chrome.runtime.sendMessage({ type: 'THUMBNAIL_UPDATED', url, id: url }).catch(() => { });
             } catch (e) {
@@ -404,9 +433,8 @@ async function persistCapture(
         filename: savedFilename,
     });
 
-    await storageIndex.set({
-        id,
-        url: id,
+    // patch, not set: a recapture must keep the bookmark's AI tags.
+    await storageIndex.patch(id, {
         title: tab.title || 'Untitled',
         status,
         lastCaptureAt: Date.now(),
@@ -521,8 +549,7 @@ async function processAutoTag(bookmarks: Array<{ url: string; title: string }>):
             try {
                 const tags = await tagBookmark(title, url, autoTagController!.signal);
                 const existing = await storageIndex.get(url);
-                if (existing) await storageIndex.set({ ...existing, tags });
-                else await storageIndex.set({ id: url, url, title, status: 'none', tags });
+                await storageIndex.patch(url, existing ? { tags } : { title, tags });
                 count++; autoTagDone++; consecutiveFails = 0;
                 chrome.runtime.sendMessage({ type: 'TAG_UPDATED', url, tags }).catch(() => { });
             } catch (err) {
@@ -572,30 +599,23 @@ async function processAutoTag(bookmarks: Array<{ url: string; title: string }>):
 
 // ─── Installation & migration ─────────────────────────────────────────────────
 
-// Migrate old storage keys (raw URL keys) to the new meta_ prefix scheme
-async function migrateStorageIndexKeys(): Promise<void> {
-    const all = await chrome.storage.local.get(null);
-    const toMigrate = Object.entries(all).filter(
-        ([k]) => !k.startsWith('thumb_') && !k.startsWith('meta_') && k !== 'hasSeenWelcome'
-    );
-    if (toMigrate.length === 0) return;
-    const toSet: Record<string, unknown> = {};
-    const toRemove: string[] = [];
-    for (const [k, v] of toMigrate) {
-        toSet[`meta_${k}`] = v;
-        toRemove.push(k);
-    }
-    await chrome.storage.local.set(toSet);
-    await chrome.storage.local.remove(toRemove);
-    console.log(`[StorageIndex] Migrated ${toMigrate.length} metadata key(s) to meta_ prefix.`);
-}
+// Undo the pre-1.2.1 blanket key rename on every worker start (cheap, idempotent).
+repairMisMigratedKeys()
+    .then(repaired => { if (repaired.length) console.log('[StorageMigration] Repaired keys:', repaired); })
+    .catch(err => console.error('[StorageMigration] Repair failed:', err));
 
 chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === 'install') {
         chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
+        markFreshInstall().catch(err => console.error('[StorageMigration] Marker write failed:', err));
     }
     if (details.reason === 'update') {
-        migrateStorageIndexKeys().catch(err => console.error('[StorageIndex] Migration failed:', err));
+        // Schema-gated and shape-checked: only legacy raw-URL metadata records move.
+        repairMisMigratedKeys()
+            .then(() => migrateStorageSchema())
+            .then(n => { if (n) console.log(`[StorageMigration] Migrated ${n} legacy metadata key(s).`); })
+            .then(() => bindLegacyApiKey())
+            .catch(err => console.error('[StorageMigration] Update migration failed:', err));
     }
     chrome.runtime.setUninstallURL('https://palworks.github.io/Bookmark-Preview-as-Thumbnails/uninstall-feedback.html');
 });

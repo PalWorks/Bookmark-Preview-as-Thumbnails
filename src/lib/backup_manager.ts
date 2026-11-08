@@ -146,8 +146,8 @@ export class BackupManager {
                         // Restore the metadata record too, otherwise imported
                         // thumbnails have no status and features that read the
                         // index (e.g. "Regenerate Failed") can't see them.
-                        await storageIndex.set({
-                            id: t.id,
+                        // patch keeps any AI tags already stored for this URL.
+                        await storageIndex.patch(t.id, {
                             url: t.url,
                             title: t.title || '',
                             status: t.status ?? (blob ? 'saved_indexeddb' : 'none'),
