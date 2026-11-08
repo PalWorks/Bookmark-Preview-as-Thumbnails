@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // 1.5.0: Undo for rename and for Cut and Paste, in the real App.
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup, configure } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, configure, waitFor } from '@testing-library/react';
 import App from '../../src/popup/App';
 import { fakeBookmarks } from '../fakes/chrome_bookmarks';
 import { connectTrash } from '../sw_bridge';
@@ -51,7 +51,11 @@ describe('Undo for rename and move in the App', { timeout: 20000 }, () => {
         render(<App />);
         await menu('Beta', 'Rename');
         await screen.findByText("Renamed to 'B2'.");
-        fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+        // The toast attaches its Ctrl+Z listener in an effect; press again until it is handled.
+        await waitFor(() => {
+            fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+            expect(screen.queryByText("Renamed to 'B2'.")).toBeNull();
+        });
         await screen.findByText("Name changed back to 'Beta'.");
         expect(fakeBookmarks.titlesIn('1')[1]).toBe('Beta');
     });
