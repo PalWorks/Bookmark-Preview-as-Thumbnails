@@ -163,8 +163,10 @@ SW messages (listener returns `true` synchronously):
   reuse an existing child of the resolved parent with the same title, and record the mapping
   in `restoredIds`, so two roots from one missing folder land in one recreated copy); (c) the saved `scope.rootId`
   if it still exists; (d) a permanent folder whose `folderType` and `syncing` match the saved
-  scope; (e) the permanent folder whose title equals `ancestors[0].title`; (f) fail with
-  "Original location no longer exists" and leave the entry in Trash. Never a hard-coded id.
+  scope; (e) otherwise fail closed: mark `failed` with "Original location no longer exists"
+  and offer a **Restore to...** folder picker that names whether the chosen folder syncs. A
+  title match is never used to choose a scope, so a local bookmark can never be moved into a
+  synced account folder automatically. Never a hard-coded id.
   An operation restores its roots in ascending original `index`; children are created parents
   first in saved order, `index` clamped to the parent's current child count. Exact position is
   best effort when other siblings changed meanwhile. `restoredIds` is checkpointed after each
@@ -174,8 +176,13 @@ SW messages (listener returns `true` synchronously):
   restart costs at most one extra capture). Partial failure leaves `failed` with
   `restoredIds`, shown in Trash with the error and a **Retry** button that continues from the
   checkpoint instead of duplicating.
-- `TRASH_EMPTY {}` and `TRASH_DISCARD { entryId }` → delete entries. Never deletes
-  `thumb_*`/`meta_*` (another bookmark may share the URL).
+- `TRASH_EMPTY {}` and `TRASH_DISCARD { entryId }` → delete entries, then purge `thumb_<url>`
+  and `meta_<url>` for every URL in the discarded entries that no live bookmark still uses
+  (checked with `chrome.bookmarks.search({ url })`), so "permanently delete" really removes the
+  cached preview. URLs still bookmarked elsewhere keep their assets.
+- Every `TRASH_*` handler rejects messages whose `sender.tab` is set and whose `sender.url` is not
+  an extension page (content scripts run inside third-party pages). Trash logic lives in
+  `src/sw/trash.ts`; `sw.ts` only routes.
 
 `chrome.bookmarks.onRemoved` at SW module scope, registered only when
 `!chrome.extension.inIncognitoContext` (bookmark events fire in both split contexts; one
@@ -240,8 +247,8 @@ missing; also run the purge when the Trash view opens. Purge removes entries pas
   still identifies the bookmark. No third branch. Always on; no setting.
 - **Sidebar toggle (6).** Button at the left of `TopBar` with label "Folders" and
   `aria-expanded`; hides or shows the sidebar and lets the main content take the full width.
-  State `sidebarHidden` in `chrome.storage.sync` via `useSettings`. A narrow-screen overlay
-  drawer is deferred to 1.4.0.
+  State `sidebarHidden` in `chrome.storage.sync` via `useSettings`. Below 720px the sidebar is a
+  Folders overlay drawer (see Phase 2, Pass 1), so the UI works at 360px.
 - **Delete button (8).** Trash icon button with `aria-label="Delete <title>"` beside the
   existing more-options button on tiles, list rows and folder tiles; `stopPropagation` on click
   and Enter so the tile does not open. Shown on hover and focus for pointer devices, always on
@@ -303,13 +310,17 @@ Website copy (feature list) updates in `website/` after the store approves.
 
 ## Next Steps
 
-1. Prerequisites: migration fix, `storageIndex.patch`, tests for both.
-2. `trash_store.ts` plus SW `TRASH_*` handlers, `onRemoved` capture, alarms, auto-capture guard.
-3. `useTrash`, `UndoToast`, `TrashView`; reroute context menu and Duplicate Finder.
-4. Reactive `useBookmarkTree`.
-5. Parity items 1, 2, 3, 6, 8, 10.
-6. Tests per Success Criteria, lint, build, manual run in Chrome, CHANGELOG, then /gstack-review
-   and /gstack-ship.
+Superseded by the Final Gate outcome at the end of this document (release split, external capture
+removed). Build order:
+
+1. **1.2.1 hotfix** (branch `hotfix/1.2.1`): schema-gated migration with install marker and AI-key repair;
+   `storageIndex.patch` with per-key queue used by capture, auto-tag and import; `META_PATCH` for popup tag
+   writes; API key bound to provider and endpoint origin; import never changes provider or endpoint while
+   a key is saved; regression tests for all of these.
+2. **1.3.0** (branch `release/1.3.0`, rebased on 1.2.1): Chrome test fakes; `src/sw/trash.ts` coordinator
+   (extension deletes only); `useTrash`, `UndoToast`, `TrashView`, `FolderPicker`; Duplicate Finder and
+   context menu rerouted; reactive `useBookmarkTree`; parity items 1, 2, 3, 6, 8, 10; 360px layout and
+   accessibility; settings-only backup; CI bundle check; CHANGELOG; `/gstack-review`, `/gstack-ship`.
 
 ## What I noticed about how you think
 
@@ -319,3 +330,835 @@ Website copy (feature list) updates in `website/` after the store approves.
   you prefer fixing the class of problem over the visible symptom.
 - "No hurries for the reply. We'll build solution first." You want the answer to the user to
   carry a shipped release, not a promise.
+
+<!-- /autoplan restore point: ~/.gstack/projects/PalWorks-Bookmark-Preview-as-Thumbnails/release-1.3.0-autoplan-restore-20261108-084015.md -->
+
+# Autoplan Review
+
+Run 2026-11-08T03:12:00+00:00 on branch release/1.3.0. Mode: SELECTIVE EXPANSION. UI scope: yes.
+DX scope: no (end-user browser extension; no API, CLI or SDK surface).
+
+## Phase 1: CEO Review
+
+### 0A. Premise challenge
+
+| Premise | Assessment |
+|---|---|
+| P1 parity gaps are the right problem | Partly. Evidence is one daily user's email; no review, rating or uninstall-survey data cited (`setUninstallURL` feeds a form whose results were not read). Accepted for an open-source side project, with task T0 to read that feedback before the reply. |
+| P2 no delete button without Trash | Valid. `useContextMenu.ts:68-80` and `AISettingsPage.tsx:470-505` are permanent today. |
+| P3 restore limits acceptable | Valid for extension deletes. Weak for sync-driven external removals (see Challenge 2). |
+| P4 no new install warning | Valid, verified in Chrome docs for `favicon` (suppressed by `tabs`) and `alarms` (no warning). |
+| P5 30-day retention | Valid, but "Empty trash" must also purge cached previews and metadata no live bookmark uses (privacy, decision 7). |
+| P6 prerequisites in scope | Valid. Both voices say they should ship ahead of the feature work (Challenge 1). |
+
+### 0B. Existing code leverage
+
+| Sub-problem | Existing code | Reuse |
+|---|---|---|
+| Recreate a subtree | `useClipboard.ts:30` recursive create for paste | Extract to `src/lib/bookmark_tree.ts`, used by paste and restore, made sequential with explicit `index` |
+| Bookmark tree in memory | `useBookmarkTree` `getTree` result | Deep counts derived from it in render |
+| Settings export/import | `backup_manager.ts` sync read plus 4-key allowlist | Extend allowlist, add settings-only kind |
+| Metadata per URL | `storageIndex` (`meta_<url>`) | Add `patch`; tags and previews survive restore |
+| Error image for failed capture | `error_generator.ts` | Unchanged |
+| Message routing in SW | `sw.ts` listener returning `true` | Add `TRASH_*` cases, handlers in new module |
+| Settings persistence | `useSettings` (sync) | Add `sidebarHidden` |
+
+### 0C. Dream state
+
+```
+CURRENT (1.2.0)                 THIS PLAN (1.3.0)                   12-MONTH IDEAL
+separate tab; flat counts;  ->  safe delete with Undo + Trash;  ->  the bookmark manager itself
+permanent deletes; "No          site icons; deep counts;            (chrome://bookmarks override),
+Preview"; update wipes          sidebar toggle; settings            visual, private, local-first,
+AI keys; recapture drops tags   backup; data-loss bugs fixed        recoverable, multi-select,
+                                                                    columns, search exclusions
+```
+
+Dream state delta: this plan moves toward the ideal on safety and recognisability. It leaves
+navigation (override), bulk selection, columns and search exclusions to 1.4.0 and later.
+
+### 0C-bis. Implementation alternatives
+
+Decided during office hours: A (popup trash) rejected, B (SW trash) chosen, C (undo-only)
+rejected. The voices add a fourth framing, B-minus: SW trash for extension deletes only, no
+external capture (Challenge 2).
+
+### 0D. Selective expansion
+
+Complexity check: about 20 files touched and 5 new modules (`trash_store`, `useTrash`,
+`UndoToast`, `TrashView`, `BookmarkPreview`). Over the 8-file smell line and near the 15-file
+REDUCTION trigger, which is why both voices propose the split (Challenge 1).
+
+Expansion candidates (auto-decided, see audit trail):
+
+| # | Candidate | Effort | Decision |
+|---|---|---|---|
+| E1 | Delete key on a focused tile or row deletes with Undo | S | Accepted (blast radius, P2) |
+| E2 | Deep count on folder tiles in grid and list | S | Accepted (blast radius, P2) |
+| E3 | Override `chrome://bookmarks` so Ctrl+Shift+O opens this UI | M | Deferred to TODOS (outside blast radius; policy and prompt unverified) |
+| E4 | Undo for rename and move, not only delete | M | Deferred to TODOS |
+| E5 | Positioning line and one outcome signal in release notes | S | Accepted |
+
+### 0E. Temporal interrogation
+
+- Hour 1: schema marker and `patch` land first; every later module depends on them.
+- Hour 2-3: restore parent lookup and per-node pending keys are the ambiguous core; resolved in the
+  design doc rounds 1-2.
+- Hour 4-5: Duplicate Finder rerouting touches a 1254-line component; reroute only, no refactor.
+- Hour 6+: the Chrome-only open questions (removeInfo descendants, folderType, incognito storage)
+  need a manual test session on real Chrome; tests cannot answer them.
+
+### 0F. Mode: SELECTIVE EXPANSION (feature iteration on an existing system).
+
+### CEO dual voices
+
+CODEX SAYS (CEO, strategy challenge), summary of 7 findings:
+1. Critical: "fearless delete" overpromises; external recovery can lose descendants and drops roots
+   past 200. Guarantee extension deletes only at first.
+2. Critical: the title-match restore fallback can move local bookmarks into synced storage. Fail
+   closed when scope is unknown and let the user pick a destination.
+3. High: one user's list became strategy; validate the dominant failed task first.
+4. High: smaller bets (extension-only recovery, recoverable bulk cleanup) not compared.
+5. High: urgent correctness fixes are tied to a large release; ship a corrective release first.
+6. High: Empty trash keeps cached thumbnails and metadata; define real deletion.
+7. Medium: no competitive thesis or outcome threshold.
+
+CLAUDE SUBAGENT (CEO, strategic independence), summary of 9 findings:
+1. Critical: ship a 1.2.1 hotfix (migration fix plus `patch`) before 1.3.0.
+2. High: cut external capture from 1.3.0; it rests on three untested Chrome behaviours.
+3. High: sync sign-out fires `onRemoved` for account bookmarks; Restore could duplicate them.
+4. High: unconsidered 10x frame, override `chrome://bookmarks`.
+5. Medium: one-user premise; read uninstall feedback and reviews.
+6. Medium: Chrome's own manager has Undo, not a 30-day Trash; parity needs less.
+7. Medium: no competitor positioning (Raindrop.io, Toby).
+8. Medium: no outcome metric.
+9. Medium: email items 4, 5, 7, 9 not recorded as deferred.
+
+```
+CEO DUAL VOICES — CONSENSUS TABLE:
+═══════════════════════════════════════════════════════════════
+  Dimension                           Claude  Codex  Consensus
+  ──────────────────────────────────── ─────── ─────── ─────────
+  1. Premises valid?                   partly  partly CONFIRMED (partly)
+  2. Right problem to solve?           partly  partly CONFIRMED (partly)
+  3. Scope calibration correct?        no      no     CONFIRMED (no: split + cut external)
+  4. Alternatives sufficiently explored?partly no     DISAGREE (degree) -> taste
+  5. Competitive/market risks covered? no      no     CONFIRMED (no)
+  6. 6-month trajectory sound?         partly  partly CONFIRMED (partly)
+═══════════════════════════════════════════════════════════════
+```
+
+User Challenges queued for the final gate: Challenge 1 (split into 1.2.1 hotfix plus 1.3.0) and
+Challenge 2 (drop external capture from 1.3.0). Both models raised each independently.
+
+### Section 1: Architecture
+
+```
+            popup (index.html, React)                         service worker (sw.ts)
+ ┌──────────────────────────────────────────┐        ┌───────────────────────────────────────┐
+ │ App.tsx ─ composes hooks                  │        │ message router (return true)          │
+ │  useBookmarkTree ◀─ bookmarks.on* events  │        │  ├─ BATCH_CAPTURE ... (existing)      │
+ │  useTrash ──────── TRASH_* messages ──────┼──────▶ │  └─ TRASH_* ─▶ sw/trash.ts (NEW)      │
+ │  UndoToast, TrashView (NEW)               │        │       ├─ trash_store.ts (NEW, shared) │
+ │  BookmarkPreview (NEW) ─▶ /_favicon/      │        │       ├─ bookmark_tree.ts (NEW,shared)│
+ │  Sidebar(deep counts) TopBar(toggle)      │        │       └─ storageIndex.patch (NEW)     │
+ │  AISettingsPage(dup finder ─▶ useTrash)   │        │ bookmarks.onRemoved ─▶ external entry │
+ │  backup_manager (allowlist, settings-only)│        │ alarms 'trash-purge' ─▶ purge          │
+ └───────────────┬──────────────────────────┘        │ onInstalled ─▶ schema-gated migration │
+                 │ storage.onChanged (trash_v1_*)     └──────────────┬────────────────────────┘
+                 └──────────────── chrome.storage.local ◀────────────┘
+                    thumb_<url>  meta_<url>  trash_v1_<id>  trash_pending_<nodeId>
+                    trash_ext_op  storage_schema_version
+```
+
+Trash state machine:
+
+```
+           TRASH_DELETE                 remove ok                 TRASH_RESTORE
+ (none) ──────────────▶ prepared ───────────────▶ deleted ─────────────────▶ restoring
+             │ persist fails            │ remove fails                     │     │
+             ▼                          ▼                                  ok│     │fail
+         (nothing removed,        (entry deleted,                          ▼     ▼
+          error to UI)             error to UI)                       restored  failed ──Retry──▶ restoring
+                                                                     (10 min)     │
+                                                     purge after expiresAt ◀──────┴── discard/Empty
+ Invalid: deleted→prepared, restored→restoring (no-op guard), failed→deleted.
+```
+
+Findings, auto-decided:
+- `sw.ts` is already 601 lines; trash logic goes in `src/sw/trash.ts`, `sw.ts` only routes (P5).
+- TRASH_* handlers must reject senders that are not extension pages (`sender.tab` with a non-extension
+  URL), since content scripts run inside third-party pages (P1, security).
+- Rollback: Chrome Web Store cannot downgrade. A rollback is a new upload (1.3.1) of the old UI code
+  that must keep the fixed, schema-gated migration, or the old blanket rename would destroy
+  `trash_*` keys. Recorded in Section 9.
+
+### Section 2: Error and Rescue Registry
+
+| Codepath | What can go wrong | Rescued? | Action | User sees |
+|---|---|---|---|---|
+| TRASH_DELETE validate | id missing (already deleted, double click) | Y | skip id, report | Toast "Already deleted" |
+| | protected or managed node | Y | reject whole op | "Can't delete <title>: managed by your organisation" / "permanent folder" |
+| TRASH_DELETE persist | storage write fails (disk, quota) | Y | abort, nothing removed | "Couldn't save to Trash, nothing was deleted" |
+| TRASH_DELETE remove | `remove` rejects | Y | delete entry, pending keys | "Couldn't delete <title>" |
+| TRASH_RESTORE parent | no parent resolvable, or scope unknown | Y | leave in Trash, `failed` | "Original location no longer exists" + destination picker (decision 6) |
+| TRASH_RESTORE create | `create` rejects mid-tree | Y | checkpointed `failed` | Error + Retry |
+| TRASH_RESTORE repeat | Undo pressed twice | Y | `restored`/`restoring` no-op | Nothing |
+| onRemoved external | `removeInfo.node` absent | Y | skip | Nothing |
+| onRemoved external | storage write fails | N ← GAP | log `[Trash]` error | Silent, acceptable best effort; logged |
+| purge alarm | alarm missing after update | Y | re-create on SW start | Nothing |
+| migration | marker read fails | Y | do not migrate, log | Nothing |
+| backup import | bad JSON, wrong types, unknown keys | Y | ignore key, count | "Imported N settings, skipped M" |
+| favicon | unknown site | n/a | generic globe | Globe + domain |
+| SW message | SW asleep or restarting | Y | `sendMessage` wakes SW; popup retries once on "Receiving end does not exist" | Toast error after 2 failures |
+
+The one GAP (external write failure) is accepted as best effort and logged, with the UI copy saying
+outside deletions are recorded when possible.
+
+### Section 3: Security and threat model
+
+| Threat | Likelihood | Impact | Mitigated? |
+|---|---|---|---|
+| Content script or page triggers TRASH_EMPTY | Low | High | Yes, after the sender check above |
+| Restore moves local bookmarks into a synced account | Med | High | Yes, after decision 6: fail closed when scope is unknown |
+| Tampered backup injects settings (e.g. `ai_custom_url` pointing at attacker host) | Low | Med | Partly: types validated; custom URL kept only if `https:` with no userinfo or query; surfaced in AI Settings for review |
+| Trash keeps deleted URLs and previews after Empty | Med | Med | Yes, after decision 7: Empty purges `thumb_`/`meta_` for URLs no live bookmark uses |
+| API key leaves via settings export | Low | High | Yes: credential keys never in allowlist; test asserts it |
+| New dependency risk | n/a | n/a | No new packages |
+
+### Section 4: Data flow and interaction edge cases
+
+```
+ click Delete ─▶ useTrash.deleteItems ─▶ TRASH_DELETE ─▶ validate ─▶ snapshot+pending ─▶ remove ─▶ deleted
+      │               [SW asleep?]          [sender?]     [gone?]      [write fail?]      [fail?]
+      └─▶ UndoToast ◀── {operationId} ◀──────────────────────────────────────────────────────┘
+                 Undo ─▶ TRASH_RESTORE ─▶ resolve parent ─▶ create in order ─▶ restored
+                                          [scope unknown?]  [partial?]         [repeat?]
+```
+
+| Interaction | Edge case | Handled? | How |
+|---|---|---|---|
+| Delete button | double click | Y | second id already gone, skipped |
+| | delete while its capture is running | Y | capture may write a preview for a deleted URL; harmless, purged by Empty if unused |
+| | delete the folder being viewed | Y | navigate to nearest ancestor |
+| Undo toast | navigate to another folder | Y | toast persists across navigation; Trash keeps the entry after it closes |
+| | two quick deletes | Y | toast shows the latest; earlier stays in Trash |
+| | Undo while restoring | Y | `restoring` guard |
+| Trash view | zero entries | Y | empty state copy |
+| | 2,000 entries | Y | render first 50 operations, "Show more" |
+| | entry expires while open | Y | storage.onChanged removes row |
+| External capture | sync wipe of 5,000 bookmarks | Y | grouped, 200-root cap |
+| Settings import | file from 1.2.0 full backup | Y | accepted, settings part only applied |
+
+### Section 5: Code quality
+
+- DRY: subtree creation exists in `useClipboard.ts:30`; extract to `src/lib/bookmark_tree.ts` and use in
+  paste and restore (P4). Accepted.
+- Naming: `trash_store` (storage), `sw/trash` (service), `useTrash` (UI) keep layers distinct. OK.
+- Over-engineering: external capture machinery (pending keys, ext-op record, 200 cap) is the heaviest
+  part; see Challenge 2.
+- `AISettingsPage.tsx` (1254 lines): reroute three delete calls only; no refactor in this release.
+
+### Section 6: Test review
+
+```
+NEW UX FLOWS: delete (button, menu, Delete key, dup finder) -> Undo; Trash restore/discard/empty;
+  sidebar toggle; settings-only export/import
+NEW DATA FLOWS: snapshot -> remove; restore -> create; external onRemoved -> entry; purge
+NEW CODEPATHS: schema-gated migration; storageIndex.patch; parent lookup (a-f); sender check;
+  deep count; faviconUrl; allowlist validation
+NEW ASYNC: alarms purge; onRemoved grouping queue
+NEW ERROR PATHS: Section 2 rows
+```
+
+| Item | Type | Happy | Failure | Edge |
+|---|---|---|---|---|
+| migration | unit | 1.2.0 store with AI keys keeps them | marker read throws | fresh install sets marker |
+| patch | unit | recapture keeps tags | missing record creates one | concurrent patches |
+| TRASH_DELETE | unit (chrome mock) | folder tree snapshot + removed | persist fails, nothing removed | one protected id rejects op |
+| TRASH_RESTORE | unit | tree back in order, same titles/urls | create fails mid-tree, Retry continues | parent gone, ancestor recreated once |
+| external capture | unit | grouped entry | node absent | 300 removals capped at 200 |
+| purge | unit | expired gone | none expired | orphan previews purged on Empty only |
+| backup | unit | round trip | tampered types | API key never exported |
+| deep count | unit | nested counts | empty folder | 10k nodes under 50 ms |
+| UI | component (jsdom) | Undo toast restores | SW error toast | Ctrl+Z ignored in input |
+
+2am-Friday test: restore of a 3-level folder after SW restart between create calls continues without
+duplicates. Chaos test: kill the SW (mock rejection) at every await in delete and restore.
+
+### Section 7: Performance
+
+- `storageIndex.getAll()` reads all local storage including base64 previews. `useTrash` must list keys
+  with `chrome.storage.local.getKeys()` (Chrome 130+) then fetch `trash_v1_*` only, falling back to
+  `get(null)` (accepted).
+- Deep counts: one O(n) pass per tree change; fine at 10k nodes.
+- Purge: iterates trash keys only; daily.
+
+### Section 8: Observability
+
+No telemetry (privacy promise). Every trash path logs `[Trash]` with operation id, ids and error;
+`failed` entries carry `error` visible in the Trash view; that is enough to reconstruct a user report
+from a console screenshot.
+
+### Section 9: Deployment and rollout
+
+Order: build, scan for keys and source maps, permission-warning gate, upload, Chrome Web Store review.
+Old and new code never run together except across split incognito, handled. Rollback is a forward
+upload that keeps the fixed migration. Post-deploy: install from the store on a clean profile, confirm
+version, confirm a saved AI key survives the update from 1.2.0.
+
+### Section 10: Long-term trajectory
+
+Reversibility 4/5 (trash keys are versioned and inert if the UI is removed). Debt: AISettingsPage size;
+external capture semantics. The trash journal is a platform for Undo of rename and move later (E4).
+
+### Section 11: Design and UX
+
+Covered in Phase 2.
+
+### NOT in scope (1.3.0)
+
+| Item | Why |
+|---|---|
+| Exclude folders from search (email item 5) | 1.4.0 |
+| List columns: last opened via `dateLastUsed`, created, rating; visit count needs `history` (email item 7) | 1.4.0 |
+| Range multi-select (email item 9) | 1.4.0, needs selection model |
+| Per-folder colours (email item 2, part) | 1.4.0 |
+| `chrome://bookmarks` override (E3) | TODOS, policy check first |
+| Undo for rename and move (E4) | TODOS |
+
+### What already exists
+
+See 0B. The plan reuses tree loading, storage index, backup manager, settings hook and paste recursion,
+and builds new only the trash service, its UI and the preview component.
+
+### CEO completion summary
+
+```
++====================================================================+
+|            MEGA PLAN REVIEW — COMPLETION SUMMARY                   |
++====================================================================+
+| Mode selected        | SELECTIVE EXPANSION                         |
+| System Audit         | 3 verified defects; 110 tests; no TODO marks|
+| Step 0               | 6 premises; 2 user challenges queued        |
+| Section 1  (Arch)    | 3 issues                                    |
+| Section 2  (Errors)  | 14 paths mapped, 1 GAP (accepted, logged)   |
+| Section 3  (Security)| 5 threats, 2 High impact, all mitigated     |
+| Section 4  (Data/UX) | 11 edge cases mapped, 0 unhandled           |
+| Section 5  (Quality) | 2 issues                                    |
+| Section 6  (Tests)   | Diagram produced, 9 test groups specified   |
+| Section 7  (Perf)    | 1 issue                                     |
+| Section 8  (Observ)  | 0 gaps                                      |
+| Section 9  (Deploy)  | 1 risk (rollback must keep migration)       |
+| Section 10 (Future)  | Reversibility 4/5, debt items 2             |
+| Section 11 (Design)  | Deferred to Phase 2                         |
++--------------------------------------------------------------------+
+| NOT in scope         | written (7 items)                           |
+| What already exists  | written                                     |
+| Dream state delta    | written                                     |
+| Error/rescue registry| 14 paths, 0 CRITICAL GAPS                   |
+| Failure modes        | see Phase 3 registry                        |
+| TODOS.md updates     | 2 items (E3, E4)                            |
+| Scope proposals      | 5 proposed, 3 accepted                      |
+| Outside voice        | ran (codex + claude)                        |
+| Lake Score           | 9/10 recommendations chose complete option  |
+| Diagrams produced    | architecture, state machine, data flow      |
+| Unresolved decisions | 2 user challenges (final gate)              |
++====================================================================+
+```
+
+<!-- AUTONOMOUS DECISION LOG -->
+## Decision Audit Trail
+
+| # | Phase | Decision | Classification | Principle | Rationale | Rejected |
+|---|-------|----------|-----------|-----------|----------|----------|
+| 1 | CEO | Mode SELECTIVE EXPANSION | Mechanical | context default | iteration on existing system | EXPANSION, HOLD |
+| 2 | CEO | Accept E1 Delete key | Mechanical | P2 | blast radius, S | skip |
+| 3 | CEO | Accept E2 deep count on folder tiles | Mechanical | P2 | blast radius, S | skip |
+| 4 | CEO | Defer E3 bookmarks override | Mechanical | P3 | outside radius, unverified policy | add now |
+| 5 | CEO | Defer E4 undo rename/move | Mechanical | P3 | M effort, new scope | add now |
+| 6 | CEO | Restore fails closed when scope unknown; user picks destination | Mechanical | P1 security | both voices: privacy breach risk | title-match fallback (step e) |
+| 7 | CEO | Empty trash purges previews/meta no live bookmark uses | Mechanical | P1 | Codex: retention trust gap | keep cache |
+| 8 | CEO | Trash service in `src/sw/trash.ts` | Mechanical | P5 | sw.ts already 601 lines | inline in sw.ts |
+| 9 | CEO | Sender check on TRASH_* | Mechanical | P1 security | content scripts in third-party pages | none |
+| 10 | CEO | Extract `bookmark_tree.ts` from useClipboard | Mechanical | P4 DRY | same recursion twice | duplicate |
+| 11 | CEO | useTrash lists via `getKeys` | Mechanical | P3 | avoid reading all base64 | get(null) |
+| 12 | CEO | Add positioning line + outcome signal + deferral table | Mechanical | P1 | both voices | none |
+| 13 | CEO | Split release 1.2.1 + 1.3.0 | USER CHALLENGE | both voices | data-loss fix should not wait | (gate) |
+| 14 | CEO | Drop external capture from 1.3.0 | USER CHALLENGE | both voices | 3 untested Chrome behaviours; sync risk | (gate) |
+| 15 | CEO | Alternatives depth (Codex "no" vs Claude "partly") | Taste | P6 | approach chosen by user in office hours | reopen |
+| 16 | Design | Add 360px layout and Folders drawer to 1.3.0 | Mechanical | P1 + owner rule | both voices critical; owner mandates mobile first | defer to 1.4.0 |
+| 17 | Design | Toast, restore feedback, picker, Trash row, Empty dialog specs | Mechanical | P5 structural | missing states | leave to implementer |
+| 18 | Design | Trash badge counts bookmarks | Mechanical | P5 | both voices | count operations |
+| 19 | Design | Drop per-entry discard in 1.3.0 | Mechanical | P5 | one irreversible path only | typed confirm per entry |
+| 20 | Design | Remove merge-all confirm(), use Undo toast | Mechanical | P1 | both voices; contradicts recovery | keep confirm |
+| 21 | Design | Semantic buttons, focus ring, 40px targets, focus rules | Mechanical | P1 owner rule | both voices | none |
+| 22 | Design | Minimal colour token set for new components only | Mechanical | P3 | no tokens exist; full migration too big | migrate all CSS |
+| 23 | Design | Delete: always-visible icon on tiles, text label elsewhere | Taste (T-D1) | P5 | Codex wants visible text label everywhere; dense grid argues icon | text label on tiles |
+
+## Phase 2: Design Review
+
+Classifier: OPERATE (app UI). No DESIGN.md; universal principles plus the owner's UX rules apply.
+Visual mockups skipped in autoplan (incremental changes to an existing UI; `/gstack-design-review`
+runs on the built UI before ship).
+
+### Step 0
+
+Initial design completeness: 5/10. The service layer is precise; screens are not. A 10 for this plan
+specifies the 360px layout, every toast and Trash state, the restore picker, focus movement and
+target sizes. Existing leverage: sidebar tree styling, `.more-options-btn`, `ContextMenu`, theme
+classes (`.theme-dark`), `WelcomeModal` (dialog pattern to reuse for picker and Empty confirmation).
+Existing debt found: only 2 `var(--)` uses in all CSS, no `@media` rules, no `:focus-visible`, clickable
+`div`s in Sidebar and ContextMenu, `.more-options-btn` about 24px.
+
+### Design dual voices
+
+CLAUDE SUBAGENT (design, independent), 10 findings: 360px layout impossible as specified (critical);
+Duplicate Finder merge-all keeps its "cannot be undone" `confirm()` (`AISettingsPage.tsx:495`); toast
+rules undefined for rapid deletes, pause, dismiss, multi-item and error wording; no restore success
+feedback; picker and failed row undefined; Trash breaks one-primary-action and counts operations;
+discard and Empty confirmation half specified; div buttons and no focus ring; 24px targets next to a
+delete button; missing loading, incognito-note and emptied-folder states. Scores: IA 6, states 5,
+journey 6, slop 8, system 7, responsive/a11y 3, unresolved 5.
+
+CODEX SAYS (design, UX challenge), 7 findings: recovery copy overpromises, repeat of CEO challenges;
+360px layout contradicted (critical), specify compact nav row, full-width search, one column, drawer;
+partial operations need progress and counts ("12 of 40 restored", "Retry remaining"); picker needs
+"On this device" and "Synced to your account" groups, full paths, no default; Trash shows bookkeeping,
+needs human summaries and "Restore all"; accessibility aspirational (semantic buttons, visible Delete
+labels, 4.5:1 and 3:1 contrast); Undo handoff needs pause, "View Trash", focus rules.
+
+```
+DESIGN OUTSIDE VOICES — LITMUS SCORECARD (app UI reading of each check):
+═══════════════════════════════════════════════════════════════
+  Check                                    Claude  Codex  Consensus
+  ─────────────────────────────────────── ─────── ─────── ─────────
+  1. Product unmistakable in first screen? YES     YES    CONFIRMED (grid of thumbnails)
+  2. One strong visual anchor?             YES     YES    CONFIRMED (thumbnail grid)
+  3. Scannable by headings only?           NO      NO     CONFIRMED gap (Trash rows)
+  4. Each section has one job?             NO      NO     CONFIRMED gap (Trash primary actions)
+  5. Cards actually necessary?             YES     YES    CONFIRMED (tile is the interaction)
+  6. Motion improves hierarchy?            N/A     N/A    no motion specified; toast slide only
+  7. Premium without decorative shadows?   YES     YES    CONFIRMED
+  ─────────────────────────────────────── ─────── ─────── ─────────
+  Extra: 360px layout credible?            NO      NO     CONFIRMED critical
+```
+
+### Pass 1: Information architecture (6 → 9)
+
+```
+DESKTOP ≥ 720px                                   PHONE < 720px (360px first)
+┌──────────┬─────────────────────────────────┐    ┌──────────────────────────────┐
+│ [Folders]│ TopBar: toggle · search · tools │    │ [☰ Folders] title    [⋮]     │  48px row
+│ tree     ├─────────────────────────────────┤    │ [ search, full width       ] │
+│ (deep    │ breadcrumb / title              │    ├──────────────────────────────┤
+│  counts) │ grid of tiles (delete+⋮ each)   │    │ one-column tiles / list      │
+│          │                                 │    │                              │
+│ Trash (N)│                                 │    │                              │
+│ AI Sett. │           [ Undo toast ]        │    │ [ Deleted 'X'   Undo  × ]    │  full width, thumb zone
+└──────────┴─────────────────────────────────┘    └──────────────────────────────┘
+ Folders drawer on phone: overlay from left, scrim, closes on Esc, scrim tap, or folder pick;
+ contains tree, Trash (N), AI Settings. Phone drawer open/closed is session state, separate from
+ the synced desktop `sidebarHidden` preference.
+```
+
+Trash view hierarchy: (1) heading "Trash" with "Deleted bookmarks stay here for 30 days."; (2) operation
+rows, newest first; (3) Empty trash, tertiary destructive text button in the header.
+
+### Pass 2: Interaction states (5 → 9)
+
+| Feature | Loading | Empty | Error | Success | Partial |
+|---|---|---|---|---|---|
+| Delete (any path) | button shows spinner, same width, disabled | n/a | toast "Couldn't delete 'X'. Nothing was removed." / "'X' is protected by Chrome" | toast "Deleted 'X'" or "Deleted N bookmarks" with Undo, View Trash, close | "Deleted 18 of 20. 2 are protected." Undo covers the 18 |
+| Undo / Restore | toast and row show "Restoring..." | n/a | row: error text + "Retry remaining" | toast "Restored to Bookmarks bar › Work" + "Open folder" | row: "12 of 40 restored. Retry remaining" |
+| Trash view | 3-row skeleton | "Nothing in Trash. Deleted bookmarks stay here for 30 days." + "Back to bookmarks" | inline banner "Couldn't load Trash" + Retry | rows | n/a |
+| Restore to... picker | tree skeleton | n/a (permanent roots always exist) | inline error, picker stays open | closes, success toast names destination | n/a |
+| Empty trash | button spinner; list stays until done | button hidden when empty | toast "Couldn't empty Trash" | toast "Trash emptied" | "Emptied 30 of 32; 2 failed, still listed" |
+| Emptied folder | n/a | "This folder is empty. Deleted items are in Trash (N)." with link | n/a | n/a | n/a |
+| Favicon preview | tinted panel | globe + domain | globe + domain | icon + domain | n/a |
+| Settings export/import | button spinner | n/a | "That file isn't a backup from this extension" | "Imported 7 settings, skipped 2" | same message |
+| Incognito | n/a | n/a | banner at top of Trash: "Trash works in regular windows only" (only if storage is not shared) | n/a | n/a |
+
+### Pass 3: User journey (6 → 9)
+
+| Step | User does | User feels | Plan specifies |
+|---|---|---|---|
+| 1 | Opens extension, sees site icons instead of "No Preview" | recognition | BookmarkPreview |
+| 2 | Sees folder badge counts match reality | trust | deep counts |
+| 3 | Taps Delete on a tile | quick, slightly nervous | always-visible delete, no confirm |
+| 4 | Sees "Deleted 'Recipes' (14)" with Undo | relief | toast spec |
+| 5 | Taps Undo | relief confirmed | "Restored to ... Open folder" |
+| 6 | A week later, opens Trash | in control | human summaries, Restore all |
+| 7 | Empties Trash | finality, no doubt | typed EMPTY with counts |
+
+Copy rule: say "Bookmarks deleted in this extension stay in Trash for 30 days." Do not say "fearless"
+or imply recovery of deletions made elsewhere unless external capture ships (Challenge 2).
+
+### Pass 4: AI slop risk (8 → 9)
+
+App UI rules hold: no card mosaics, utility copy. Risk spot: a generic "trash can + list" page. Fix:
+rows show the preview thumbnail strip (first 3 previews) and original path, so Trash looks like this
+product, not a template.
+
+### Pass 5: Design system alignment (4 → 8)
+
+No tokens exist. This release adds a minimal token set in `src/popup/index.css` used by every new
+component: `--color-bg`, `--color-surface`, `--color-text`, `--color-muted`, `--color-accent`,
+`--color-danger`, `--color-focus`, `--folder-fill`, `--folder-stroke`, redefined under `.theme-dark`.
+Existing components are not migrated in 1.3.0 (debt noted).
+
+### Pass 6: Responsive and accessibility (3 → 8)
+
+- Breakpoint 720px as drawn above; 360px layout is in scope (owner rule, decision 18).
+- Semantic `<button>` for sidebar items, Trash entry, AI Settings, delete, more-options, toast actions.
+  Context menu items become buttons with arrow-key navigation.
+- Global `:focus-visible` ring, 2px `--color-focus`, 3:1 against both themes. Text 4.5:1.
+- Targets: delete and more-options 40×40 with 8px gap, delete on the right. Toast buttons 40px tall.
+- Focus: after delete, the next tile (or previous if last); after Undo, the restored tile; dialogs
+  trap focus and return it to the opener; the toast never steals focus but is reachable by Tab and
+  announced via `role="status"`.
+- Toast: auto-dismiss 8 s, paused while hovered or focused, close button, newest operation replaces
+  the previous toast (older ones stay in Trash), Ctrl/Cmd+Z undoes the operation shown.
+- Delete visibility: always visible (no hover-only); icon button with `aria-label` and tooltip on grid
+  tiles; text label "Delete" in list rows, context menu and Trash. (Taste decision T-D1.)
+
+### Pass 7: Unresolved decisions (5 → 9)
+
+Resolved here: Trash badge counts bookmarks, not operations ("Trash (32)"). Each operation row has
+"Restore all" (secondary outline) and expands to entries with per-entry "Restore" (text button).
+Row summary copy: "Recipes, 14 bookmarks, from Bookmarks bar › Food · deleted 2 days ago · removed
+in 28 days"; duplicate cleanups read "18 duplicates removed by Duplicate Finder". Per-entry discard is
+dropped from 1.3.0 (only Empty trash is irreversible). Empty trash dialog: "Permanently delete 32
+bookmarks? This can't be undone. Previews still used by other bookmarks are kept." Confirm button
+disabled until `EMPTY` typed (case-insensitive), focus starts in the input. Restore to... picker: modal
+reusing the dialog pattern, searchable folder tree grouped "On this device" and "Synced to your
+account", full paths, no default selection, full-width "Restore here" on phones. Duplicate Finder
+merge-all drops its `confirm()` and uses the Undo toast ("Removed 37 duplicates").
+
+### Design completion
+
+| Pass | Before | After |
+|---|---|---|
+| Information architecture | 6 | 9 |
+| Interaction states | 5 | 9 |
+| User journey | 6 | 9 |
+| AI slop | 8 | 9 |
+| Design system | 4 | 8 |
+| Responsive and a11y | 3 | 8 |
+| Unresolved decisions | 5 | 9 |
+
+## Phase 3: Eng Review
+
+### Step 0: Scope challenge
+
+Read: `sw.ts` (migration 575-601, capture 282/309/407, onCreated 338, auto-tag 523), `storage_index.ts`,
+`thumbnail_storage.ts` (legacy IndexedDB fallback at 68), `backup_manager.ts`, `ai_settings_storage.ts`
+(provider, model, endpoint in `storage.sync`; one encrypted key in `storage.local`), `ai_tagger.ts`,
+`useClipboard.ts`, `useBookmarkTree.ts`, `AISettingsPage.tsx`, `tests/setup.ts`, `vite.config.ts`,
+`dist/sw.js`. Complexity check fires (about 25 files, 6 new modules). Autoplan does not reduce scope
+in the eng phase; the reduction options are the two User Challenges. Search check: no built-in bookmark
+trash or Undo API exists for extensions (`bookmarkManagerPrivate` is WebUI-only) [Layer 1]; Chrome has
+`storage.local.getKeys` (Chrome 130+) for prefix listing [Layer 1]. TODOS.md does not exist yet.
+Distribution: same CRX, existing CI; no new artifact.
+
+### Eng dual voices
+
+CLAUDE SUBAGENT (eng, independent), 11 findings: trash listing via `get(null)` loads every thumbnail
+(use `getKeys`); `useTrash` on `storage.onChanged` receives every base64 write (use a small revision
+signal); imported settings can send the saved key to an attacker endpoint; no reconciliation of
+`prepared`/`restoring` after SW death, and create-then-checkpoint duplicates on Retry; Chrome mock lacks
+bookmarks, alarms, onChanged, getKeys, getURL, onInstalled, and `sw.ts` has import side effects; `patch` is
+read-merge-write, races with auto-tag and import; all-or-nothing delete breaks Merge-all on one managed or
+stale id; discard purges assets other entries still need, expiry never purges; per-descendant pending keys
+pile up; shared chunks must stay DOM-free for the SW; fixed 60 s restore window and refreshes during import.
+
+CODEX SAYS (eng, architecture challenge), 10 findings: settings import can redirect saved credentials
+(critical); checkpointing is not duplicate-free, needs intent journal and startup reconciliation
+(critical); per-entry keys do not serialize two tabs or split workers, need one coordinator; restore
+accepts a surviving parent without re-checking its current scope; Empty can lose cleanup inventory and
+legacy IndexedDB resurrects previews; `patch` races other metadata writers; bulk partial-failure copy
+contradicts per-root behaviour; chaos tests model exceptions not worker death; release steps still list
+external capture; large restores rewrite a growing entry per create.
+
+```
+ENG DUAL VOICES — CONSENSUS TABLE:
+═══════════════════════════════════════════════════════════════
+  Dimension                           Claude  Codex  Consensus
+  ──────────────────────────────────── ─────── ─────── ─────────
+  1. Architecture sound?               partly  partly CONFIRMED (partly)
+  2. Test coverage sufficient?         no      no     CONFIRMED (no)
+  3. Performance risks addressed?      no      partly DISAGREE (degree; both want getKeys + small records)
+  4. Security threats covered?         partly  no     DISAGREE (degree; both flag credential redirect)
+  5. Error paths handled?              partly  no     DISAGREE (degree; both want reconciliation)
+  6. Deployment risk manageable?       yes     partly DISAGREE (Codex: release steps contradictory)
+═══════════════════════════════════════════════════════════════
+Every DISAGREE is on severity, not direction; each is resolved by the same fix below.
+```
+
+### Section 1: Architecture (amendments, binding on the plan body)
+
+```
+ popup (React)                          SW, regular context (single coordinator)
+ ┌──────────────────────┐   messages    ┌──────────────────────────────────────────────┐
+ │ useTrash ────────────┼──TRASH_*────▶ │ router (sw.ts, return true)                   │
+ │ useBookmarkTree      │◀─TRASH_CHANGED│  └▶ src/sw/trash.ts  (no import side effects) │
+ │ AISettingsPage ──────┼──META_PATCH──▶│       mutation queue (one promise chain)      │
+ │ backup_manager       │               │       reconcile() on every SW start           │
+ └──────────────────────┘               │  └▶ src/lib/storage_index.ts patch + per-key q │
+   reads only:                          │  └▶ src/lib/trash_store.ts (DOM-free, shared) │
+   trash_v1_* (via getKeys)             │  └▶ src/lib/bookmark_tree.ts (DOM-free)       │
+   trash_rev (change signal)            └──────────────────────────────────────────────┘
+ storage.local:  thumb_<url> meta_<url> trash_v1_<id> trash_prog_<id> trash_rev
+                 storage_schema_version  ai_api_key_encrypted{key,provider,origin}
+```
+
+A1. **One coordinator.** All trash mutations run in the regular-context SW through one in-memory promise
+queue; each message carries a client `requestId` stored on the entry so a retried message is a no-op.
+Incognito pages get trash read-only with the banner "Trash works in regular windows only" and delete
+buttons that open the item in a regular window's extension tab (or are disabled when not possible).
+Purge and Empty skip entries in `prepared` or `restoring`.
+
+A2. **Crash recovery.** `reconcile()` runs on SW start and before any queued mutation: a `prepared`
+entry whose root still exists is dropped (delete never happened), else promoted to `deleted`; a
+`restoring` entry older than 2 minutes becomes `failed`. Restore is idempotent: before each `create`,
+look for a child of the target parent with the same url (bookmarks) or title (folders) created after
+the restore began; if found, record it instead of creating. Immutable snapshot stays in
+`trash_v1_<id>`; progress (`restoredIds`, state) lives in a small `trash_prog_<id>` record so
+checkpoints do not rewrite the whole tree (no quadratic writes).
+
+A3. **Scope re-check.** Every parent candidate, including an original parent that still exists and any
+checkpointed destination, is checked for current ancestry root, `syncing`, and not `unmodifiable`
+before use; a mismatch goes to the picker.
+
+A4. **Credential binding.** `ai_api_key_encrypted` stores `{ ciphertext, provider, origin }`. `ai_tagger`
+refuses to send the key when the current provider or endpoint origin differs and shows "Re-enter your
+API key for this provider". Settings import never sets `ai_provider` or `ai_custom_url` when a key is
+saved; it shows them as "Imported AI provider settings, review in AI Settings" instead.
+
+A5. **Metadata writes.** `storageIndex.patch(id, partial)` with a per-key promise queue. All metadata
+writers in the SW (capture, auto-tag, import) use it; popup writers (manual tags in AISettingsPage) send
+`META_PATCH` to the SW. Popup never writes `meta_*` directly.
+
+A6. **Delete outcomes.** Missing ids are skipped and reported; protected ids reject the whole request
+(defence) but Duplicate Finder filters managed and stale ids before sending. All roots are snapshotted
+and persisted before the first removal; per-root outcomes are recorded under one operation and Undo
+covers whichever roots were removed. UI copy follows Phase 2 "Partial" column.
+
+A7. **Asset purge.** Empty, expiry purge and (dropped) discard run an asset sweep: a URL's `thumb_`,
+`meta_` and legacy IndexedDB record are removed only when no live bookmark (`bookmarks.search({url})`,
+each call in try/catch) and no remaining trash entry references it. The sweep inventory is written to
+`trash_purge_pending` first and cleared last, so a crash resumes it. Captures already in flight for a
+purged URL are dropped by `persistCapture` when the URL is no longer bookmarked.
+
+A8. **Change signal.** The SW bumps `trash_rev` (a number) after each mutation and sends `TRASH_CHANGED`;
+`useTrash` listens for those, not for raw `storage.onChanged` payloads.
+
+A9. **External capture (only if Challenge 2 is rejected).** Pending keys for roots only; an `onRemoved`
+event is the extension's own if its id equals a pending root or appears in that entry's saved tree.
+
+A10. **SW bundle hygiene.** Shared modules (`trash_store`, `bookmark_tree`, `storage_index`) stay free of
+React, DOM and dynamic `import()`. CI step after build: `grep -E "document\.|window\." dist/sw.js` and
+the chunks it imports must find nothing outside guarded code (script `scripts/check-sw-bundle.mjs`).
+
+A11. **Restore guard and imports.** `restoringUntil` is pushed to now + 60 s on every create; the incognito
+SW's `onCreated` auto-capture is also gated; `useBookmarkTree` pauses refreshes between `onImportBegan`
+and `onImportEnded`.
+
+Realistic production failure per new integration point: SW killed between `create` and checkpoint
+(A2 covers); two extension tabs restore the same operation (A1); Chrome sync sign-out removes account
+bookmarks (Challenge 2 or A9 with Restore hidden for `syncing` external entries); backup from a shared
+forum post redirects AI traffic (A4).
+
+### Section 2: Code quality
+
+- DRY: subtree creation shared via `bookmark_tree.ts` (CEO decision 10); asset reference check shared
+  by Empty and expiry (A7).
+- Under-engineering found: `thumbnailStorage` legacy delete swallows IndexedDB errors; the sweep logs and
+  keeps the URL in `trash_purge_pending` for retry.
+- Complexity: `TRASH_RESTORE` resolution would branch more than 5 ways; split into `resolveParent()`,
+  `restoreNode()`, `recordProgress()` with an ASCII state comment at the top of `src/sw/trash.ts`.
+- Stale diagram audit: `architecture.d2`/`.svg` do not show trash; update in the same branch.
+
+### Section 3: Test review
+
+Framework: Vitest + jsdom, Chrome mock in `tests/setup.ts`. Mock gaps (both voices): no `bookmarks`,
+`alarms`, `storage.onChanged`, `getKeys`, `runtime.getURL`, `onInstalled`, `extension.inIncognitoContext`;
+`sw.ts` registers listeners on import. Fix (task E1): `tests/fakes/chrome_bookmarks.ts` in-memory tree with
+`getTree/getSubTree/get/getChildren/create/remove/removeTree/search/move/update` and event emitters;
+storage fake that fires `onChanged` from `set/remove` and supports `getKeys`; `alarms` fake; all re-wired in
+`beforeEach` (survives `vi.resetAllMocks`). Worker-death tests construct the trash module twice over the same
+retained fake state ("fresh worker"), not by rejecting promises.
+
+```
+CODE PATHS                                              USER FLOWS
+[+] src/sw.ts migration (REGRESSION, CRITICAL)          [+] Update 1.2.0 -> 1.3.0
+  ├── [GAP] 1.2.0 store w/ AI keys: keys untouched        ├── [GAP] AI key still works after update
+  ├── [GAP] legacy URL keys migrated, marker set           └── [GAP] [→E2E manual] real unpacked update
+  ├── [GAP] fresh install sets marker only
+  └── [GAP] repair moves meta_ai_* back
+[+] storage_index.patch (REGRESSION, CRITICAL)          [+] Regenerate preview
+  ├── [GAP] capture keeps tags                            └── [GAP] tags still shown after recapture
+  ├── [GAP] two concurrent patches both land
+  └── [GAP] import keeps tags
+[+] src/sw/trash.ts delete                              [+] Delete with Undo
+  ├── [GAP] folder snapshot + removed + outcomes          ├── [GAP] tile button -> toast -> Undo
+  ├── [GAP] persist fails -> nothing removed              ├── [GAP] Delete key on focused tile
+  ├── [GAP] protected id rejects; missing id skipped      ├── [GAP] Ctrl+Z ignored inside search input
+  └── [GAP] requestId retry is a no-op                    └── [GAP] focus moves to next tile
+[+] src/sw/trash.ts restore                             [+] Restore from Trash
+  ├── [GAP] order, titles, urls, nesting preserved        ├── [GAP] Restore all -> "Restored to ..."
+  ├── [GAP] fresh-worker resume, no duplicates            ├── [GAP] failed row -> Retry remaining
+  ├── [GAP] parent gone -> ancestors recreated once        └── [GAP] picker shown when scope unknown
+  ├── [GAP] scope mismatch -> failed + picker
+  └── [GAP] double Undo -> one copy
+[+] reconcile()                                         [+] Empty trash
+  ├── [GAP] prepared + root exists -> dropped              ├── [GAP] typed EMPTY gate
+  ├── [GAP] prepared + root gone -> deleted               └── [GAP] shared-URL preview kept
+  └── [GAP] stale restoring -> failed
+[+] asset sweep                                          [+] Settings backup
+  ├── [GAP] shared URL kept, orphan purged (+IndexedDB)    ├── [GAP] settings-only export has no key
+  └── [GAP] crash mid-sweep resumes                        └── [GAP] tampered provider/url not applied
+[+] credential binding (ai_tagger)                       [+] 360px layout
+  ├── [GAP] origin mismatch -> key not sent               ├── [GAP] drawer opens, closes on pick/Esc
+  └── [GAP] legacy key record migrated to bound shape      └── [GAP] [→E2E manual] no horizontal scroll
+[+] deep counts, faviconUrl, allowlist, bundle check
+  └── [GAP] unit each
+[+] useContextMenu delete (REGRESSION: confirm() removed)
+  └── [GAP] menu Delete routes to TRASH_DELETE, no confirm
+COVERAGE: 0/48 new paths tested (plan stage) | REGRESSIONS flagged: 3 (all CRITICAL, required)
+```
+
+Test files: `tests/migration.test.ts`, `tests/storage_index.test.ts` (extend), `tests/trash_delete.test.ts`,
+`tests/trash_restore.test.ts`, `tests/trash_reconcile.test.ts`, `tests/trash_purge.test.ts`,
+`tests/ai_credential_binding.test.ts`, `tests/backup_manager.test.ts` (extend), `tests/utils.test.ts`
+(deep count, faviconUrl), `tests/hooks/useTrash.test.ts`, `tests/components/UndoToast.test.tsx`,
+`tests/components/TrashView.test.tsx`, plus `scripts/check-sw-bundle.mjs` in CI. Manual browser checks in
+the test plan artifact. Test plan artifact:
+`~/.gstack/projects/PalWorks-Bookmark-Preview-as-Thumbnails/palani-release-1.3.0-eng-review-test-plan-*.md`.
+
+### Section 4: Performance
+
+- Listing via `getKeys` + `get(trashKeys)`; fallback `get(null)` only on Chrome < 130 (A8, decision 11).
+- No raw `storage.onChanged` in the popup for trash (A8). `useAITagger` full read is existing debt; it must
+  not be triggered by `TRASH_CHANGED` (refresh only the bookmark tree).
+- Restore of a 10,000-node tree: sequential creates (Chrome API bound, est. 2-4 ms each, so 20-40 s);
+  progress shown per Phase 2; small progress record per checkpoint. Benchmark test with the fake at 10,000
+  nodes asserts linear write volume.
+
+### Failure modes registry
+
+| Codepath | Failure mode | Rescued? | Test? | User sees | Logged? |
+|---|---|---|---|---|---|
+| migration | marker write fails mid-update | Y (retry next start) | Y | nothing | Y |
+| delete | SW killed after persist, before remove | Y (reconcile) | Y | item still there | Y |
+| delete | storage full | Y | Y | "Couldn't save to Trash, nothing was deleted" | Y |
+| restore | SW killed after create, before checkpoint | Y (idempotent create) | Y | Retry, no duplicate | Y |
+| restore | target folder became synced | Y (A3) | Y | picker | Y |
+| restore | two tabs Undo same op | Y (queue + requestId) | Y | one copy | Y |
+| purge | crash mid-sweep | Y (purge journal) | Y | nothing | Y |
+| purge | legacy IndexedDB delete throws | Y (kept for retry) | Y | nothing | Y |
+| import | tampered provider/url | Y (A4) | Y | review notice | Y |
+| capture | write for purged URL | Y (dropped) | Y | nothing | Y |
+| external capture | storage write fails | N | N | silent | Y |
+
+One row is RESCUED=N, TEST=N, silent: external capture write failure. It is a **CRITICAL GAP** only if
+Challenge 2 is rejected; then add a retry and a test.
+
+### Worktree parallelization
+
+| Step | Modules | Depends on |
+|---|---|---|
+| S1 prerequisites (migration, patch, credential binding) | src/sw.ts, src/lib/ | — |
+| S2 test fakes | tests/ | — |
+| S3 trash service | src/sw/, src/lib/ | S1, S2 |
+| S4 trash UI (toast, view, picker) | src/popup/components/, src/popup/hooks/ | S3 message contract |
+| S5 parity UI (counts, folders, favicon, delete button, 360px, a11y) | src/components/, src/popup/ CSS | — |
+| S6 backup allowlist | src/lib/backup_manager.ts | S1 |
+
+Lanes: A = S1 → S6 → S3; B = S2 (parallel with A, merge before S3); C = S5 (independent); D = S4 after S3.
+Conflict flag: C and D both touch `src/popup/` CSS and `MainContent.tsx`; run D after C merges.
+
+### NOT in scope (eng additions)
+
+| Item | Why |
+|---|---|
+| Migrating existing CSS to tokens | debt, new components only |
+| Refactoring AISettingsPage (1254 lines) | reroute delete and tag writes only |
+| `minimum_chrome_version` 130 | fallback avoids excluding older Chrome |
+| Automated browser E2E (Playwright extension harness) | manual checklist this release; TODO |
+
+### What already exists (eng)
+
+`useClipboard` recursion (reused via `bookmark_tree.ts`), `storageIndex` (extended), `backup_manager` allowlist
+(extended), `thumbnailStorage.delete` (used by sweep, error handling fixed), `error_generator` (unchanged),
+Vitest + Chrome mock (extended with fakes).
+
+### Eng completion summary
+
+- Step 0: complexity check fired; reduction routed to User Challenges 1 and 2
+- Architecture: 11 amendments (A1-A11)
+- Code quality: 4 issues
+- Test review: diagram produced, 48 gaps, 3 CRITICAL regressions required
+- Performance: 3 issues
+- NOT in scope: written; What already exists: written
+- TODOS.md: 4 items written
+- Failure modes: 1 conditional critical gap
+- Outside voice: ran (codex + claude)
+- Parallelization: 4 lanes, 2 parallel at start
+- Lake Score: 11/12 chose the complete option (minimum Chrome version is the exception)
+
+| # | Phase | Decision | Classification | Principle | Rationale | Rejected |
+|---|-------|----------|-----------|-----------|----------|----------|
+| 24 | Eng | A1 single coordinator, incognito read-only trash | Mechanical | P5 | both voices: races across tabs/workers | per-context writers |
+| 25 | Eng | A2 reconcile + idempotent create + small progress record | Mechanical | P1 | both voices critical | checkpoint-only |
+| 26 | Eng | A3 scope re-check on every candidate | Mechanical | P1 security | Codex | trust surviving parent |
+| 27 | Eng | A4 bind key to provider+origin; import never changes provider/url when key saved | Mechanical | P1 security | both voices | userinfo/query strip only |
+| 28 | Eng | A5 patch with per-key queue; popup META_PATCH via SW | Mechanical | P5 | both voices | separate tag keys (needs migration) |
+| 29 | Eng | A6 skip missing, reject protected, per-root outcomes | Mechanical | P3 | both voices | all-or-nothing on missing |
+| 30 | Eng | A7 reference-counted asset sweep incl. IndexedDB, journaled | Mechanical | P1 | both voices | keep assets |
+| 31 | Eng | A8 trash_rev + TRASH_CHANGED instead of onChanged payloads | Mechanical | P3 perf | Claude | storage.onChanged |
+| 32 | Eng | A10 SW bundle DOM check in CI | Mechanical | P1 | Claude | none |
+| 33 | Eng | Chrome fakes for bookmarks/alarms/onChanged/getKeys; fresh-worker tests | Mechanical | P1 | both voices | exception-only chaos |
+| 34 | Eng | getKeys with fallback, no minimum_chrome_version | Taste | P3 | Claude proposed min version 130 | min version 130 |
+| 35 | Eng | TODOS.md auto-written with deferred items | Mechanical | eng override | collect all phases | none |
+
+## Cross-phase themes
+
+- **Release shape (split + drop external capture):** raised independently in CEO (both voices),
+  Design (Codex) and Eng (Codex). High-confidence signal; User Challenges 1 and 2.
+- **Restore must never cross storage scope:** CEO (both) and Eng (Codex). Resolved by CEO decision 6 and
+  amendment A3.
+- **Recovery claims must match guarantees:** CEO (Codex), Design (both). Resolved by copy rule in Pass 3.
+- **Credential safety of settings import:** Eng (both). Resolved by A4.
+
+## Final Gate outcome (2026-11-08)
+
+Approved by the owner with both User Challenges accepted and both taste choices as recommended.
+
+- **Challenge 1 accepted: release split.** 1.2.1 ships first with the data-safety fixes (T1, T2/E5, E2 and
+  their regression tests). 1.3.0 carries everything else.
+- **Challenge 2 accepted: external capture removed from 1.3.0.** Removed: the `onRemoved` external entry
+  path, `trash_pending_*` keys, `trash_ext_op`, the 200-root cap, amendment A9 and the incognito
+  pending-key logic. Trash covers deletions made in this extension only; UI copy says so. Moved to
+  TODOS.md (1.4.0) behind a spike that answers Open Questions 1, 3 and 4.
+- **Taste T-D1:** always-visible trash icon (tooltip and `aria-label`) on grid tiles; text label "Delete"
+  in list rows, context menu and Trash.
+- **Taste (decision 34):** `getKeys` with `get(null)` fallback; no `minimum_chrome_version`.
+- **Eng re-check of the amended plan:** pure scope reduction; no new codepaths. The only conditional
+  critical gap (external capture write failure, silent) is gone. A1 (single coordinator, incognito
+  read-only) and A2-A8, A10, A11 stand unchanged. Status: clean.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | clean (via /autoplan) | 5 proposals, 3 accepted, 2 deferred; 2 user challenges accepted |
+| Codex Review | `/codex review` | Independent 2nd opinion | 3 | issues_found, resolved | CEO 7, design 7, eng 10 |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | clean (via /autoplan) | 21 issues, 0 critical gaps after amendment |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | clean (via /autoplan) | score 5/10 to 9/10, 8 decisions |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | skipped | no developer-facing scope |
+
+- **CROSS-MODEL:** Codex and Claude agreed on direction in every phase; disagreements were severity only.
+- **VERDICT:** CEO + DESIGN + ENG CLEARED, ready to implement.
+
+NO UNRESOLVED DECISIONS
