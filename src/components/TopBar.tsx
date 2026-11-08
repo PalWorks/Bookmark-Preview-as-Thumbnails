@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, PanelLeft, SlidersHorizontal } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, PanelLeft, SlidersHorizontal, CheckSquare } from 'lucide-react';
 import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
+import type { SortOrder } from '../lib/list_columns';
 
 interface TopBarProps {
     onSearch: (query: string) => void;
@@ -14,8 +15,13 @@ interface TopBarProps {
     onViewModeChange: (mode: 'grid' | 'list') => void;
     filterType: 'all' | 'folders' | 'bookmarks';
     onFilterChange: (type: 'all' | 'folders' | 'bookmarks') => void;
-    sortOrder: 'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc';
-    onSortChange: (order: 'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc') => void;
+    sortOrder: SortOrder;
+    onSortChange: (order: SortOrder) => void;
+    /** Multi-select (1.4.0). */
+    onToggleSelect: () => void;
+    selecting: boolean;
+    /** Sorting by visits needs the history permission. */
+    canSortByVisits: boolean;
     onUpdateThumbnails: (force?: boolean, regenerateFailed?: boolean) => void;
     onStopCapture: () => void;
     isCapturing: boolean;
@@ -87,6 +93,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     onOpenTrash,
     trashCount,
     onExportSettings,
+    onToggleSelect,
+    selecting,
+    canSortByVisits,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -141,6 +150,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             case 'date-oldest': return 'Oldest';
             case 'domain-asc': return 'Domain (A-Z)';
             case 'domain-desc': return 'Domain (Z-A)';
+            case 'opened-newest': return 'Recently opened';
+            case 'rating-high': return 'Rating';
+            case 'visits-high': return 'Most visited';
             default: return 'Sort';
         }
     };
@@ -288,9 +300,25 @@ export const TopBar: React.FC<TopBarProps> = ({
                             <div className="menu-divider"></div>
                             {option(sortOrder === 'date-newest', 'Date Added (Newest)', () => { onSortChange('date-newest'); setIsSortOpen(false); })}
                             {option(sortOrder === 'date-oldest', 'Date Added (Oldest)', () => { onSortChange('date-oldest'); setIsSortOpen(false); })}
+                            <div className="menu-divider"></div>
+                            {option(sortOrder === 'opened-newest', 'Recently opened', () => { onSortChange('opened-newest'); setIsSortOpen(false); })}
+                            {option(sortOrder === 'rating-high', 'Rating (highest first)', () => { onSortChange('rating-high'); setIsSortOpen(false); })}
+                            {canSortByVisits && option(sortOrder === 'visits-high', 'Most visited', () => { onSortChange('visits-high'); setIsSortOpen(false); })}
                         </div>
                     )}
                 </div>
+
+                <button
+                    type="button"
+                    className={`action-btn select-toggle ${selecting ? 'active' : ''}`}
+                    onClick={onToggleSelect}
+                    aria-label="Select items"
+                    aria-pressed={selecting}
+                    title={selecting ? 'Done selecting' : 'Select several items'}
+                >
+                    <CheckSquare size={16} aria-hidden="true" />
+                    <span>Select</span>
+                </button>
 
                 <div className="view-toggle" role="group" aria-label="View">
                     <button

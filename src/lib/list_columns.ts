@@ -66,3 +66,7 @@ export function compareOptional(a: number | undefined, b: number | undefined, de
     if (b === undefined) return -1;
     return desc ? b - a : a - b;
 }
+
+export type SortOrder =
+    | 'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc'
+    | 'opened-newest' | 'rating-high' | 'visits-high';

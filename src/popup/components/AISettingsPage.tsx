@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, Eye, EyeOff, CheckCircle2, Search, Copy, Trash2, ExternalLink, Sparkles, Plus, X, StopCircle, ChevronDown } from 'lucide-react';
 import './AISettingsPage.css';
 import {
@@ -23,6 +23,8 @@ interface AISettingsPageProps {
     onDeleteBookmarks: (targets: Array<{ id: string; title: string }>) => Promise<TrashDeleteResult | undefined>;
     /** False in incognito, where Trash is read-only. */
     canDelete: boolean;
+    /** Folders hidden from search: Smart Search over "All folders" leaves them out. */
+    hiddenFolderIds?: Set<string>;
 }
 
 type BuiltinStatus = 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'unsupported';
@@ -111,15 +113,19 @@ interface FolderOption {
     id: string;
     label: string;
     bookmarks: { title: string; url: string }[];
+    /** This folder, or one above it, is hidden from search (folder prefs). */
+    hidden?: boolean;
 }
 
+/** Bookmarks below `nodes`; subfolders in `skip` (hidden from search) are left out. */
 function collectBookmarksFlat(
     nodes: chrome.bookmarks.BookmarkTreeNode[],
-    out: { title: string; url: string }[] = []
+    out: { title: string; url: string }[] = [],
+    skip?: Set<string>,
 ): { title: string; url: string }[] {
     for (const n of nodes) {
         if (n.url) out.push({ title: n.title, url: n.url });
-        if (n.children) collectBookmarksFlat(n.children, out);
+        if (n.children && !skip?.has(n.id)) collectBookmarksFlat(n.children, out, skip);
     }
     return out;
 }
@@ -127,13 +133,21 @@ function collectBookmarksFlat(
 function collectFolderOptions(
     nodes: chrome.bookmarks.BookmarkTreeNode[],
     depth: number,
-    out: FolderOption[] = []
+    out: FolderOption[] = [],
+    hidden?: Set<string>,
+    insideHidden = false,
 ): FolderOption[] {
     for (const n of nodes) {
         if (n.children) {
-            const indent = depth > 0 ? '  '.repeat(depth) : '';
-            out.push({ id: n.id, label: `${indent}${n.title || 'Bookmarks'}`, bookmarks: collectBookmarksFlat(n.children) });
-            collectFolderOptions(n.children, depth + 1, out);
+            const indent = depth > 0 ? '  '.repeat(depth) : '';
+            const isHidden = insideHidden || !!hidden?.has(n.id);
+            out.push({
+                id: n.id,
+                label: `${indent}${n.title || 'Bookmarks'}`,
+                bookmarks: collectBookmarksFlat(n.children, [], hidden),
+                ...(isHidden ? { hidden: true } : {}),
+            });
+            collectFolderOptions(n.children, depth + 1, out, hidden, isHidden);
         }
     }
     return out;
@@ -146,7 +160,7 @@ const RING_CIRC = 2 * Math.PI * 15; // ≈ 94.25
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, currentFolder, onDeleteBookmarks, canDelete }) => {
+export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, currentFolder, onDeleteBookmarks, canDelete, hiddenFolderIds }) => {
     const [activeTab, setActiveTab] = useState<'settings' | 'autotag' | 'search' | 'duplicates'>('settings');
 
     // Guard the "Saved!" reset timers so they don't setState after the page unmounts
@@ -192,6 +206,14 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
     const [searchError, setSearchError] = useState('');
     const [searchDone, setSearchDone] = useState(false);
     const [folderOptions, setFolderOptions] = useState<FolderOption[]>([]);
+    const [searchRoots, setSearchRoots] = useState<chrome.bookmarks.BookmarkTreeNode[]>([]);
+    const hiddenKey = hiddenFolderIds ? [...hiddenFolderIds].sort().join(',') : '';
+    // Smart Search scopes: like folderOptions, but folders hidden from search are left
+    // out of every scope above them (before de-duplication and the candidate cap).
+    const searchOptions = useMemo(
+        () => collectFolderOptions(searchRoots, 0, [], new Set(hiddenKey ? hiddenKey.split(',') : [])),
+        [searchRoots, hiddenKey],
+    );
     const [searchFolderId, setSearchFolderId] = useState<string>(ALL_FOLDERS_ID);
 
     // ── Duplicate Finder tab state ────────────────────────────────────────────
@@ -333,6 +355,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
             const roots = tree[0]?.children ?? tree;
             const folders = collectFolderOptions(roots, 0);
             setFolderOptions(folders);
+            setSearchRoots(roots);
             // Default the search scope to the folder the user was viewing, if it has bookmarks.
             const preferred = currentFolder?.id && folders.some(f => f.id === currentFolder.id)
                 ? currentFolder.id
@@ -608,11 +631,11 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
     // Nested folders mean a bookmark appears under its folder AND every ancestor,
     // so the "all" set must be de-duplicated by URL (count + scope use the same list).
     const allBookmarks = Array.from(
-        new Map(folderOptions.flatMap(f => f.bookmarks).map(b => [b.url, b])).values()
+        new Map(searchOptions.filter(f => !f.hidden).flatMap(f => f.bookmarks).map(b => [b.url, b])).values()
     );
     const searchScopeBookmarks = searchFolderId === ALL_FOLDERS_ID
         ? allBookmarks
-        : (folderOptions.find(f => f.id === searchFolderId)?.bookmarks ?? []);
+        : (searchOptions.find(f => f.id === searchFolderId)?.bookmarks ?? []);
     const searchCap = mode === 'builtin' ? SEARCH_CAP_BUILTIN : SEARCH_CAP_CLOUD;
     const matchedNodes = searchResults.length > 0
         ? searchScopeBookmarks.filter(b => searchResults.includes(b.url))

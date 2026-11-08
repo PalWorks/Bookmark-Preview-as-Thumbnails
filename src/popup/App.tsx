@@ -21,7 +21,19 @@ import { useContextMenu } from './hooks/useContextMenu';
 import { useToast } from './hooks/useToast';
 import { useTrash, type DeleteTarget } from './hooks/useTrash';
 import { useMediaQuery, NARROW_QUERY } from './hooks/useMediaQuery';
-import { getDomain, plural } from '../lib/utils';
+import { useFolderPrefs } from './hooks/useFolderPrefs';
+import { useLinkMeta } from './hooks/useLinkMeta';
+import { useSelection } from './hooks/useSelection';
+import { useHistoryStats } from './hooks/useHistoryStats';
+import { SelectionBar } from '../components/SelectionBar';
+import { ColumnsMenu } from '../components/ColumnsMenu';
+import { RatingDialog } from '../components/RatingDialog';
+import { FolderColorDialog } from '../components/FolderColorDialog';
+import { FolderPicker } from '../components/FolderPicker';
+import { getDomain, plural, truncateTitle } from '../lib/utils';
+import { hiddenFolderIds, type FolderColor } from '../lib/folder_prefs';
+import { HISTORY_COLUMNS, openedAt, compareOptional, type SortOrder } from '../lib/list_columns';
+import { moveNodes, undoMoves } from '../lib/bulk_move';
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 type Panel = 'bookmarks' | 'ai-settings' | 'trash';
@@ -47,6 +59,7 @@ function App() {
         handleToggleIncognito, handleToggleTheme, handleSetTheme,
         onCaptureDelayCommit, onToggleActiveTabCapture,
         sidebarHidden, setSidebarHidden, reloadSettings,
+        listColumns, setListColumns, trashExternal, setTrashExternal,
     } = useSettings();
 
     const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>(() =>
@@ -76,12 +89,16 @@ function App() {
     // ── Toast ─────────────────────────────────────────────────────────────────
     const toast = useToast();
 
+    // ── Folder prefs (colours, hidden from search) ────────────────────────────
+    const folderPrefs = useFolderPrefs();
+    const hiddenIds = useMemo(() => hiddenFolderIds(folderPrefs.prefs), [folderPrefs.prefs]);
+
     // ── Bookmark tree & navigation ────────────────────────────────────────────
     const {
         bookmarkTree, selectedFolderId, currentFolder,
-        searchQuery, setSearchQuery, searchResults,
+        searchQuery, setSearchQuery, searchResults, hiddenResultCount, showHiddenResults,
         handleNavigate, handleNavigateBack, refreshTree, refreshCurrentFolder,
-    } = useBookmarkTree();
+    } = useBookmarkTree(hiddenIds);
 
     // ── Thumbnail state & capture orchestration ───────────────────────────────
     const { thumbnails, loadingUrls, queuedUrls, triggerCapture, stopCapture, reloadThumbnails } = useThumbnails(
@@ -172,19 +189,29 @@ function App() {
     // ── View / display state (pure UI, no effects) ────────────────────────────
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [filterType, setFilterType] = useState<'all' | 'folders' | 'bookmarks'>('all');
-    const [sortOrder, setSortOrder] = useState<
-        'name-asc' | 'name-desc' | 'date-newest' | 'date-oldest' | 'domain-asc' | 'domain-desc'
-    >('name-asc');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('name-asc');
     const [activeTag, setActiveTag] = useState<string | null>(null);
 
-    const displayedNodes = useMemo(() => {
+    // Items in view before sorting (sorting by rating or visits needs their data).
+    const filteredNodes = useMemo(() => {
         let nodes: Node[] =
             searchQuery.length > 2 ? searchResults : (currentFolder?.children ?? []);
         if (filterType === 'folders') nodes = nodes.filter(n => !n.url);
         else if (filterType === 'bookmarks') nodes = nodes.filter(n => n.url);
         // Tag filter: show only bookmarks that carry the active tag (folders hidden)
         if (activeTag) nodes = nodes.filter(n => n.url && (aiTags[n.url] ?? []).includes(activeTag));
-        return [...nodes].sort((a, b) => {
+        return nodes;
+    }, [currentFolder, searchResults, searchQuery, filterType, activeTag, aiTags]);
+    const viewUrls = useMemo(() => filteredNodes.map(n => n.url).filter((u): u is string => !!u), [filteredNodes]);
+
+    // ── Ratings, "opened" times and history counts for the links in view ─────
+    const linkMeta = useLinkMeta(viewUrls);
+    const wantsHistory = (viewMode === 'list' && listColumns.some(c => HISTORY_COLUMNS.includes(c))) || sortOrder === 'visits-high';
+    const history = useHistoryStats(viewUrls, wantsHistory);
+
+    const displayedNodes = useMemo(() => {
+        const opened = (n: Node) => n.url ? openedAt((n as Node & { dateLastUsed?: number }).dateLastUsed, linkMeta.meta[n.url]?.lastOpenedAt) : undefined;
+        return [...filteredNodes].sort((a, b) => {
             const aF = !a.url, bF = !b.url;
             if (sortOrder.startsWith('name') || sortOrder.startsWith('domain')) {
                 if (aF && !bF) return -1;
@@ -205,10 +232,25 @@ function App() {
                     const dA = getDomain(a.url), dB = getDomain(b.url);
                     return dA === dB ? b.title.localeCompare(a.title) : dB.localeCompare(dA);
                 }
+                // Missing values sort last; ties by title.
+                case 'opened-newest':
+                    return compareOptional(opened(a), opened(b), true) || a.title.localeCompare(b.title);
+                case 'rating-high':
+                    return compareOptional(a.url ? linkMeta.meta[a.url]?.rating : undefined, b.url ? linkMeta.meta[b.url]?.rating : undefined, true)
+                        || a.title.localeCompare(b.title);
+                case 'visits-high':
+                    return compareOptional(a.url ? history.stats[a.url]?.visits : undefined, b.url ? history.stats[b.url]?.visits : undefined, true)
+                        || a.title.localeCompare(b.title);
                 default: return 0;
             }
         });
-    }, [currentFolder, searchResults, searchQuery, filterType, sortOrder, activeTag, aiTags]);
+    }, [filteredNodes, sortOrder, linkMeta.meta, history.stats]);
+
+    // ── Selection (multi-select) ──────────────────────────────────────────────
+    const displayedIds = useMemo(() => displayedNodes.map(n => n.id), [displayedNodes]);
+    const viewKey = `${activePanel}|${selectedFolderId}|${searchQuery}|${filterType}|${sortOrder}|${activeTag ?? ''}`;
+    const selection = useSelection(displayedIds, viewKey);
+    const selectedNodes = displayedNodes.filter(n => selection.isSelected(n.id));
 
     // Tags present across the currently displayed nodes — drives the filter pills
     const availableTags = useMemo(() => {
@@ -229,6 +271,143 @@ function App() {
     };
     const handleDeleteNode = (node: { id: string; title: string }) => deleteNodes([{ id: node.id, title: node.title }]);
 
+    // ── Bulk actions on the selection ─────────────────────────────────────────
+    const [bulkBusy, setBulkBusy] = useState<'move' | 'delete' | null>(null);
+    const [movePicker, setMovePicker] = useState(false);
+
+    const bulkDelete = async () => {
+        const targets = selectedNodes
+            .filter(n => n.parentId && n.parentId !== '0')
+            .map(n => ({ id: n.id, title: n.title }));
+        if (targets.length === 0) return;
+        const lastIdx = Math.max(...targets.map(t => displayedNodes.findIndex(n => n.id === t.id)));
+        const ids = new Set(targets.map(t => t.id));
+        const next = displayedNodes.slice(lastIdx + 1).find(n => !ids.has(n.id))
+            ?? [...displayedNodes].reverse().find(n => !ids.has(n.id));
+        setBulkBusy('delete');
+        const res = await trash.deleteItems(targets, {
+            onDeleted: () => { if (next) requestFocus(next.id); },
+        });
+        setBulkBusy(null);
+        if (res?.ok) selection.clear();
+    };
+
+    // Links a bulk Open would open: selected bookmarks, plus bookmarks directly in selected folders.
+    const bulkOpenUrls = (() => {
+        const urls: string[] = [];
+        for (const n of selectedNodes) {
+            if (n.url) urls.push(n.url);
+            else for (const c of n.children ?? []) if (c.url) urls.push(c.url);
+        }
+        return [...new Set(urls)];
+    })();
+
+    const bulkOpen = () => {
+        for (const url of bulkOpenUrls) chrome.tabs.create({ url, active: false });
+        linkMeta.markOpened(bulkOpenUrls);
+        toast.show({ message: `Opened ${plural(bulkOpenUrls.length, 'tab')} in the background.` });
+    };
+
+    const bulkMove = async (targetId: string) => {
+        const ids = selectedNodes.map(n => n.id);
+        setMovePicker(false);
+        setBulkBusy('move');
+        let result: Awaited<ReturnType<typeof moveNodes>>;
+        try {
+            result = await moveNodes(ids, targetId);
+        } catch (err) {
+            console.error('[Move] failed', err);
+            setBulkBusy(null);
+            toast.show({ message: "Couldn't move the items. Nothing was changed.", tone: 'error' });
+            return;
+        }
+        setBulkBusy(null);
+        const target = (await chrome.bookmarks.get(targetId).catch(() => []))[0];
+        const where = target ? `'${truncateTitle(target.title || 'Untitled folder')}'` : 'the folder';
+        const { moved, failed } = result;
+        if (failed.length) selection.keepOnly(failed.map(f => f.id)); else selection.clear();
+        if (moved.length === 0) {
+            toast.show({ message: `Nothing was moved. ${failed[0]?.reason ?? ''}`.trim(), tone: 'error' });
+            return;
+        }
+        const undo = async () => {
+            const id = toast.show({ message: 'Moving back…', busy: true, autoHideMs: 0 });
+            const r = await undoMoves(moved);
+            toast.replace(id, {
+                message: r.missing ? `Moved ${r.restored} back. ${r.missing} couldn't be moved back.` : `Moved ${plural(r.restored, 'item')} back.`,
+                tone: r.missing ? 'error' : 'success',
+            });
+        };
+        const message = failed.length
+            ? `Moved ${moved.length} of ${moved.length + failed.length} to ${where}. ${failed.length} couldn't be moved.`
+            : `Moved ${plural(moved.length, 'item')} to ${where}.`;
+        toast.show({
+            message,
+            tone: failed.length ? 'error' : 'success',
+            actions: [{ label: 'Undo', onClick: () => { void undo(); }, primary: true }],
+            onUndo: () => { void undo(); },
+        });
+    };
+
+    // Keyboard: Ctrl/Cmd+A selects everything in view, Escape leaves selection mode.
+    useEffect(() => {
+        if (activePanel !== 'bookmarks') return;
+        const onKey = (e: KeyboardEvent) => {
+            const t = e.target as HTMLElement | null;
+            const typing = !!t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
+                && !(t instanceof HTMLInputElement && t.type === 'checkbox');
+            if (typing || e.defaultPrevented) return;
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !e.shiftKey && !e.altKey) {
+                if (document.querySelector('[role="dialog"]')) return;
+                e.preventDefault();
+                selection.selectAll();
+            } else if (e.key === 'Escape' && selection.active && !document.querySelector('[role="dialog"], .context-menu')) {
+                selection.clear();
+                document.querySelector<HTMLElement>('.select-toggle')?.focus();
+            }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [activePanel, selection]);
+
+    // ── Rating and folder colour dialogs ──────────────────────────────────────
+    const [ratingFor, setRatingFor] = useState<{ url: string; title: string } | null>(null);
+    const [ratingBusy, setRatingBusy] = useState(false);
+    const saveRating = async (rating: number | null) => {
+        if (!ratingFor) return;
+        setRatingBusy(true);
+        try {
+            await linkMeta.setRating(ratingFor.url, rating);
+            setRatingFor(null);
+        } catch (err) {
+            console.error('[Rating] save failed', err);
+            toast.show({ message: "Couldn't save the rating. Try again.", tone: 'error' });
+        } finally {
+            setRatingBusy(false);
+        }
+    };
+
+    const [colorFor, setColorFor] = useState<{ id: string; title: string } | null>(null);
+    const [colorBusy, setColorBusy] = useState(false);
+    const saveColor = async (color: FolderColor | null) => {
+        if (!colorFor) return;
+        setColorBusy(true);
+        const ok = await folderPrefs.update([colorFor.id], { color });
+        setColorBusy(false);
+        if (ok) setColorFor(null);
+        else toast.show({ message: "Couldn't save the colour. Try again.", tone: 'error' });
+    };
+
+    const setHidden = async (folder: { id: string; title: string }, hidden: boolean) => {
+        const ok = await folderPrefs.update([folder.id], { hideFromSearch: hidden });
+        const name = `'${truncateTitle(folder.title || 'Untitled folder')}'`;
+        if (!ok) { toast.show({ message: "Couldn't save that. Try again.", tone: 'error' }); return; }
+        toast.show({
+            message: hidden ? `${name} and its subfolders are hidden from search on this device.` : `${name} shows in search again.`,
+            actions: [{ label: 'Undo', onClick: () => { void folderPrefs.update([folder.id], { hideFromSearch: !hidden }); } }],
+        });
+    };
+
     // ── Context menu ──────────────────────────────────────────────────────────
     const { contextMenu, handleContextMenu, closeContextMenu, menuItems } = useContextMenu({
         selectedFolderId,
@@ -242,6 +421,10 @@ function App() {
         onPaste: handlePaste,
         onDelete: handleDeleteNode,
         canDelete,
+        folderPrefs: folderPrefs.prefs,
+        onEditColor: (f) => setColorFor(f),
+        onSetHidden: (f, hidden) => { void setHidden(f, hidden); },
+        onOpened: (urls) => linkMeta.markOpened(urls),
     });
 
     // ── AI auto-tag: tag all bookmarks in the current view ───────────────────
@@ -373,10 +556,14 @@ function App() {
         onTrash: () => openPanel('trash'),
         isTrashActive: activePanel === 'trash',
         trashCount: trash.badgeCount,
+        folderPrefs: folderPrefs.prefs,
     };
 
+    const folderColors = Object.fromEntries(Object.entries(folderPrefs.prefs).map(([id, p]) => [id, p.color]));
+    const showSelectionBar = activePanel === 'bookmarks' && selection.active;
+
     return (
-        <div className={`app-container theme-${effectiveTheme}`}>
+        <div className={`app-container theme-${effectiveTheme} ${showSelectionBar ? 'has-selection-bar' : ''}`}>
             <TopBar
                 onSearch={(q) => { setSearchQuery(q); if (activePanel !== 'bookmarks' && q) setActivePanel('bookmarks'); }}
                 searchQuery={searchQuery}
@@ -417,6 +604,9 @@ function App() {
                 foldersOpen={foldersOpen}
                 onOpenTrash={() => openPanel('trash')}
                 trashCount={trash.badgeCount}
+                onToggleSelect={() => { if (selection.active) selection.clear(); else { openPanel('bookmarks'); selection.start(); } }}
+                selecting={showSelectionBar}
+                canSortByVisits={history.permission === 'granted'}
             />
 
             {storageWarning.level !== 'none' && (
@@ -444,9 +634,20 @@ function App() {
                         currentFolder={currentFolder}
                         onDeleteBookmarks={(targets) => trash.deleteItems(targets, { origin: 'duplicate-finder' })}
                         canDelete={canDelete}
+                        hiddenFolderIds={hiddenIds}
                     />
                 ) : activePanel === 'trash' ? (
-                    <TrashView trash={trash} roots={bookmarkTree} onBack={() => openPanel('bookmarks')} />
+                    <TrashView
+                        trash={trash}
+                        roots={bookmarkTree}
+                        onBack={() => openPanel('bookmarks')}
+                        keepExternal={trashExternal}
+                        onKeepExternalChange={(v) => {
+                            void setTrashExternal(v).then(ok => {
+                                if (!ok) toast.show({ message: "Couldn't save that setting. Try again.", tone: 'error' });
+                            });
+                        }}
+                    />
                 ) : (
                     <MainContent
                         folder={currentFolder}
@@ -466,6 +667,40 @@ function App() {
                         pendingDeleteIds={trash.pendingIds}
                         trashCount={trash.badgeCount}
                         onOpenTrash={() => openPanel('trash')}
+                        folderPrefs={folderPrefs.prefs}
+                        selection={selection}
+                        selectionBar={(
+                            <SelectionBar
+                                count={selection.count}
+                                total={displayedNodes.length}
+                                openCount={bulkOpenUrls.length}
+                                canDelete={canDelete}
+                                busy={bulkBusy}
+                                onOpen={bulkOpen}
+                                onMove={() => setMovePicker(true)}
+                                onDelete={() => { void bulkDelete(); }}
+                                onSelectAll={selection.selectAll}
+                                onDone={() => { selection.clear(); document.querySelector<HTMLElement>('.select-toggle')?.focus(); }}
+                            />
+                        )}
+                        columnsMenu={(
+                            <ColumnsMenu
+                                columns={listColumns}
+                                onChange={setListColumns}
+                                permission={history.permission}
+                                onRequestHistory={history.request}
+                                onReleaseHistory={() => { void history.release(); }}
+                                historyError={history.error}
+                            />
+                        )}
+                        listColumns={viewMode === 'list' ? listColumns.filter(c => !HISTORY_COLUMNS.includes(c) || history.permission === 'granted') : []}
+                        linkMeta={linkMeta.meta}
+                        historyStats={history.stats}
+                        historyLoading={history.loading}
+                        onRate={(node) => { if (node.url) setRatingFor({ url: node.url, title: node.title || node.url }); }}
+                        onOpened={(url) => linkMeta.markOpened([url])}
+                        hiddenResultCount={hiddenResultCount}
+                        onShowHidden={showHiddenResults}
                     />
                 )}
             </div>
@@ -475,6 +710,40 @@ function App() {
                     position={{ x: contextMenu.x, y: contextMenu.y }}
                     items={menuItems}
                     onClose={closeContextMenu}
+                />
+            )}
+
+            {movePicker && (
+                <FolderPicker
+                    roots={bookmarkTree}
+                    subject={selection.count === 1 ? `'${truncateTitle(selectedNodes[0]?.title || 'Untitled')}'` : plural(selection.count, 'item')}
+                    busy={bulkBusy === 'move'}
+                    onCancel={() => setMovePicker(false)}
+                    onPick={(id) => { void bulkMove(id); }}
+                    title="Move to…"
+                    actionLabel="Move here"
+                    exclude={new Set(selectedNodes.filter(n => !n.url).map(n => n.id))}
+                    colors={folderColors}
+                />
+            )}
+
+            {ratingFor && (
+                <RatingDialog
+                    title={ratingFor.title}
+                    current={linkMeta.meta[ratingFor.url]?.rating}
+                    busy={ratingBusy}
+                    onCancel={() => setRatingFor(null)}
+                    onSave={(r) => { void saveRating(r); }}
+                />
+            )}
+
+            {colorFor && (
+                <FolderColorDialog
+                    folderTitle={truncateTitle(colorFor.title || 'Untitled folder')}
+                    current={folderPrefs.prefs[colorFor.id]?.color}
+                    busy={colorBusy}
+                    onCancel={() => setColorFor(null)}
+                    onSave={(c) => { void saveColor(c); }}
                 />
             )}
 
