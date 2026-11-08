@@ -68,8 +68,11 @@ describe('1.4.0 in the App', { timeout: 20000 }, () => {
         seed();
         render(<App />);
         await screen.findByRole('button', { name: 'Delete Alpha' });
-        fireEvent.keyDown(document.body, { key: 'a', ctrlKey: true });
-        await screen.findByText('4 selected');
+        // Ctrl+A acts on what is loaded when it is pressed; repeat (it is idempotent) until all four are.
+        await waitFor(() => {
+            fireEvent.keyDown(document.body, { key: 'a', ctrlKey: true });
+            expect(screen.getByText('4 selected')).toBeTruthy();
+        });
         fireEvent.keyDown(document.body, { key: 'Escape' });
         await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).toBeNull());
     });
