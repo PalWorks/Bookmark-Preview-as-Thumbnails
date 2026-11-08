@@ -1,5 +1,5 @@
 import { thumbnailStorage } from './thumbnail_storage';
-import { storageIndex } from './storage_index';
+import { patchMetadata } from './metadata_client';
 import type { ThumbnailStatus } from './storage_index';
 
 export interface BackupData {
@@ -146,8 +146,9 @@ export class BackupManager {
                         // Restore the metadata record too, otherwise imported
                         // thumbnails have no status and features that read the
                         // index (e.g. "Regenerate Failed") can't see them.
-                        await storageIndex.set({
-                            id: t.id,
+                        // Merge via the service worker's per-URL queue so AI tags
+                        // already stored (or being written) for this URL survive.
+                        await patchMetadata(t.id, {
                             url: t.url,
                             title: t.title || '',
                             status: t.status ?? (blob ? 'saved_indexeddb' : 'none'),

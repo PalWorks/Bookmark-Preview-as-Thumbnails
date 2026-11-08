@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-06-03
+**Last Updated:** 2026-11-08T04:16:16+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -21,6 +21,9 @@ servers):
 4. **AI API keys (optional).** If you enable a cloud AI provider, your API key is
    stored locally (obfuscated at rest) and is sent **only** to the provider you
    selected, solely to authenticate your own requests. It is never sent to us.
+   The key is tied to the provider (and, for a custom or local server, the server
+   address) you entered it for. If that provider or address changes without you
+   re-entering the key, the extension does not send the key and asks for it again.
 
 ## The optional AI features (what leaves your device)
 

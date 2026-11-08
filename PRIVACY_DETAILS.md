@@ -45,7 +45,8 @@ third-party provider. Disclose this accurately:
   third-party AI provider **only when the user enables a cloud AI provider** for
   Auto-Tag or Smart Search. With the default on-device engine (Chrome Built-in AI)
   nothing is transmitted. API keys are stored locally and sent only to the user's
-  chosen provider for authentication.
+  chosen provider for authentication; a key is bound to its provider and custom
+  endpoint address and is not sent if either changes.
 
 **Certifications — read carefully before checking:**
 - "I do not sell or transfer user data to third parties" — **transferring bookmark
