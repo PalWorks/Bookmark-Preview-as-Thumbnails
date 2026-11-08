@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T13:42:32+00:00 (1.4.0 uploaded; the Web Store asks for permission justifications before review; row 7 done)._
+> _Last updated: 2026-11-08T13:46:58+00:00 (1.4.0 uploaded; the Web Store asks for permission justifications before review; row 7 done)._
 
 ## 0. North star: every open item, one row each
 
