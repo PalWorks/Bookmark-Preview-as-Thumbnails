@@ -65,8 +65,10 @@ export const PROVIDERS: ProviderMeta[] = [
 
 // ─── AES-256-GCM helpers ──────────────────────────────────────────────────────
 
-function b64ToBuffer(b64: string): ArrayBuffer {
-    return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+// Returns a Uint8Array, not its .buffer: WebCrypto in some runtimes (Node 20 under
+// jsdom, used by CI) rejects an ArrayBuffer from another realm but accepts views.
+function b64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+    return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 }
 
 function bufferToB64(buf: ArrayBuffer): string {
@@ -77,7 +79,7 @@ async function getOrCreateEncKey(): Promise<CryptoKey> {
     const stored = await chrome.storage.local.get('ai_enc_key');
     if (stored.ai_enc_key) {
         return crypto.subtle.importKey(
-            'raw', b64ToBuffer(stored.ai_enc_key as string),
+            'raw', b64ToBytes(stored.ai_enc_key as string),
             { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
         );
     }
@@ -104,7 +106,7 @@ export async function decryptApiKey(encrypted: string): Promise<string> {
     if (!encrypted) return '';
     try {
         const key = await getOrCreateEncKey();
-        const raw = new Uint8Array(b64ToBuffer(encrypted));
+        const raw = b64ToBytes(encrypted);
         const plaintext = await crypto.subtle.decrypt(
             { name: 'AES-GCM', iv: raw.slice(0, 12) }, key, raw.slice(12)
         );
