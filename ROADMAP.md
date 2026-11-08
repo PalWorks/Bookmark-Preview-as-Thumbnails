@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T13:42:32+00:00 (owner: 1.3.0 ships inside 1.4.0; 1.4.0 submitted; row 7 done; row 6 next)._
+> _Last updated: 2026-11-08T13:42:32+00:00 (1.4.0 uploaded; the Web Store asks for permission justifications before review; row 7 done)._
 
 ## 0. North star: every open item, one row each
 
@@ -23,7 +23,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
-| 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.4.0 (which contains 1.3.0, owner decision 2026-11-08) is merged, tagged v1.4.0 and submitted to the Web Store. | When approved: run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1), then row 10 and the website feature list. |
+| 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.4.0 (which contains 1.3.0, owner decision 2026-11-08) is merged, tagged v1.4.0 and uploaded as the Web Store draft, but publishing was refused: "does not meet the requirements". [Inference] The Privacy practices tab needs justifications for the new `favicon`, `alarms` and optional `history` permissions. | Owner: paste the three justifications from PRIVACY_DETAILS.md §2 into the dashboard's Privacy practices tab and submit for review. When approved: run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1), then row 10 and the website feature list. |
 | 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.4.0 is live, listing what shipped (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 
@@ -84,14 +84,14 @@ Priority, Size and Impact are separate columns because they answer separate ques
 | AI Auto-Tag, Smart Search, Duplicate Finder (on-device or bring your own key) | 1.2.0 |
 | Safe updates (schema-gated migration), tags kept on recapture, API key bound to its provider | 1.2.1 (live 2026-11-08) |
 | Trash with Undo, favicon previews, deep counts, folder panel toggle, 360px layout, settings export | 1.3.0 (not released on its own; ships in 1.4.0) |
-| Deletes made outside the extension in Trash, folder colours, hidden from search, multi-select with bulk delete/move/open, list columns and ratings | 1.4.0 (submitted 2026-11-08, in review) |
+| Deletes made outside the extension in Trash, folder colours, hidden from search, multi-select with bulk delete/move/open, list columns and ratings | 1.4.0 (uploaded 2026-11-08, waiting on the dashboard before review) |
 
 ## 2. Next up
 
-### 2.1 Status: 1.4.0 in Web Store review (updated 2026-11-08T13:42:32+00:00)
+### 2.1 Status: 1.4.0 uploaded, waiting on the Web Store dashboard (updated 2026-11-08T13:42:32+00:00)
 
 1.2.1 is live on the Chrome Web Store. The owner chose to ship 1.3.0 inside 1.4.0 rather than on
-its own (2026-11-08): PRs #2 and #3 are merged, `v1.4.0` is tagged and submitted. Users update
+its own (2026-11-08): PRs #2 and #3 are merged, `v1.4.0` is tagged and uploaded; publishing waits on row 12. Users update
 from 1.2.1 straight to 1.4.0; that path (AI key, tags, Trash, alarms, identical install warnings)
 was checked in headless Chrome 156 before submission. 1.4.0: 322 tests, lint, build, bundle check and `npm run e2e` pass;
 the update from 1.3.0, the permission gate (identical install warnings), deletes made outside the
@@ -109,7 +109,7 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 6 | Undo for rename and move | §3.2 | **Open** | M | L |
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
-| 12 | Release 1.4.0 to the Web Store | §3.1 | **Waiting**: Web Store review | S | H |
+| 12 | Release 1.4.0 to the Web Store | §3.1 | **Waiting**: dashboard justifications, then review | S | H |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.4.0 is live | T | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
