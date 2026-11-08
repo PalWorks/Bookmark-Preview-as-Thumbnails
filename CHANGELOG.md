@@ -22,8 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The saved API key stays with its provider.** The key is now tied to the provider
   (and, for custom or local servers, the server address) it was entered for. If the
   provider or address changes without the key being re-entered, the key is not sent and
-  AI Settings asks for it again. Keys saved by earlier versions are tied to the current
-  settings during this update.
+  AI Settings asks for it again. Editing the server address in AI Settings no longer
+  checks the saved key against the new address. Keys saved by earlier versions are tied
+  to the current settings during this update. Local servers that need no key (Ollama,
+  custom) keep working when a key for another provider is saved.
 
 ## [1.2.0] — 2026-06-03
 
