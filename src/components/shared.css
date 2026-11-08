@@ -1464,3 +1464,8 @@
         grid-template-columns: repeat(3, 1fr);
     }
 }
+
+/* The hidden-from-search icon sits right after the folder name. */
+.folder-title-line .folder-link {
+    flex: 0 1 auto;
+}
