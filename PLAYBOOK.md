@@ -31,6 +31,13 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 7. Upload `extension.zip` with the maintainer's Chrome Web Store CLI credentials (item id
    `eedekafhclngkhhkcocblnllkbodgnhj`; machine-specific commands are in the gitignored
    `LOCAL.md`). Uploading while an older version is still in review replaces that submission.
+   The CLI publishes (submits for review) by default; pass `upload` as the first argument to
+   upload only, so the dashboard can be reviewed first.
+7a. Before submitting, walk every dashboard page: Package (draft version and permissions),
+   Store listing (description matches what ships), Privacy (a justification for every
+   permission, data usage), Distribution, Test instructions. The listing links the website
+   privacy policy (`website/components/Legal.tsx`); keep it in line with PRIVACY.md. A
+   submission locks the listing; "Cancel review" (menu at the top right) unlocks it.
 8. After approval: install from the store on a clean profile, confirm the version, confirm a
    saved AI key and Trash still work after updating from the previous version. Update the
    website feature list in `website/` (deploys from `main`).

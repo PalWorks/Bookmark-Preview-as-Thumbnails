@@ -8,7 +8,7 @@ A Chrome extension that turns your bookmarks into a visual grid of page previews
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0 on its branch: Undo for rename and move)._
+_Last updated: 2026-11-08T18:13:35+00:00 (1.5.0 submitted for review)._
 
 ## Contents
 
@@ -50,7 +50,7 @@ on-device model by default, or with your own API key; see [PRIVACY.md](PRIVACY.m
   turns this off).
 - **Select many at once** (1.4.0): a Select button, Shift+click ranges, Ctrl/Cmd+A; delete (one
   Undo), move to a folder (with Undo) or open them.
-- **Undo for rename and Cut and Paste** (1.5.0, not yet released): the toast offers Undo, or
+- **Undo for rename and Cut and Paste** (1.5.0, in review): the toast offers Undo, or
   press Ctrl/Cmd+Z; it never overwrites a change made since.
 - **Organise** (1.4.0): folder colours, hide utility folders from search (with "Show them" when
   matches are hidden), list view columns for date added, last opened, your 1 to 5 star rating,
@@ -177,8 +177,8 @@ website deploys to GitHub Pages from `main`. Steps, the permission gate and roll
 
 ## Roadmap
 
-Next: release 1.4.0, then 1.5.0 (Undo for rename and move), and a safety net that also recovers
-changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
+Next: 1.5.0 (which includes 1.3.0 and 1.4.0) is in review on the Chrome Web Store. After it, a
+safety net that also recovers changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

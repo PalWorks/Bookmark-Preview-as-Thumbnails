@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.5.0] - 2026-11-08T13:54:32+00:00
 
-Undo for rename and move (ROADMAP row 6). Not yet released.
+Undo for rename and move (ROADMAP row 6). Submitted to the Chrome Web Store for review 2026-11-08T18:13:35+00:00; it also carries 1.3.0 and 1.4.0, which were not released on their own (owner decision, 2026-11-08). The store description, reviewer test instructions and the website privacy policy were updated for this release.
 
 ### Added
 
@@ -37,7 +37,8 @@ Undo for rename and move (ROADMAP row 6). Not yet released.
 ## [1.4.0] - 2026-11-08T13:24:59+00:00
 
 Organise and recover: the rest of the requests from the user who asked for bookmark manager
-parity, plus recovery of bookmarks deleted outside this extension.
+parity, plus recovery of bookmarks deleted outside this extension. Not released on its own: these
+changes reach users in 1.5.0 (owner decision, 2026-11-08).
 
 ### Added
 
