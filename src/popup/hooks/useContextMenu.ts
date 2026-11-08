@@ -47,7 +47,11 @@ export function useContextMenu({
 
     const handleContextMenu = (e: React.MouseEvent, node: Node) => {
         e.preventDefault();
-        const opener = e.currentTarget as HTMLElement | null;
+        const target = e.currentTarget as HTMLElement | null;
+        // Return focus to the focused control inside the row (keyboard: Shift+F10 or
+        // the menu key), else to the element the event was attached to.
+        const active = document.activeElement as HTMLElement | null;
+        const opener = active && target?.contains(active) ? active : target;
         openerRef.current = opener;
         // A keyboard "click" has no pointer position: open below the button instead.
         let x = e.clientX;
