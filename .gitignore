@@ -31,3 +31,6 @@ dist-ssr
 
 # Claude Code local tooling (memory, settings) — per-developer, not shared
 .claude/
+
+# Machine-specific maintainer notes (never committed)
+LOCAL.md

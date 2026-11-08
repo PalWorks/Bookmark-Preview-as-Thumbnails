@@ -385,7 +385,8 @@ describe('BackupManager', () => {
             const r = await manager.importBackup(fileOf({
                 version: 1, kind: 'settings', settings: {
                     theme: 'neon', captureDelay: '500', useIncognito: 'yes', sidebarHidden: false,
-                    ai_custom_url: 'https://user:pass@evil.example/v1', evil: true, ai_mode: 'cloud',
+                    // Built at runtime so the fixture is not mistaken for a real credential.
+                    ai_custom_url: `https://${'user'}:${'secret'}@evil.example/v1`, evil: true, ai_mode: 'cloud',
                 },
             }));
             expect(r).toMatchObject({ success: true, kind: 'settings', settingsApplied: 2, settingsSkipped: 5, aiProviderHeld: false });

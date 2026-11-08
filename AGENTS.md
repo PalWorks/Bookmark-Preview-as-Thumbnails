@@ -65,9 +65,10 @@ npm run zip            # build + check + extension.zip for the Web Store
     typed confirmation for irreversible ones.
 13. **Licence**: every new source file starts with `SPDX-License-Identifier: AGPL-3.0-only`.
 14. **Public repo timestamps** are UTC (`date -u --iso-8601=seconds`; `TZ=UTC git commit`).
-15. **The owner's test Chrome** (CDP port 9228) loads this repo's `dist/` unpacked: do not
-    rebuild `dist/` casually and never take focus in that browser. QA in a separate headless
-    Chrome (PLAYBOOK.md).
+15. **A maintainer's own browser may load this repo's `dist/` unpacked**: rebuilding `dist/`
+    changes that install, so build QA copies into a scratch folder, never take focus in a
+    browser someone is using, and QA in a separate headless Chrome (PLAYBOOK.md). Machine-specific
+    notes live in the gitignored `LOCAL.md`.
 
 ## Allowed without asking
 

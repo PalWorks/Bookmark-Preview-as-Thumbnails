@@ -28,9 +28,9 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 5. Merge, then tag with `TZ=UTC git tag -a v<version>` and push the tag.
 6. `npm run zip` (builds, runs the bundle check, writes `extension.zip`). Confirm the zip has
    no `.map` files.
-7. Upload with the owner's Web Store CLI profile (`~/.local/bin/cws palaniappan --source
-   extension.zip --extension-id eedekafhclngkhhkcocblnllkbodgnhj`). Uploading while an older
-   version is still in review replaces that submission.
+7. Upload `extension.zip` with the maintainer's Chrome Web Store CLI credentials (item id
+   `eedekafhclngkhhkcocblnllkbodgnhj`; machine-specific commands are in the gitignored
+   `LOCAL.md`). Uploading while an older version is still in review replaces that submission.
 8. After approval: install from the store on a clean profile, confirm the version, confirm a
    saved AI key and Trash still work after updating from the previous version. Update the
    website feature list in `website/` (deploys from `main`).
@@ -49,7 +49,7 @@ The two lists must be identical. Remove the helper afterwards.
 
 ## Browser QA
 
-The owner's test Chrome (CDP port 9228) has this repo's `dist/` loaded unpacked, so a local
+A maintainer's own Chrome may have this repo's `dist/` loaded unpacked, so a local
 `npm run build` changes that install. For development QA, build to a scratch folder
 (`npx vite build --outDir <dir>`) and use a separate headless Chrome with a throwaway profile:
 
