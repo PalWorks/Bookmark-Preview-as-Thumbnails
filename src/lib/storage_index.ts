@@ -9,6 +9,10 @@ export interface MetadataRecord {
     lastCaptureAt?: number;
     error?: string;
     tags?: string[];
+    /** The user's rating, 1 to 5 (absent: not rated). Keyed by URL like everything here. */
+    rating?: number;
+    /** Last time the link was opened from this extension (ms since epoch). */
+    lastOpenedAt?: number;
 }
 
 export class StorageIndex {
@@ -50,6 +54,8 @@ export class StorageIndex {
         id: string,
         update: Partial<Omit<MetadataRecord, 'id'>>,
         defaultsIfNew: Partial<Omit<MetadataRecord, 'id'>> = {},
+        /** Fields to remove (for example a cleared rating). */
+        remove: Array<keyof Omit<MetadataRecord, 'id' | 'url' | 'title' | 'status'>> = [],
     ): Promise<MetadataRecord> {
         const previous = this.queues.get(id) ?? Promise.resolve();
         const next = previous
@@ -64,6 +70,7 @@ export class StorageIndex {
                     ...(existing ?? defaultsIfNew),
                     ...update,
                 };
+                for (const k of remove) delete merged[k];
                 await this.set(merged);
                 return merged;
             });

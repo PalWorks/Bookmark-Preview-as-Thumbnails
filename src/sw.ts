@@ -10,13 +10,16 @@ import { checkAIAvailability, tagBookmark, invalidateAITemplate, searchBookmarks
 import { loadAISettings, bindLegacyApiKey } from './lib/ai_settings_storage';
 import { migrateStorageSchema, markFreshInstall, repairMisMigratedKeys } from './lib/storage_migration';
 import { createTrashService, handleTrashMessage, isTrashMessage } from './sw/trash';
+import { createFolderPrefsService, handleFolderPrefsMessage } from './sw/folder_prefs';
 import { TRASH_RESTORING_KEY } from './lib/trash_store';
+import { isValidMetaId, sanitizePagePatch } from './lib/metadata_sanitize';
 
 // Service Worker for BookmarksThumbnails
 
 // Split incognito runs a second worker. Only the regular one owns Trash.
 const IS_INCOGNITO_WORKER = chrome.extension?.inIncognitoContext === true;
-const trash = createTrashService();
+const folderPrefs = createFolderPrefsService();
+const trash = createTrashService({ applyFolderPrefs: map => folderPrefs.applySnapshot(map) });
 const TRASH_PURGE_ALARM = 'trash-purge';
 
 // Listen for extension icon click
@@ -76,16 +79,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             sendResponse({ ok: false, error: 'META_PATCH rejected: not an extension page' });
             return false;
         }
-        if (typeof id !== 'string' || !id || typeof update !== 'object' || update === null) {
+        const clean = isValidMetaId(id) ? sanitizePagePatch(update, Date.now(), id) : undefined;
+        if (!isValidMetaId(id) || !clean) {
             sendResponse({ ok: false, error: 'Invalid META_PATCH message' });
             return false;
         }
-        const patch = { ...(update as Record<string, unknown>) };
-        delete patch.id;
-        storageIndex.patch(id, patch, typeof titleIfNew === 'string' ? { title: titleIfNew } : {})
-            .then(() => sendResponse({ ok: true }))
+        const defaults = typeof titleIfNew === 'string' ? { title: titleIfNew.slice(0, 1000) } : {};
+        storageIndex.patch(id, clean.set, defaults, clean.clearRating ? ['rating'] : [])
+            .then(() => {
+                sendResponse({ ok: true });
+                // Other open pages refresh this URL's rating, tags and "Opened" time.
+                chrome.runtime.sendMessage({ type: 'META_UPDATED', urls: [id] }).catch(() => { });
+            })
             .catch((err: unknown) => {
                 console.error('[Metadata] META_PATCH failed', id, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
+    }
+
+    if (message.type === 'FOLDER_PREFS_SET') {
+        handleFolderPrefsMessage(folderPrefs, message, _sender)
+            .then(sendResponse)
+            .catch((err: unknown) => {
+                console.error('[FolderPrefs] message failed', err);
                 sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
             });
         return true; // async response
@@ -676,6 +693,16 @@ if (!IS_INCOGNITO_WORKER) {
         trash.purgeExpired()
             .then(n => { if (n) console.log(`[Trash] purged ${n} expired entr${n === 1 ? 'y' : 'ies'}`); })
             .catch(err => console.error('[Trash] purge failed', err));
+        // Prefs of folders that no longer exist (Trash entries keep their own copy).
+        folderPrefs.prune()
+            .then(n => { if (n) console.log(`[FolderPrefs] pruned ${n}`); })
+            .catch(err => console.error('[FolderPrefs] prune failed', err));
+    });
+    // Deletes made in Chrome's bookmark manager, by sync or on another device go to
+    // Trash too. Registered at top level so the event wakes the worker. The regular
+    // worker only: both split-incognito workers receive bookmark events.
+    chrome.bookmarks.onRemoved.addListener((id, info) => {
+        trash.noteRemoved(id, info);
     });
 }
 
