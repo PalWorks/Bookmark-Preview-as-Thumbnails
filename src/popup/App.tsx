@@ -33,7 +33,8 @@ import { FolderPicker } from '../components/FolderPicker';
 import { getDomain, plural, truncateTitle } from '../lib/utils';
 import { hiddenFolderIds, type FolderColor } from '../lib/folder_prefs';
 import { HISTORY_COLUMNS, openedAt, compareOptional, type SortOrder } from '../lib/list_columns';
-import { moveNodes, undoMoves } from '../lib/bulk_move';
+import { moveNodes, undoMoves, type MoveResult } from '../lib/bulk_move';
+import { undoRename, type RenameResult } from '../lib/rename';
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 type Panel = 'bookmarks' | 'ai-settings' | 'trash';
@@ -185,7 +186,8 @@ function App() {
 
     // ── Clipboard ─────────────────────────────────────────────────────────────
     const { clipboard, handleCut, handleCopy, handlePaste } = useClipboard(
-        selectedFolderId, refreshTree, refreshCurrentFolder
+        selectedFolderId, refreshTree, refreshCurrentFolder,
+        (result) => showMoveResult(result),
     );
 
     // ── View / display state (pure UI, no effects) ────────────────────────────
@@ -345,10 +347,15 @@ function App() {
             return;
         }
         setBulkBusy(null);
-        const target = (await chrome.bookmarks.get(targetId).catch(() => []))[0];
-        const where = target ? `'${truncateTitle(target.title || 'Untitled folder')}'` : 'the folder';
+        if (result.failed.length) selection.keepOnly(result.failed.map(f => f.id)); else selection.clear();
+        showMoveResult(result);
+    };
+
+    // Result of Move to… or Cut and Paste, with Undo (DECISIONS D14, D15).
+    // Synchronous, so an older result can't replace a newer toast.
+    function showMoveResult(result: MoveResult) {
+        const where = result.targetTitle !== undefined ? `'${truncateTitle(result.targetTitle || 'Untitled folder')}'` : 'the folder';
         const { moved, failed } = result;
-        if (failed.length) selection.keepOnly(failed.map(f => f.id)); else selection.clear();
         if (moved.length === 0) {
             toast.show({ message: `Nothing was moved. ${failed[0]?.reason ?? ''}`.trim(), tone: 'error' });
             return;
@@ -356,17 +363,51 @@ function App() {
         const undo = async () => {
             const id = toast.show({ message: 'Moving back…', busy: true, autoHideMs: 0 });
             const r = await undoMoves(moved);
+            refreshTree();
+            if (currentFolder?.id) refreshCurrentFolder(currentFolder.id);
+            const notes = [
+                r.changed ? `${plural(r.changed, 'item')} moved again since, so left where ${r.changed === 1 ? 'it is' : 'they are'}.` : '',
+                r.missing ? `${r.missing} couldn't be moved back.` : '',
+            ].filter(Boolean).join(' ');
             toast.replace(id, {
-                message: r.missing ? `Moved ${r.restored} back. ${r.missing} couldn't be moved back.` : `Moved ${plural(r.restored, 'item')} back.`,
-                tone: r.missing ? 'error' : 'success',
+                message: notes ? `Moved ${r.restored} back. ${notes}` : `Moved ${plural(r.restored, 'item')} back.`,
+                tone: notes ? 'error' : 'success',
             });
         };
+        const name = moved.length === 1 && failed.length === 0 ? `'${truncateTitle(moved[0].title || 'Untitled')}'` : plural(moved.length, 'item');
         const message = failed.length
             ? `Moved ${moved.length} of ${moved.length + failed.length} to ${where}. ${failed.length} couldn't be moved.`
-            : `Moved ${plural(moved.length, 'item')} to ${where}.`;
+            : `Moved ${name} to ${where}.`;
         toast.show({
             message,
             tone: failed.length ? 'error' : 'success',
+            actions: [{ label: 'Undo', onClick: () => { void undo(); }, primary: true }],
+            onUndo: () => { void undo(); },
+        });
+    }
+
+    // Rename from the menu, with Undo that never overwrites a newer name.
+    const showRenameResult = (result: RenameResult) => {
+        if (!result.ok) {
+            toast.show({ message: `Couldn't rename it. ${result.reason}`, tone: 'error' });
+            return;
+        }
+        const { record } = result;
+        const undo = async () => {
+            // Replacing the toast first removes its Undo, so a second click can't run it again.
+            const id = toast.show({ message: 'Changing the name back…', busy: true, autoHideMs: 0 });
+            const r = await undoRename(record);
+            refreshTree();
+            if (currentFolder?.id) refreshCurrentFolder(currentFolder.id);
+            toast.replace(id,
+                r === 'restored' ? { message: `Name changed back to '${truncateTitle(record.before || 'Untitled')}'.`, tone: 'success' }
+                    : r === 'changed' ? { message: 'It was renamed again since, so its name was left as it is.', tone: 'error' }
+                        : { message: "It no longer exists, so there's nothing to change back.", tone: 'error' },
+            );
+        };
+        toast.show({
+            message: `Renamed to '${truncateTitle(record.after || 'Untitled')}'.`,
+            tone: 'success',
             actions: [{ label: 'Undo', onClick: () => { void undo(); }, primary: true }],
             onUndo: () => { void undo(); },
         });
@@ -449,6 +490,7 @@ function App() {
         onEditColor: (f) => setColorFor(f),
         onSetHidden: (f, hidden) => { void setHidden(f, hidden); },
         onOpened: (urls) => linkMeta.markOpened(urls),
+        onRenamed: showRenameResult,
     });
 
     // ── AI auto-tag: tag all bookmarks in the current view ───────────────────

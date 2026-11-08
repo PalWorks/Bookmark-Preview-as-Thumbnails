@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useRef, useState } from 'react';
 import type { FolderPrefs } from '../../lib/folder_prefs';
+import { renameNode, type RenameResult } from '../../lib/rename';
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 
@@ -24,6 +25,8 @@ interface ContextMenuDeps {
     onSetHidden?: (folder: { id: string; title: string }, hidden: boolean) => void;
     /** Links opened from the menu (recorded as "Opened"). */
     onOpened?: (urls: string[]) => void;
+    /** A rename finished or was refused: the page shows the result with Undo. */
+    onRenamed?: (result: RenameResult) => void;
 }
 
 export function useContextMenu({
@@ -42,6 +45,7 @@ export function useContextMenu({
     onEditColor,
     onSetHidden,
     onOpened,
+    onRenamed,
 }: ContextMenuDeps) {
     const [contextMenu, setContextMenu] = useState<{
         visible: boolean;
@@ -102,12 +106,13 @@ export function useContextMenu({
         chrome.bookmarks.get(targetId, (results) => {
             if (!results?.length) return;
             const newTitle = prompt('Rename to:', results[0].title);
-            if (newTitle !== null && newTitle !== results[0].title) {
-                chrome.bookmarks.update(targetId, { title: newTitle }, () => {
-                    refreshTree();
-                    if (currentFolderId) refreshCurrentFolder(currentFolderId);
-                });
-            }
+            if (newTitle === null) return;
+            void renameNode(targetId, newTitle).then(result => {
+                if (!result) return; // unchanged
+                refreshTree();
+                if (currentFolderId) refreshCurrentFolder(currentFolderId);
+                onRenamed?.(result);
+            });
         });
     };
 
@@ -174,7 +179,7 @@ export function useContextMenu({
         },
     ] : [];
     const menuItems = [
-        { label: 'Rename', action: handleRename },
+        { label: 'Rename', action: handleRename, disabled: contextMenu.permanent },
         { label: 'Delete', action: handleDelete, danger: true, disabled: !canDelete || contextMenu.permanent },
         { separator: true, label: '', action: () => { } },
         { label: 'Regenerate Preview', action: handleRegenerate, disabled: contextMenu.type === 'folder' },

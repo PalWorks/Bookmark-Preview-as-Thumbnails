@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: deletes made outside the extension, folder prefs, selection and bulk actions, list columns, metadata allowlist)._
+_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0: Undo for rename and Cut and Paste)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has no server. Everything
 runs in three browser contexts and stores data in `chrome.storage`. Storage keys and
@@ -155,6 +155,10 @@ inside another selected folder, refuses Chrome's own folders, managed items and 
 itself, records every original position before the first move, and Undo moves them back per
 folder in ascending original position. Its Undo lives as long as the toast. Bulk open reads
 folders' current children when opening; more than 20 tabs asks inside the bar.
+
+Cut and Paste (1.5.0) uses the same `moveNodes`, so it has the same refusals and Undo. Rename goes
+through `src/lib/rename.ts`. Every move and rename Undo checks first that the item still carries
+our change (the folder we moved it to, the name we gave it) and otherwise leaves it alone (D15).
 
 ## Capture flow
 
