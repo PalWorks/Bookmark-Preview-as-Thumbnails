@@ -1,0 +1,904 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Styles for components added in 1.3.0: buttons, tile actions, previews,
+   toast, dialogs, folder picker, Trash view and the folders drawer. Colours come
+   only from the tokens in src/popup/index.css. */
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+    color: var(--color-accent-text);
+}
+
+.btn:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.btn--primary {
+    background-color: var(--color-accent);
+    color: var(--color-surface);
+}
+
+.btn--primary:hover:not(:disabled) {
+    filter: brightness(0.95);
+}
+
+.btn--secondary {
+    border-color: var(--color-border);
+    color: var(--color-accent-text);
+    background-color: var(--color-surface);
+}
+
+.btn--secondary:hover:not(:disabled),
+.btn--text:hover:not(:disabled) {
+    background-color: var(--color-accent-soft);
+}
+
+.btn--text {
+    padding: 0 12px;
+}
+
+.btn--danger {
+    background-color: var(--color-danger);
+    color: var(--color-surface);
+}
+
+.btn--danger-text {
+    color: var(--color-danger);
+}
+
+.btn--danger-text:hover:not(:disabled) {
+    background-color: var(--color-danger-soft);
+}
+
+.btn--icon {
+    width: 40px;
+    padding: 0;
+    color: var(--color-muted);
+}
+
+.btn--icon:hover:not(:disabled) {
+    background-color: var(--color-surface-2);
+}
+
+.btn--grow {
+    flex: 1;
+}
+
+.link-btn {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--color-accent-text);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Fixed-size spinner so a busy button keeps its width. */
+.btn-spinner,
+.toast-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: shared-spin 0.8s linear infinite;
+}
+
+@keyframes shared-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Tile actions (delete, more) ──────────────────────────────────────────── */
+
+.tile-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    display: flex;
+    gap: 8px;
+}
+
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.tile-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 20px;
+    background-color: var(--color-chip-bg);
+    color: var(--color-muted);
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.row-actions .tile-action-btn {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+.tile-action-btn--label {
+    width: auto;
+    padding: 0 12px 0 10px;
+}
+
+.tile-action-btn:hover:not(:disabled) {
+    background-color: var(--color-surface-2);
+    color: var(--color-text);
+}
+
+.tile-delete-btn:hover:not(:disabled) {
+    color: var(--color-danger);
+}
+
+.tile-action-btn:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* Stretched link: the title link covers the card, so the whole card is one tab
+   stop that opens the bookmark; the action buttons sit above it (z-index 2). */
+.tile-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.tile .tile-link::after,
+.folder-tile .tile-link::after,
+.list-item .tile-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+.tile .tile-link:focus-visible,
+.folder-tile .tile-link:focus-visible,
+.list-item .tile-link:focus-visible {
+    outline: none;
+}
+
+.tile:has(.tile-link:focus-visible),
+.folder-tile:has(.tile-link:focus-visible),
+.list-item:has(.tile-link:focus-visible) {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+.list-item:has(.tile-link:focus-visible) {
+    outline-offset: -2px;
+}
+
+.tile--busy {
+    opacity: 0.6;
+}
+
+.folder-link {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.folder-label.tile-link {
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0;
+    cursor: pointer;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-tile-count {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.folder-count-badge {
+    margin-left: 8px;
+    font-size: 12px;
+    color: var(--color-muted);
+    flex-shrink: 0;
+}
+
+/* Yellow folders everywhere (sidebar, grid, list, Trash, picker). */
+.folder-glyph {
+    color: var(--folder-stroke);
+    fill: var(--folder-fill);
+    flex-shrink: 0;
+}
+
+/* ── Bookmark preview (screenshot or favicon fallback) ───────────────────── */
+
+.bp-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+    display: block;
+}
+
+.bp-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-surface-2);
+}
+
+.bp-fallback--tile {
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bp-favicon {
+    display: block;
+}
+
+/* Legacy rule ".list-item-thumb img { width: 100% }" must not stretch the icon. */
+.list-item-thumb .bp-favicon {
+    width: 20px;
+    height: 20px;
+}
+
+.bp-domain {
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+
+.toast-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    padding: 0 8px calc(16px + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 4px 8px;
+    min-height: 48px;
+    max-width: 640px;
+    padding: 4px 4px 4px 16px;
+    border-radius: 8px;
+    background-color: var(--color-toast-bg);
+    color: var(--color-toast-text);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14);
+    font-size: 14px;
+    animation: toast-in 0.18s ease-out;
+}
+
+.toast--error {
+    box-shadow: inset 4px 0 0 #f28b82, 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14);
+}
+
+.toast-message {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 8px 0;
+    line-height: 1.4;
+}
+
+.toast-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.toast-btn {
+    min-height: 40px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: var(--color-toast-action);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.toast-btn--primary {
+    font-weight: 700;
+}
+
+.toast-btn:hover:not(:disabled),
+.toast-close:hover {
+    background-color: rgba(128, 128, 128, 0.2);
+}
+
+.toast-close {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 20px;
+    background: none;
+    color: var(--color-toast-text);
+    cursor: pointer;
+}
+
+.toast :focus-visible {
+    outline-color: var(--color-toast-action);
+}
+
+@keyframes toast-in {
+    from { transform: translateY(12px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+/* ── Dialogs ──────────────────────────────────────────────────────────────── */
+
+.modal-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background-color: var(--color-scrim);
+}
+
+.modal {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 520px;
+    max-height: calc(100vh - 32px);
+    border-radius: 12px;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    outline: none;
+}
+
+.modal--narrow {
+    max-width: 420px;
+}
+
+.modal--picker {
+    max-width: 560px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 8px 4px 20px;
+}
+
+.modal-title {
+    flex: 1;
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.modal-close {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 20px;
+    background: none;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    background-color: var(--color-surface-2);
+}
+
+.modal-body {
+    padding: 4px 20px 16px;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.modal-footer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+.modal-text {
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--color-text);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+.modal-footer .modal-actions {
+    margin-top: 0;
+}
+
+.field-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+.text-field {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 14px;
+}
+
+.text-field:focus {
+    border-color: var(--color-focus);
+    outline: none;
+    box-shadow: 0 0 0 1px var(--color-focus);
+}
+
+/* ── Folder picker ────────────────────────────────────────────────────────── */
+
+.picker-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    color: var(--color-muted);
+}
+
+.picker-search svg {
+    position: absolute;
+    left: 12px;
+}
+
+.picker-search .text-field {
+    padding-left: 36px;
+}
+
+.picker-list {
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.picker-group {
+    margin: 0 0 12px;
+    padding: 0;
+    border: none;
+}
+
+.picker-group-label {
+    padding: 4px 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+
+.picker-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 8px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.picker-option:hover {
+    background-color: var(--color-surface-2);
+}
+
+.picker-option--selected {
+    background-color: var(--color-accent-soft);
+}
+
+.picker-option input {
+    accent-color: var(--color-accent);
+    margin: 0;
+    width: 18px;
+    height: 18px;
+}
+
+.picker-path {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.picker-empty {
+    color: var(--color-muted);
+    font-size: 14px;
+}
+
+/* ── Trash view ───────────────────────────────────────────────────────────── */
+
+.trash-view {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
+.trash-header .trash-empty-btn {
+    margin-left: auto;
+}
+
+.trash-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px 96px;
+}
+
+.trash-intro {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+.inline-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background-color: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: 13px;
+}
+
+.inline-banner--error {
+    background-color: var(--color-danger-soft);
+}
+
+.trash-list,
+.trash-entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.trash-row {
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background-color: var(--color-surface);
+}
+
+.trash-row--failed {
+    border-color: var(--color-danger);
+}
+
+.trash-row-main {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.trash-strip {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.trash-strip-item {
+    width: 48px;
+    height: 36px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-surface-2);
+}
+
+.trash-row-text {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.trash-row-title {
+    font-size: 14px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.trash-row-meta {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.trash-row-error,
+.trash-entry-status {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--color-danger);
+}
+
+.trash-row-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chev {
+    transition: transform 0.15s;
+}
+
+.chev--open {
+    transform: rotate(180deg);
+}
+
+.trash-entries {
+    margin-top: 8px;
+    border-top: 1px solid var(--color-border);
+}
+
+.trash-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.trash-entry:last-child {
+    border-bottom: none;
+}
+
+.trash-entry-icon {
+    width: 32px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-surface-2);
+}
+
+.trash-entry-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.trash-entry-title {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.trash-entry-path {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.trash-more {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+}
+
+.trash-row--skeleton {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    height: 48px;
+}
+
+.trash-row--skeleton span {
+    display: block;
+    height: 14px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--color-surface-2), var(--color-border), var(--color-surface-2));
+    background-size: 200% 100%;
+    animation: skeleton 1.2s ease-in-out infinite;
+}
+
+.trash-row--skeleton span:first-child {
+    width: 104px;
+    height: 36px;
+}
+
+.trash-row--skeleton span:last-child {
+    flex: 1;
+}
+
+@keyframes skeleton {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+.trash-empty {
+    gap: 4px;
+}
+
+.trash-empty p {
+    margin: 0;
+}
+
+.trash-empty .btn {
+    margin-top: 16px;
+}
+
+.trash-empty-icon {
+    color: var(--color-muted);
+    margin-bottom: 8px;
+}
+
+/* ── Folders drawer (phones) ──────────────────────────────────────────────── */
+
+.drawer-root {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+}
+
+.drawer-scrim {
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-scrim);
+}
+
+.sidebar.sidebar--drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(85vw, 320px);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
+    padding-top: env(safe-area-inset-top, 0px);
+    animation: drawer-in 0.18s ease-out;
+}
+
+.sidebar-header .sidebar-close {
+    margin-left: auto;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 20px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+@keyframes drawer-in {
+    from { transform: translateX(-100%); }
+    to { transform: none; }
+}
+
+/* ── Phones ───────────────────────────────────────────────────────────────── */
+
+@media (max-width: 719px) {
+    /* Message on its own line, actions and close below it in the thumb zone. */
+    .toast {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .toast-message {
+        flex-basis: 100%;
+    }
+
+    .toast-actions {
+        margin-left: auto;
+    }
+
+    .trash-scroll {
+        padding: 12px 12px 96px;
+    }
+
+    .trash-row-actions {
+        width: 100%;
+    }
+
+    .trash-row-actions .btn--secondary {
+        flex: 1;
+    }
+
+    .modal-scrim {
+        align-items: flex-end;
+        padding: 8px;
+    }
+
+    .modal-actions .btn {
+        flex: 1;
+    }
+
+    /* List rows: give the title more room next to the labelled Delete. */
+    .list-item-thumb {
+        width: 40px;
+        height: 40px;
+    }
+
+    .row-actions {
+        gap: 0;
+        margin-left: 0;
+    }
+
+    .row-actions .tile-action-btn--label {
+        padding: 0 8px 0 6px;
+    }
+}

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // AI engine for auto-tagging and smart search.
 // Supports:
 //   • Built-in  — Chrome's on-device Gemini Nano (LanguageModel API, Chrome 138+)

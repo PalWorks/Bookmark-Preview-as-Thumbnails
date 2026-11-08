@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useEffect } from 'react';
 import { LayoutGrid, Play, ShieldCheck, Moon, X } from 'lucide-react';
 import './WelcomeModal.css';

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+// SPDX-License-Identifier: AGPL-3.0-only
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 interface MenuItem {
     label: string;
@@ -14,95 +15,91 @@ interface ContextMenuProps {
     onClose: () => void;
 }
 
+/**
+ * Bookmark/folder actions menu. Real buttons with roving focus: arrow keys move,
+ * Home/End jump, Escape or Tab closes, and focus returns to the opener (handled
+ * by useContextMenu).
+ */
 export const ContextMenu: React.FC<ContextMenuProps> = ({ position, items, onClose }) => {
     const menuRef = useRef<HTMLDivElement>(null);
+    const closeRef = useRef(onClose);
+    useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                onClose();
-            }
+        const handlePointerDown = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) closeRef.current();
         };
-
-        const handleScroll = () => {
-            onClose();
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        window.addEventListener('scroll', handleScroll, true);
-        window.addEventListener('resize', onClose);
-
+        const close = () => closeRef.current();
+        document.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('scroll', close, true);
+        window.addEventListener('resize', close);
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('scroll', handleScroll, true);
-            window.removeEventListener('resize', onClose);
+            document.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('resize', close);
         };
-    }, [onClose]);
+    }, []);
 
-    const [adjustedPosition, setAdjustedPosition] = React.useState(position);
+    const [adjustedPosition, setAdjustedPosition] = useState(position);
 
-    React.useLayoutEffect(() => {
-        if (menuRef.current) {
-            const rect = menuRef.current.getBoundingClientRect();
-            let newX = position.x;
-            let newY = position.y;
+    useLayoutEffect(() => {
+        const el = menuRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const padding = 8;
+        let x = position.x;
+        let y = position.y;
+        if (x + rect.width + padding > window.innerWidth) x = position.x - rect.width;
+        if (x < padding) x = padding;
+        if (y + rect.height + padding > window.innerHeight) y = position.y - rect.height;
+        if (y < padding) y = padding;
+        // Measured layout must be applied before paint, so this is a layout effect.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setAdjustedPosition({ x, y });
+        // Focus the first enabled item so the keyboard works immediately.
+        el.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus({ preventScroll: true });
+        // Numbers, not the object: the parent passes a new object every render.
+    }, [position.x, position.y]);
 
-            // Safety margin
-            const padding = 10;
-
-            // Check horizontal overflow
-            // If the menu goes off the right edge
-            if (newX + rect.width + padding > window.innerWidth) {
-                // Shift it to the left of the cursor/click point
-                // If we shift it left, we want it to end at position.x
-                newX = position.x - rect.width;
-            }
-
-            // If shifting left makes it go off the left edge, clamp it
-            if (newX < padding) {
-                newX = padding;
-            }
-
-            // Check vertical overflow
-            // If the menu goes off the bottom edge
-            if (newY + rect.height + padding > window.innerHeight) {
-                // Shift it up
-                newY = position.y - rect.height;
-            }
-
-            // If shifting up makes it go off the top edge, clamp it
-            if (newY < padding) {
-                newY = padding;
-            }
-
-            setAdjustedPosition({ x: newX, y: newY });
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        const buttons = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [])];
+        const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const focusAt = (n: number) => buttons[(n + buttons.length) % buttons.length]?.focus();
+        switch (e.key) {
+            case 'ArrowDown': e.preventDefault(); focusAt(i + 1); break;
+            case 'ArrowUp': e.preventDefault(); focusAt(i - 1); break;
+            case 'Home': e.preventDefault(); focusAt(0); break;
+            case 'End': e.preventDefault(); focusAt(buttons.length - 1); break;
+            case 'Escape': case 'Tab': e.preventDefault(); onClose(); break;
         }
-    }, [position]);
-
-    const style: React.CSSProperties = {
-        top: adjustedPosition.y,
-        left: adjustedPosition.x,
-        visibility: 'visible', // Ensure it's visible after positioning
     };
 
     return (
-        <div className="context-menu" ref={menuRef} style={style}>
+        <div
+            className="context-menu"
+            ref={menuRef}
+            role="menu"
+            style={{ top: adjustedPosition.y, left: adjustedPosition.x }}
+            onKeyDown={onKeyDown}
+        >
             {items.map((item, index) => (
                 item.separator ? (
-                    <div key={index} className="menu-separator" />
+                    <div key={index} className="menu-separator" role="separator" />
                 ) : (
-                    <div
+                    <button
                         key={index}
-                        className={`menu-item ${item.disabled ? 'disabled' : ''} ${item.danger ? 'danger' : ''}`}
+                        type="button"
+                        role="menuitem"
+                        className={`ctx-menu-item ${item.danger ? 'danger' : ''}`}
+                        disabled={item.disabled}
                         onClick={() => {
-                            if (!item.disabled) {
-                                item.action();
-                                onClose();
-                            }
+                            if (item.disabled) return;
+                            item.action();
+                            onClose();
                         }}
                     >
                         {item.label}
-                    </div>
+                    </button>
                 )
             ))}
         </div>

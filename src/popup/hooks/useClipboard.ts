@@ -1,4 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
+import { createSubtree, toSavedNode } from '../../lib/bookmark_tree';
 
 export function useClipboard(
     selectedFolderId: string,
@@ -27,20 +29,6 @@ export function useClipboard(
         });
     };
 
-    const copyNodeRecursively = async (
-        node: chrome.bookmarks.BookmarkTreeNode,
-        parentId: string
-    ): Promise<void> => {
-        const newNode = await chrome.bookmarks.create({
-            parentId,
-            title: node.title,
-            url: node.url,
-        });
-        if (node.children?.length) {
-            await Promise.all(node.children.map(child => copyNodeRecursively(child, newNode.id)));
-        }
-    };
-
     // targetParentId is computed by the caller (useContextMenu) from contextMenu state
     const handlePaste = async (targetParentId: string) => {
         if (!clipboard) return;
@@ -56,7 +44,9 @@ export function useClipboard(
             refreshTree();
             refreshCurrentFolder(selectedFolderId);
         } else if (clipboard.mode === 'copy') {
-            await copyNodeRecursively(clipboard.node, targetParentId);
+            // Sequential, parents first: children keep their order (a parallel
+            // create would shuffle them).
+            await createSubtree(toSavedNode(clipboard.node), targetParentId);
             refreshTree();
             refreshCurrentFolder(selectedFolderId);
         }

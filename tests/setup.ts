@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 /// <reference types="chrome" />
 import 'fake-indexeddb/auto';
 import { vi, beforeEach } from 'vitest';
+import { fakeBookmarks } from './fakes/chrome_bookmarks';
 
 // ─── In-memory storage backing ────────────────────────────────────────────────
 
@@ -18,6 +20,7 @@ const local = {
     set: vi.fn(),
     remove: vi.fn(),
     clear: vi.fn(),
+    getKeys: vi.fn(),
 };
 
 const sync = {
@@ -25,22 +28,50 @@ const sync = {
     set: vi.fn(),
 };
 
+export const EXTENSION_ORIGIN = 'chrome-extension://testextensionid/';
+
+// chrome.alarms fake: alarms live in a map; tests fire them with fireAlarm().
+export const alarmStore = new Map<string, chrome.alarms.Alarm>();
+const alarmListeners = new Set<(a: chrome.alarms.Alarm) => void>();
+export function fireAlarm(name: string): void {
+    const a = alarmStore.get(name);
+    if (a) alarmListeners.forEach(l => l(a));
+}
+const alarms = {
+    create: (name: string, info: { periodInMinutes?: number; delayInMinutes?: number }) => {
+        alarmStore.set(name, { name, scheduledTime: Date.now() + (info.delayInMinutes ?? info.periodInMinutes ?? 0) * 60000, periodInMinutes: info.periodInMinutes });
+        return Promise.resolve();
+    },
+    get: (name: string) => Promise.resolve(alarmStore.get(name)),
+    clear: (name: string) => Promise.resolve(alarmStore.delete(name)),
+    onAlarm: {
+        addListener: (fn: (a: chrome.alarms.Alarm) => void) => { alarmListeners.add(fn); },
+        removeListener: (fn: (a: chrome.alarms.Alarm) => void) => { alarmListeners.delete(fn); },
+    },
+};
+
 (globalThis as any).chrome = {
-    storage: { local, sync },
+    storage: { local, sync, onChanged: { addListener: vi.fn(), removeListener: vi.fn() } },
     runtime: {
+        id: 'testextensionid',
         lastError: undefined,
         onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
         sendMessage: vi.fn().mockResolvedValue(undefined),
+        getURL: (p: string) => `${EXTENSION_ORIGIN}${p.replace(/^\//, '')}`,
     },
+    extension: { inIncognitoContext: false },
+    bookmarks: fakeBookmarks.api(),
+    alarms,
     tabs: {
         captureVisibleTab: vi.fn(),
+        create: vi.fn(),
         get: vi.fn(),
         update: vi.fn(),
         query: vi.fn(),
         sendMessage: vi.fn(),
         onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
     },
-    windows: { get: vi.fn() },
+    windows: { get: vi.fn(), create: vi.fn() },
     scripting: { executeScript: vi.fn() },
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -103,6 +134,7 @@ function wireStorageMocks(): void {
         Object.keys(localStore).forEach(k => delete localStore[k]);
         return Promise.resolve();
     });
+    local.getKeys.mockImplementation(() => Promise.resolve(Object.keys(localStore)));
 
     sync.get.mockImplementation((keys?: string | string[] | null) => {
         if (keys === null || keys === undefined) return Promise.resolve({ ...syncStore });
@@ -133,4 +165,13 @@ beforeEach(() => {
     vi.resetAllMocks();
     // Re-wire storage implementations (cleared by resetAllMocks above)
     wireStorageMocks();
+    // Fresh bookmark tree and alarms; restore runtime defaults tests may override.
+    fakeBookmarks.reset({});
+    alarmStore.clear();
+    alarmListeners.clear();
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    (globalThis as any).chrome.bookmarks = fakeBookmarks.api();
+    (globalThis as any).chrome.extension.inIncognitoContext = false;
+    (globalThis as any).chrome.runtime.sendMessage = vi.fn().mockResolvedValue(undefined);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 });

@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
+import { MoreVertical, Trash2 } from 'lucide-react';
 import './ThumbnailTile.css';
+import { BookmarkPreview } from '../../components/BookmarkPreview';
 
 interface BookmarkItem {
     id: string;
@@ -8,53 +11,44 @@ interface BookmarkItem {
     thumbnailUrl?: string;
 }
 
-import { MoreVertical } from 'lucide-react';
-
 interface ThumbnailTileProps {
     bookmark: BookmarkItem;
     isLoading?: boolean;
     isQueued?: boolean;
     tags?: string[];
-    onContextMenu?: (e: React.MouseEvent, bookmark: BookmarkItem) => void;
+    onContextMenu?: (e: React.MouseEvent) => void;
+    onDelete?: () => void;
+    /** A delete for this bookmark is in flight. */
+    deleting?: boolean;
+    canDelete?: boolean;
 }
 
-const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQueued, tags, onContextMenu }) => {
-    const handleClick = () => {
-        chrome.tabs.create({ url: bookmark.url, active: true });
-    };
+/**
+ * Grid card. The title link stretches over the whole card (one tab stop that
+ * opens the page); the delete and more-options buttons sit above it. Middle-click
+ * and Ctrl+click open in a background tab natively.
+ */
+const ThumbnailTile: React.FC<ThumbnailTileProps> = ({
+    bookmark, isLoading, isQueued, tags, onContextMenu, onDelete, deleting = false, canDelete = true,
+}) => {
+    const title = bookmark.title || bookmark.url;
 
-    const handleContextMenu = (e: React.MouseEvent) => {
-        if (onContextMenu) {
-            onContextMenu(e, bookmark);
-        }
-    };
-
-    const handleAuxClick = (e: React.MouseEvent) => {
-        if (e.button === 1) {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Delete' && onDelete && canDelete && !deleting) {
             e.preventDefault();
-            chrome.tabs.create({ url: bookmark.url, active: false });
+            onDelete();
         }
     };
 
     return (
         <div
-            className="tile"
-            tabIndex={0}
-            onClick={handleClick}
-            onAuxClick={handleAuxClick}
-            onKeyDown={(e) => e.key === 'Enter' && handleClick()}
-            onContextMenu={handleContextMenu}
+            className={`tile ${deleting ? 'tile--busy' : ''}`}
+            data-node-id={bookmark.id}
+            onContextMenu={onContextMenu}
+            onKeyDown={handleKeyDown}
         >
             <div className="preview">
-                {bookmark.thumbnailUrl ? (
-                    <img
-                        src={bookmark.thumbnailUrl}
-                        alt={bookmark.title}
-                        className="preview-img"
-                    />
-                ) : (
-                    <span className="no-preview">No Preview</span>
-                )}
+                <BookmarkPreview url={bookmark.url} title={title} thumbnailUrl={bookmark.thumbnailUrl} variant="tile" />
                 {isLoading && (
                     <div className="loading-overlay">
                         <div className="loading-bar"></div>
@@ -67,16 +61,16 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQu
                 )}
             </div>
             <div className="info">
-                <div
-                    className="tile-title"
-                    title={bookmark.title}
+                <a
+                    className="tile-title tile-link"
+                    href={bookmark.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={title}
                 >
-                    {bookmark.title}
-                </div>
-                <div
-                    className="tile-url"
-                    title={bookmark.url}
-                >
+                    {title}
+                </a>
+                <div className="tile-url" title={bookmark.url}>
                     {bookmark.url}
                 </div>
                 {tags && tags.length > 0 && (
@@ -87,11 +81,29 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({ bookmark, isLoading, isQu
                     </div>
                 )}
             </div>
-            <div className="more-options-btn" onClick={(e) => {
-                e.stopPropagation();
-                handleContextMenu(e);
-            }}>
-                <MoreVertical size={16} />
+            <div className="tile-actions">
+                <button
+                    type="button"
+                    className="tile-action-btn more-options-btn"
+                    aria-label={`More actions for ${title}`}
+                    aria-haspopup="menu"
+                    title="More actions"
+                    onClick={(e) => { e.stopPropagation(); onContextMenu?.(e); }}
+                >
+                    <MoreVertical size={18} aria-hidden="true" />
+                </button>
+                {onDelete && (
+                    <button
+                        type="button"
+                        className="tile-action-btn tile-delete-btn"
+                        aria-label={`Delete ${title}`}
+                        title={canDelete ? 'Delete (you can undo)' : 'Delete works in regular windows only'}
+                        disabled={!canDelete || deleting}
+                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    >
+                        {deleting ? <span className="btn-spinner" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}
+                    </button>
+                )}
             </div>
         </div>
     );

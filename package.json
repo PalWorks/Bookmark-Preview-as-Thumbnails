@@ -1,7 +1,7 @@
 {
   "name": "bookmarks-thumbnails",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,9 +9,10 @@
     "lint": "eslint .",
     "test": "vitest",
     "preview": "vite preview",
-    "zip": "npm run build && cd dist && zip -r ../extension.zip ."
+    "check:bundle": "node scripts/check-bundle.mjs dist",
+    "zip": "npm run build && npm run check:bundle && cd dist && zip -r ../extension.zip ."
   },
-  "license": "AGPL-3.0-or-later",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.556.0",

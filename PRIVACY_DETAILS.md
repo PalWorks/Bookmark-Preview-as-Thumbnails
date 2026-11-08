@@ -1,5 +1,7 @@
 # Chrome Web Store Privacy Details
 
+_Last updated: 2026-11-08T09:06:39+00:00 (1.3.0: `favicon` and `alarms` added; Chrome 156 shows no new install warning for either)._
+
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
 
@@ -21,6 +23,8 @@ These are the permissions actually declared in the manifest:
 | **scripting** | Inject the capture helper into background tabs (standard capture only works for the active tab). |
 | **bookmarks** | Read bookmarks to display them and associate thumbnails with URLs. |
 | **unlimitedStorage** | Store many thumbnail images without hitting the standard quota. |
+| **favicon** | Show a bookmark's site icon from Chrome's local favicon cache when no thumbnail exists yet. No network request. |
+| **alarms** | Run a daily local clean-up that permanently removes Trash items older than 30 days. |
 | **webNavigation** | Detect when a page finishes loading during batch capture so the screenshot reflects the rendered page. |
 | **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and — only if the user enables a cloud AI provider — send requests to that provider's API endpoint. |
 
@@ -41,6 +45,8 @@ third-party provider. Disclose this accurately:
 
 **Data collected / used:**
 - **Website content** — screenshots of bookmarked pages (stored locally only).
+- **Deleted bookmarks** — titles, URLs and folder locations of bookmarks deleted in the
+  extension, kept locally for 30 days for Restore (never transmitted).
 - **Web history / website data** — bookmark **titles and URLs** are sent to a
   third-party AI provider **only when the user enables a cloud AI provider** for
   Auto-Tag or Smart Search. With the default on-device engine (Chrome Built-in AI)

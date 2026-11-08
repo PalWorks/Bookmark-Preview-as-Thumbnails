@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import html2canvas from 'html2canvas';
 
 // Listen for messages from the background script

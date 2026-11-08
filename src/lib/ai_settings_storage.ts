@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 export type AIMode = 'builtin' | 'cloud';
 export type AIProvider =
     | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'mistral'

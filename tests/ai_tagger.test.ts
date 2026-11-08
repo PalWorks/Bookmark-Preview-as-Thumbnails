@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { parseTags, checkAIAvailability, AI_TAGS, friendlyError, isFatalAIError, searchBookmarks } from '../src/lib/ai_tagger';
 

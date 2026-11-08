@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAITagger } from '../../src/popup/hooks/useAITagger';
@@ -9,8 +10,8 @@ function makeFolder(
     children: Array<{ id: string; url?: string; title: string }>
 ): chrome.bookmarks.BookmarkTreeNode {
     return {
-        id: 'f1', title: 'Test Folder',
-        children: children.map(c => ({ ...c, dateAdded: 0 })),
+        id: 'f1', title: 'Test Folder', syncing: false,
+        children: children.map(c => ({ ...c, dateAdded: 0, syncing: false })),
     };
 }
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 
 export async function generateErrorImage(error: string, url: string, title?: string): Promise<string> {
     const width = 600;

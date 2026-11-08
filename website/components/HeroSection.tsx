@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Chrome } from 'lucide-react';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Hook tests for useThumbnails.
  *
@@ -39,6 +40,7 @@ function makeFolder(children: Array<{ id: string; url?: string; title: string }>
     return {
         id: 'folder-1',
         title: 'Test Folder',
+        syncing: false,
         children: children.map(c => ({
             ...c,
             title: c.title,

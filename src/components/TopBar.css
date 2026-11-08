@@ -1,46 +1,84 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 .top-bar {
     display: flex;
     align-items: center;
-    height: 56px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    min-height: 56px;
+    box-sizing: border-box;
     background-color: #1a73e8;
     /* Chrome Blue */
     color: white;
-    padding: 0 24px;
+    padding: 8px 16px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     z-index: 100;
-    justify-content: space-between;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.folders-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 20px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.folders-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.folders-toggle--open {
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 .logo-section {
     display: flex;
     align-items: center;
-    min-width: 250px;
+    flex: 1;
+    min-width: 0;
 }
 
 .logo-text {
     font-size: 20px;
     font-weight: 500;
     letter-spacing: 0.25px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* Remove old search-section styles */
+.logo-text--short {
+    display: none;
+}
 
-.actions-section {
+.topbar-tools {
     display: flex;
     align-items: center;
     gap: 12px;
-    position: relative;
 }
 
 .search-input-wrapper {
     background-color: rgba(255, 255, 255, 0.15);
     border-radius: 8px;
-    padding: 6px 12px;
+    padding: 0 12px;
+    min-height: 40px;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     transition: background-color 0.2s;
-    width: 300px;
-    /* Fixed width for search */
+    flex: 0 1 300px;
+    min-width: 160px;
 }
 
 .search-input-wrapper:focus-within {
@@ -65,8 +103,10 @@
     background: none;
     border: none;
     color: white;
+    font: inherit;
     font-size: 14px;
     width: 100%;
+    min-height: 38px;
     outline: none;
 }
 
@@ -125,7 +165,6 @@
 
 .settings-wrapper {
     position: relative;
-    margin-left: 8px;
     display: flex;
     align-items: center;
 }
@@ -157,7 +196,9 @@
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     border: 1px solid #dadce0;
-    width: 280px;
+    width: min(300px, calc(100vw - 16px));
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
     z-index: 1000;
     padding: 8px 0;
     color: #333;
@@ -167,9 +208,21 @@
 .menu-item {
     display: flex;
     align-items: center;
+    box-sizing: border-box;
+    width: 100%;
     padding: 12px 16px;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
     cursor: pointer;
     transition: background-color 0.2s;
+}
+
+.menu-item:focus-visible,
+.dropdown-item:focus-visible {
+    outline-offset: -2px;
 }
 
 .menu-item:hover {
@@ -285,7 +338,14 @@
 }
 
 .dropdown-item {
-    padding: 10px 16px;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 40px;
+    border: none;
+    background: none;
+    font: inherit;
+    text-align: left;
+    padding: 0 16px;
     font-size: 13px;
     color: #3c4043;
     cursor: pointer;
@@ -553,6 +613,8 @@
 }
 
 .dropdown-tag-pill {
+    border: none;
+    font-family: inherit;
     font-size: 11px;
     font-weight: 500;
     padding: 3px 8px;
@@ -621,3 +683,111 @@
 .theme-dark .topbar-ai-btn:hover { background-color: rgba(255, 255, 255, 0.1) !important; }
 .theme-dark .topbar-ai-btn--active { background-color: #7c3aed !important; color: #fff !important; }
 .theme-dark .topbar-ai-btn--active:hover { background-color: #8b5cf6 !important; }
+/* Focus ring inside the white menus stays blue. */
+.settings-menu :focus-visible,
+.dropdown-menu :focus-visible {
+    outline-color: var(--color-focus);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+/* Below 1440px the long title would truncate: show the short one. */
+@media (max-width: 1439px) {
+    .logo-text--full {
+        display: none;
+    }
+
+    .logo-text--short {
+        display: inline;
+    }
+}
+
+/* Medium widths: drop the capture label too. */
+@media (max-width: 1180px) {
+    .logo-text--full {
+        display: none;
+    }
+
+    .logo-text--short {
+        display: inline;
+    }
+
+    .capture-label {
+        display: none;
+    }
+}
+
+/* Phones (360px first): [Folders] Bookmarks [theme][settings] / search / tools. */
+@media (max-width: 719px) {
+    .top-bar {
+        padding: 8px;
+        padding-top: calc(8px + env(safe-area-inset-top, 0px));
+        gap: 8px;
+    }
+
+    .folders-toggle {
+        order: 1;
+    }
+
+    .logo-section {
+        order: 2;
+    }
+
+    .logo-text {
+        font-size: 18px;
+    }
+
+    .settings-wrapper {
+        order: 3;
+    }
+
+    .search-input-wrapper {
+        order: 4;
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    /* One compact row: filter and sort become icon buttons (accessible names
+       stay on the buttons); the capture group loses its padding. */
+    .topbar-tools {
+        order: 5;
+        flex: 1 1 100%;
+        justify-content: space-between;
+        gap: 4px;
+    }
+
+    .action-btn {
+        min-height: 40px;
+        min-width: 40px;
+        padding: 0 10px;
+        justify-content: center;
+    }
+
+    .action-btn span {
+        display: none;
+    }
+
+    .capture-controls-wrapper {
+        padding: 0 2px;
+        gap: 0;
+    }
+
+    .dropdown-menu {
+        right: auto;
+        left: 0;
+        max-width: calc(100vw - 16px);
+    }
+
+    .settings-menu {
+        right: 0;
+    }
+}
+
+@media (pointer: coarse) {
+    .icon-btn,
+    .view-btn {
+        min-width: 40px;
+        min-height: 40px;
+        justify-content: center;
+    }
+}
