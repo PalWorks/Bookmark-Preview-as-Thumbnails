@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-11-08T09:06:39+00:00 (rewritten for 1.3.0; CLAUDE.md now points here)._
+_Last updated: 2026-11-08T10:20:54+00:00 (rewritten for 1.3.0; CLAUDE.md now points here)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,

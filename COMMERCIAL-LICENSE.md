@@ -1,6 +1,6 @@
 # Commercial licence
 
-Last updated: 2026-11-08T08:54:54+00:00
+Last updated: 2026-11-08T10:20:54+00:00
 
 Bookmarks as Thumbnails (the Chrome extension and its website in this repository)
 is dual-licensed.

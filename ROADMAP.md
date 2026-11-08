@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T09:06:39+00:00 (created from TODOS.md and the 1.3.0 design; 1.3.0 built, awaiting release)._
+> _Last updated: 2026-11-08T10:20:54+00:00 (created from TODOS.md and the 1.3.0 design; 1.3.0 built, awaiting release)._
 
 ## 0. North star: every open item, one row each
 
@@ -91,7 +91,7 @@ Priority, Size and Impact are separate columns because they answer separate ques
 
 ## 2. Next up
 
-### 2.1 Status: 1.3.0 built and verified, release pending row 9 (updated 2026-11-08T09:06:39+00:00)
+### 2.1 Status: 1.3.0 built and verified, release pending row 9 (updated 2026-11-08T10:20:54+00:00)
 
 1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0`: 256 tests, lint, build and
 bundle check pass; update from 1.2.1, Trash flows and layouts verified on Chrome 156.

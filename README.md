@@ -8,7 +8,7 @@ A Chrome extension that turns your bookmarks into a visual grid of page previews
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-08T09:06:39+00:00 (1.3.0)._
+_Last updated: 2026-11-08T10:20:54+00:00 (1.3.0)._
 
 ## Contents
 

@@ -1,6 +1,6 @@
 # Contributing to Bookmarks Thumbnails
 
-_Last updated: 2026-11-08T09:06:39+00:00 (licence terms for contributions, checks before a PR)._
+_Last updated: 2026-11-08T10:20:54+00:00 (licence terms for contributions, checks before a PR)._
 
 Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome contributions from everyone.
 
