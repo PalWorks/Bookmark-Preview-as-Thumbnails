@@ -1034,7 +1034,7 @@ Test files: `tests/migration.test.ts`, `tests/storage_index.test.ts` (extend), `
 (deep count, faviconUrl), `tests/hooks/useTrash.test.ts`, `tests/components/UndoToast.test.tsx`,
 `tests/components/TrashView.test.tsx`, plus `scripts/check-sw-bundle.mjs` in CI. Manual browser checks in
 the test plan artifact. Test plan artifact:
-`~/.gstack/projects/PalWorks-Bookmark-Preview-as-Thumbnails/palani-release-1.3.0-eng-review-test-plan-*.md`.
+the local gstack test-plan artifact for this branch.
 
 ### Section 4: Performance
 
