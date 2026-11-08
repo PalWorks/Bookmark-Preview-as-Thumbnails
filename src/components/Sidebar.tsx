@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useEffect, useRef } from 'react';
-import { Sparkles, Trash2, X } from 'lucide-react';
+import { EyeOff, Sparkles, Trash2, X } from 'lucide-react';
+import type { FolderPrefs } from '../lib/folder_prefs';
 import { FolderGlyph } from './BookmarkPreview';
 import { buildDeepCountMap, plural } from '../lib/utils';
 
@@ -20,6 +21,8 @@ interface SidebarProps {
     /** 'drawer' on narrow screens: overlay with a scrim, closes on Escape. */
     variant?: 'docked' | 'drawer';
     onClose?: () => void;
+    /** Folder colours and hidden-from-search (1.4.0). */
+    folderPrefs?: FolderPrefs;
 }
 
 export const SIDEBAR_ID = 'folders-panel';
@@ -27,7 +30,7 @@ export const SIDEBAR_ID = 'folders-panel';
 export const Sidebar: React.FC<SidebarProps> = ({
     folders, selectedFolderId, onSelectFolder, onContextMenu,
     onAISettings, isAISettingsActive, onTrash, isTrashActive, trashCount,
-    variant = 'docked', onClose,
+    variant = 'docked', onClose, folderPrefs = {},
 }) => {
     const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(new Set(['1'])); // Default expand Bookmarks Bar
     const panelRef = useRef<HTMLElement>(null);
@@ -74,7 +77,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Deep counts (bookmarks in a folder and all its subfolders), derived per render.
     const counts = buildDeepCountMap(folders);
 
-    const renderTree = (nodes: Node[], depth = 0): React.ReactNode => nodes.map((node) => {
+    /** `hiddenWith`: title of the nearest ancestor hidden from search, if any. */
+    const renderTree = (nodes: Node[], depth = 0, hiddenWith?: string): React.ReactNode => nodes.map((node) => {
         // Only show folders in sidebar
         if (node.url) return null;
 
@@ -84,6 +88,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const count = counts.get(node.id) ?? 0;
         const name = node.title || 'Untitled folder';
         const countLabel = `${plural(count, 'bookmark')}, including subfolders`;
+        const pref = folderPrefs[node.id];
+        const hiddenHere = !!pref?.hideFromSearch;
+        const hiddenNote = hiddenHere ? 'Hidden from search' : hiddenWith ? `Hidden from search with ${hiddenWith}` : undefined;
 
         return (
             <li key={node.id} role="none">
@@ -110,20 +117,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                         type="button"
                         className="sidebar-item-main"
-                        title={`${name}, ${countLabel}`}
+                        title={`${name}, ${countLabel}${hiddenNote ? `. ${hiddenNote}` : ''}`}
                         aria-current={isSelected ? 'page' : undefined}
                         onClick={() => {
                             onSelectFolder(node.id);
                             if (hasChildren && !isExpanded) toggleExpand(node.id);
                         }}
                     >
-                        <span className="folder-icon-wrapper"><FolderGlyph size={16} /></span>
+                        <span className="folder-icon-wrapper"><FolderGlyph size={16} color={pref?.color} /></span>
                         <span className="folder-name">{name}</span>
+                        {hiddenHere && (
+                            <span className="hidden-search-icon" role="img" aria-label="Hidden from search">
+                                <EyeOff size={13} aria-hidden="true" />
+                            </span>
+                        )}
                         {count > 0 && <span className="folder-count" aria-label={countLabel}>{count}</span>}
                     </button>
                 </div>
                 {hasChildren && isExpanded && node.children && (
-                    <ul className="sidebar-tree" role="none">{renderTree(node.children, depth + 1)}</ul>
+                    <ul className="sidebar-tree" role="none">{renderTree(node.children, depth + 1, hiddenHere ? name : hiddenWith)}</ul>
                 )}
             </li>
         );

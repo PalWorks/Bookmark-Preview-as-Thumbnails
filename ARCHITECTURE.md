@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-08T10:20:54+00:00 (1.3.0: Trash coordinator, reactive bookmark tree, favicon previews, responsive layout)._
+_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: deletes made outside the extension, folder prefs, selection and bulk actions, list columns, metadata allowlist)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has no server. Everything
 runs in three browser contexts and stores data in `chrome.storage`. Storage keys and
@@ -20,6 +20,10 @@ are in [DECISIONS.md](DECISIONS.md).
  │  useAITagger ◀─ TAG_*                │           │  └─ TRASH_* ─▶ src/sw/trash.ts            │
  │  useToast, useSettings, useClipboard │           │        one promise queue (single writer)  │
  │  useContextMenu, useMediaQuery       │           │        reconcile() before every mutation  │
+ │  useSelection, useLinkMeta ◀─ META_UPDATED │     │  bookmarks.onRemoved ─▶ trash.noteRemoved │
+ │  useFolderPrefs ── FOLDER_PREFS_SET ▶│           │  FOLDER_PREFS_SET ─▶ src/sw/folder_prefs  │
+ │       ◀─ FOLDER_PREFS_CHANGED        │           │        (single writer of fpref_*)         │
+ │  useHistoryStats (optional history)  │           │                                           │
  │ Components: TopBar, Sidebar (docked  │           │  bookmarks.onCreated ─▶ auto-capture      │
  │  or drawer), MainContent, TrashView, │           │        (skipped while a restore runs)     │
  │  FolderPicker, Modal, Toast,         │           │  alarms 'trash-purge' (daily) ─▶ expiry   │
@@ -27,7 +31,7 @@ are in [DECISIONS.md](DECISIONS.md).
  └──────────────┬──────────────────────┘           └──────────────┬────────────────────────────┘
                 │ reads (getKeys + targeted get)                  │ writes
                 └──────────────── chrome.storage.local ◀──────────┘
-                     thumb_<url>  meta_<url>  trash_*  storage_schema_version  ai_*
+                     thumb_<url>  meta_<url>  trash_*  fpref_<folderId>  storage_schema_version  ai_*
                      chrome.storage.sync: settings          IndexedDB: legacy previews, folder handle
 
  Content script (content-script.js): page-side capture helper injected into capture tabs.
@@ -96,11 +100,61 @@ every preview image a capture writes).
   entry uses it. A capture that finishes after its bookmark was deleted writes nothing (the
   worker checks the bookmark still exists right before writing).
 - **Incognito.** With `incognito: "split"`, the incognito worker answers `TRASH_*` with a
-  read-only error and incognito pages disable delete. Trash covers deletions made in this
-  extension only; deletions in Chrome's own manager are not captured (see ROADMAP).
+  read-only error and incognito pages disable delete. Only the regular worker records
+  deletes made outside the extension.
 
 Verified on Chrome 156 (2026-11-08): `removeTree` fires one `onRemoved` for the root and
 its `node` carries the full subtree; permanent folders expose `folderType` and `syncing`.
+
+## Deletes made outside the extension (1.4.0)
+
+`chrome.bookmarks.onRemoved` (regular worker, registered at top level so it wakes the worker)
+calls `trash.noteRemoved` synchronously. It buffers the event and immediately starts looking
+up the parent's location, because a later event in the same burst may remove the parent too.
+Three seconds after the last event (or at 5,000 events, or 60 seconds after the first) the
+buffer is written as one operation, inside the Trash queue:
+
+- dropped: events without a node, permanent folders, managed (policy) nodes, ids the
+  extension itself is removing (`deleteNow` marks them first; unmarked again if the removal
+  fails) and roots of saved entries (covers a worker restart), and everything when the sync
+  setting `trashExternal` is false;
+- children removed before their folder (bottom-up sync) are put back inside the folder's
+  saved tree;
+- a root whose parent was already gone when its event arrived is not kept (the shape of an
+  account tree disappearing at sign-out; not tested against a real sign-out);
+- each entry gets ancestors and scope like an extension delete, and its original position,
+  rebuilt by replaying the burst's removals backwards (each event's index was taken after the
+  earlier removals);
+- restore of an external entry reuses an identical bookmark, or a folder with the same title
+  and links, already under the destination (it may have come back from another device), each
+  existing node at most once.
+
+Events buffered when the worker is shut down are lost; Chrome keeps the worker alive for 30
+seconds after an event, longer than the 3-second wait.
+
+## Folder prefs (1.4.0)
+
+Colour and "hidden from search" per folder, in `fpref_<folderId>` (local storage: folder ids
+differ per device). `src/sw/folder_prefs.ts` is the only writer, behind its own queue; pages
+send `FOLDER_PREFS_SET` and reload on `FOLDER_PREFS_CHANGED` or `TRASH_CHANGED`. Trash
+snapshots the prefs of every folder it keeps and re-applies them to the new ids on restore. The
+daily alarm prunes prefs of folders that have been missing for at least 10 minutes, after the
+Trash buffer is written. Exports carry prefs by folder title path; import applies them only to
+a folder with exactly that path.
+
+Search (`useBookmarkTree`) reads the tree in the same pass as the results, so the parent map is
+never stale, and holds matches inside hidden folders apart until the user presses Show them
+(per query). Smart Search leaves hidden folders out of every scope above them.
+
+## Selection and bulk actions (1.4.0)
+
+`useSelection` keeps ids for the current view (folder, search, filter, sort); ranges use the
+display order at click time and items that leave the view are forgotten. Bulk delete is one
+`TRASH_DELETE` (one Undo). Bulk move (`src/lib/bulk_move.ts`) runs in the page: it drops items
+inside another selected folder, refuses Chrome's own folders, managed items and a folder into
+itself, records every original position before the first move, and Undo moves them back per
+folder in ascending original position. Its Undo lives as long as the toast. Bulk open reads
+folders' current children when opening; more than 20 tabs asks inside the bar.
 
 ## Capture flow
 
@@ -117,7 +171,13 @@ URL, even after redirects.
   moves to the nearest surviving ancestor.
 - `useThumbnails` keeps loaded previews in memory and reads only missing ones on refresh;
   object URLs are revoked on replace and unmount.
-- `useAITagger` reads only the open folder's `meta_<url>` records.
+- `useAITagger` reads only the open folder's `meta_<url>` records; `useLinkMeta` reads rating
+  and "opened" time for the links in view and re-reads the ones named by `META_UPDATED`.
+- `META_PATCH` accepts only allowlisted fields with valid values
+  (`src/lib/metadata_sanitize.ts`); backup import merges inside the worker's per-URL queue so a
+  newer rating is never overwritten.
+- `useHistoryStats` reads `history.getVisits` for the links in view only when the optional
+  `history` permission is granted and a history column or sort is on; nothing is stored.
 - `BookmarkPreview` shows the screenshot, else the site icon from `/_favicon/` with the
   domain.
 

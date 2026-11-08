@@ -1,6 +1,6 @@
 # Data model
 
-_Last updated: 2026-11-08T10:20:54+00:00 (1.3.0: Trash keys, `sidebarHidden`, settings backup kind)._
+_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: folder prefs, rating and opened time, external Trash entries, new settings and backup sections)._
 
 All data is local to the browser profile. There is no server.
 
@@ -9,7 +9,9 @@ All data is local to the browser profile. There is no server.
 | Key | Owner (writer) | Shape | Notes |
 |---|---|---|---|
 | `thumb_<url>` | worker (capture), page (backup import) | `{ id, url, mime, base64 (data: URL), updatedAt, width, height, sizeBytes, filename? }` | Preview image. `<url>` is the original bookmark URL. |
-| `meta_<url>` | worker via `storageIndex.patch` (pages send `META_PATCH`) | `{ id, url, title, status, lastCaptureAt?, error?, tags? }` | Always merged, never replaced, so tags survive recaptures. |
+| `meta_<url>` | worker via `storageIndex.patch` (pages send `META_PATCH`) | `{ id, url, title, status, lastCaptureAt?, error?, tags?, rating?, lastOpenedAt? }` | Always merged, never replaced, so tags survive recaptures. `rating` 1 to 5 (1.4.0), `lastOpenedAt` ms when opened from this extension (1.4.0). Page writes pass an allowlist (`metadata_sanitize.ts`). |
+| `fpref_<folderId>` | worker only (`src/sw/folder_prefs.ts`) | `{ color?: 'orange' \| 'red' \| 'pink' \| 'purple' \| 'blue' \| 'teal' \| 'green' \| 'grey', hideFromSearch?: true }` | 1.4.0. Absent means yellow and searchable. Folder ids are local to this device. |
+| `fprefs_prune_pending` | worker only | `{ [folderId]: ms }` | Folders seen missing at a daily prune; their prefs go at a later prune 10 minutes or more after. |
 | `storage_schema_version` | worker | `2` | Gates the one-time legacy migration. |
 | `ai_enc_key` | page | base64 AES-256 key | Encrypts the API key at rest. |
 | `ai_api_key_encrypted` | page | base64 `iv(12) + ciphertext` | The user's API key. |
@@ -28,13 +30,15 @@ All data is local to the browser profile. There is no server.
 ```ts
 {
   version: 1, entryId, operationId,           // operationId groups the roots of one user action
-  origin: 'manual' | 'duplicate-finder',
+  origin: 'manual' | 'duplicate-finder' | 'external',   // external: deleted outside this extension (1.4.0)
   title, isFolder, bookmarkCount, nodeCount,
   deletedAt, expiresAt,                       // expiresAt = deletedAt + 30 days
   parentId, index,                            // original position
   ancestors: [{ oldId, title }],              // permanent folder first, direct parent last
   scope: { rootId, rootTitle, folderType?, syncing? },
   tree: { oldId, title, url?, dateAdded?, children? },
+  folderPrefs?: { [oldFolderId]: { color?, hideFromSearch? } },  // 1.4.0, re-applied on restore
+  seq?: number,                               // 1.4.0, external: event order within the operation
 }
 ```
 
@@ -58,6 +62,8 @@ Trash.
 | `captureDelay` | number | 100 to 30000 (ms) |
 | `useActiveTabCapture` | boolean | |
 | `sidebarHidden` | boolean | Desktop folder panel hidden (1.3.0) |
+| `listColumns` | string[] | any of `added`, `opened`, `rating`, `visits`, `lastVisited` (1.4.0; default `added`, `opened`, `rating`) |
+| `trashExternal` | boolean | Keep deletes made outside the extension in Trash (1.4.0; default true) |
 | `ai_mode` | string | `builtin`, `cloud` |
 | `ai_provider` | string | a provider id from `PROVIDERS` |
 | `ai_model` | string | up to 200 characters |
@@ -75,8 +81,16 @@ Trash.
 ## Backup files
 
 ```json
-{ "version": 1, "kind": "full" | "settings", "timestamp": 0, "settings": {}, "thumbnails": [] }
+{ "version": 1, "kind": "full" | "settings", "timestamp": 0, "settings": {}, "thumbnails": [],
+  "metadata": [{ "url": "", "rating": 4, "lastOpenedAt": 0, "tags": [] }],
+  "folderPrefs": [{ "path": ["Bookmarks bar", "Work"], "color": "teal", "hideFromSearch": true }] }
 ```
+
+`metadata` (full backups, 1.4.0) carries the user's own fields for every link, keyed by the
+bookmark URL; import fills a rating or tags only where none is stored and keeps the later
+opened time, decided inside the worker's per-URL queue. `folderPrefs` (both kinds, 1.4.0) names
+folders by title path; import applies an item only to the one folder with exactly that path.
+Caps: 2,000 folder prefs, paths of up to 64 parts.
 
 `kind` absent means a full backup (files from 1.2.x). Settings files have no `thumbnails`.
 Import rejects `version > 1`, ignores unknown or invalid settings, and never changes
@@ -89,4 +103,4 @@ Import rejects `version > 1`, ignores unknown or invalid settings, and never cha
 |---|---|---|
 | 2 | update to 1.2.1+ | Move legacy raw-URL metadata records (`id === key`, string `url` and `status`) to `meta_<url>`; repair `meta_ai_*` keys renamed by 1.2.0; bind a pre-1.2.1 API key. Fresh installs set 2 directly. |
 
-1.3.0 adds keys but needs no migration: Trash keys never match the legacy record shape.
+1.3.0 and 1.4.0 add keys but need no migration: none of them match the legacy record shape.

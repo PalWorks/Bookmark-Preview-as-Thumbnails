@@ -701,14 +701,48 @@
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
-/* Below 1440px the long title would truncate: show the short one. */
-@media (max-width: 1439px) {
+/* Desktop: the title keeps its full width; the search field gives way first. */
+@media (min-width: 720px) {
+    .logo-section {
+        flex: 1 0 auto;
+    }
+}
+
+/* Below 1600px the long title would truncate: show the short one. */
+@media (max-width: 1599px) {
     .logo-text--full {
         display: none;
     }
 
     .logo-text--short {
         display: inline;
+    }
+}
+
+/* Below 1440px the Select button is icon-only (its accessible name stays "Select items"). */
+@media (max-width: 1439px) {
+    .select-toggle span {
+        display: none;
+    }
+
+    .select-toggle {
+        min-width: 40px;
+        min-height: 36px;
+        justify-content: center;
+    }
+}
+
+/* Below 1280px Filter and Sort become icon buttons too (their aria-labels name the
+   current choice), so the "Bookmarks" title never truncates. */
+@media (max-width: 1279px) {
+    .action-btn span {
+        display: none;
+    }
+
+    .action-btn {
+        min-width: 40px;
+        min-height: 36px;
+        justify-content: center;
     }
 }
 

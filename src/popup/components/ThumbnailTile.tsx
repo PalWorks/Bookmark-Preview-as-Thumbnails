@@ -21,6 +21,12 @@ interface ThumbnailTileProps {
     /** A delete for this bookmark is in flight. */
     deleting?: boolean;
     canDelete?: boolean;
+    /** Selection checkbox (1.4.0), rendered top-left. */
+    selectBox?: React.ReactNode;
+    selected?: boolean;
+    /** The link was opened (click, middle-click). */
+    onOpened?: () => void;
+    onOpenedAux?: (e: React.MouseEvent) => void;
 }
 
 /**
@@ -30,6 +36,7 @@ interface ThumbnailTileProps {
  */
 const ThumbnailTile: React.FC<ThumbnailTileProps> = ({
     bookmark, isLoading, isQueued, tags, onContextMenu, onDelete, deleting = false, canDelete = true,
+    selectBox, selected = false, onOpened, onOpenedAux,
 }) => {
     const title = bookmark.title || bookmark.url;
 
@@ -42,11 +49,12 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({
 
     return (
         <div
-            className={`tile ${deleting ? 'tile--busy' : ''}`}
+            className={`tile ${deleting ? 'tile--busy' : ''} ${selected ? 'is-selected' : ''}`}
             data-node-id={bookmark.id}
             onContextMenu={onContextMenu}
             onKeyDown={handleKeyDown}
         >
+            {selectBox}
             <div className="preview">
                 <BookmarkPreview url={bookmark.url} title={title} thumbnailUrl={bookmark.thumbnailUrl} variant="tile" />
                 {isLoading && (
@@ -67,6 +75,8 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     title={title}
+                    onClick={onOpened}
+                    onAuxClick={onOpenedAux}
                 >
                     {title}
                 </a>

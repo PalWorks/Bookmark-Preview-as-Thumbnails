@@ -3,26 +3,32 @@ import React, { useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Modal } from './Modal';
 import { FolderGlyph } from './BookmarkPreview';
+import type { FolderColor } from '../lib/folder_prefs';
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 
-interface FolderOption {
-    id: string;
-    path: string[];
-    synced: boolean;
-}
 
-/** Every folder the user can restore into, with its full path. Managed folders are excluded. */
-function listFolders(roots: Node[]): FolderOption[] {
+/**
+ * Every folder the user can put things into, with its full path. Managed folders
+ * are excluded, and so are `exclude` folders with everything inside them (a folder
+ * cannot move into itself).
+ */
+function listFolders(roots: Node[], exclude?: Set<string>): FolderOption[] {
     const out: FolderOption[] = [];
     const walk = (node: Node, path: string[], synced: boolean) => {
-        if (node.url || node.unmodifiable) return;
+        if (node.url || node.unmodifiable || exclude?.has(node.id)) return;
         const here = [...path, node.title || 'Untitled folder'];
         out.push({ id: node.id, path: here, synced });
         for (const c of node.children ?? []) walk(c, here, synced);
     };
     for (const r of roots) walk(r, [], r.syncing === true);
     return out;
+}
+
+export interface FolderOption {
+    id: string;
+    path: string[];
+    synced: boolean;
 }
 
 interface FolderPickerProps {
@@ -32,6 +38,13 @@ interface FolderPickerProps {
     busy: boolean;
     onCancel: () => void;
     onPick: (folderId: string) => void;
+    /** Dialog title and button text; default "Restore to…" / "Restore here". */
+    title?: string;
+    actionLabel?: string;
+    /** Folders that cannot be chosen, with their subfolders. */
+    exclude?: Set<string>;
+    /** Folder colours, keyed by id. */
+    colors?: Record<string, FolderColor | undefined>;
 }
 
 /**
@@ -39,12 +52,14 @@ interface FolderPickerProps {
  * or "Synced to your account") so a local bookmark is only ever moved into synced
  * storage by an explicit choice. No folder is preselected.
  */
-export const FolderPicker: React.FC<FolderPickerProps> = ({ roots, subject, busy, onCancel, onPick }) => {
+export const FolderPicker: React.FC<FolderPickerProps> = ({
+    roots, subject, busy, onCancel, onPick, title = 'Restore to…', actionLabel = 'Restore here', exclude, colors,
+}) => {
     const [query, setQuery] = useState('');
     const [selected, setSelected] = useState<string | null>(null);
     const searchRef = useRef<HTMLInputElement>(null);
 
-    const all = listFolders(roots);
+    const all = listFolders(roots, exclude);
     const q = query.trim().toLowerCase();
     const visible = q ? all.filter(f => f.path.join(' ').toLowerCase().includes(q)) : all;
     // A choice hidden by the search box no longer counts as chosen.
@@ -65,7 +80,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({ roots, subject, busy
                         checked={chosen === f.id}
                         onChange={() => setSelected(f.id)}
                     />
-                    <FolderGlyph size={16} />
+                    <FolderGlyph size={16} color={colors?.[f.id]} />
                     <span className="picker-path">{f.path.join(' › ')}</span>
                 </label>
             ))}
@@ -74,7 +89,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({ roots, subject, busy
 
     return (
         <Modal
-            title="Restore to…"
+            title={title}
             onClose={busy ? () => { } : onCancel}
             initialFocusRef={searchRef}
             className="modal--picker"
@@ -88,7 +103,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({ roots, subject, busy
                         onClick={() => chosen && onPick(chosen)}
                     >
                         {busy && <span className="btn-spinner" aria-hidden="true" />}
-                        <span>Restore here</span>
+                        <span>{actionLabel}</span>
                     </button>
                 </div>
             )}

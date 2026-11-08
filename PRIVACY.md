@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-08T10:20:54+00:00
+**Last Updated:** 2026-11-08T13:24:59+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -20,13 +20,21 @@ servers):
    extension accesses no other files.
 4. **Trash.** When you delete a bookmark or folder in the extension, a copy of its
    titles, links, folder location and dates is kept in `chrome.storage.local` for
-   30 days so you can restore it. After 30 days, or when you empty Trash, the copy
-   is removed together with cached previews that no other bookmark uses. Preview
-   files already saved to a folder you connected on disk stay there.
-5. **Site icons.** Bookmarks without a preview show their site icon from Chrome's
+   30 days so you can restore it. From 1.4.0 the same applies to bookmarks deleted
+   outside the extension (in Chrome's bookmark manager, by sync, or on your other
+   devices) while Chrome is open on this computer; you can turn this off at the top
+   of the Trash view, and what is already kept stays until it expires or you empty
+   Trash. After 30 days, or when you empty Trash, the copy is removed together with
+   cached previews that no other bookmark uses. Preview files already saved to a
+   folder you connected on disk stay there.
+5. **Your organisation.** Folder colours and "hidden from search" choices, your
+   ratings, and when you last opened a bookmark from the extension are stored in
+   `chrome.storage.local` on this device (1.4.0). They are included in backups you
+   export.
+6. **Site icons.** Bookmarks without a preview show their site icon from Chrome's
    own local favicon cache. This is read on your device; no request goes to the
    site or to us.
-6. **AI API keys (optional).** If you enable a cloud AI provider, your API key is
+7. **AI API keys (optional).** If you enable a cloud AI provider, your API key is
    stored locally (obfuscated at rest) and is sent **only** to the provider you
    selected, solely to authenticate your own requests. It is never sent to us.
    The key is tied to the provider (and, for a custom or local server, the server
@@ -64,6 +72,11 @@ them).
 - **storage / unlimitedStorage** — store thumbnails, metadata, Trash, and settings locally.
 - **favicon** — show a bookmark's site icon from Chrome's local favicon cache when it has no preview.
 - **alarms** — run the daily clean-up that removes Trash items older than 30 days.
+- **history (optional, 1.4.0)** — asked for only when you turn on the Visits or Last
+  visited column in list view. The extension then reads the visit count and last visit
+  of the bookmarks on screen from Chrome's history, on your device, and stores nothing.
+  Turning those columns off gives the permission back; you can also remove it in
+  `chrome://extensions`.
 - **host permissions (`<all_urls>`)** — capture screenshots of any site you have
   bookmarked, and (only if you enable cloud AI) send requests to your chosen
   provider's API endpoint.

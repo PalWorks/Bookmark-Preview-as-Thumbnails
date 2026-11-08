@@ -12,6 +12,10 @@
 //   trash_restoring_until  timestamp; auto-capture skips bookmark creations until then
 //   trash_recreated_folders  ids of folders a restore recreated (merge target, 30 days)
 //
+// Deletes made outside this extension (Chrome's manager, sync) are recorded by the
+// worker's onRemoved listener as entries with origin 'external'. The sync setting
+// `trashExternal` (default true) turns that off.
+//
 // Entries hold metadata only. Previews come from the existing thumb_<url> records,
 // which stay in place while the bookmark sits in Trash.
 
@@ -23,6 +27,8 @@ export const TRASH_PURGE_KEY = 'trash_purge_pending';
 export const TRASH_RESTORING_KEY = 'trash_restoring_until';
 /** Folders recreated by a restore (id -> time), so a later restore merges into them. */
 export const TRASH_RECREATED_KEY = 'trash_recreated_folders';
+/** chrome.storage.sync setting: record deletes made outside this extension (default true). */
+export const TRASH_EXTERNAL_SETTING = 'trashExternal';
 
 const MINUTE = 60 * 1000;
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * MINUTE;
@@ -45,8 +51,17 @@ export interface TrashScope {
     syncing?: boolean;
 }
 
-/** Where a delete came from; drives the Trash row wording. */
-export type TrashOrigin = 'manual' | 'duplicate-finder';
+/**
+ * Where a delete came from; drives the Trash row wording. 'external' means it was
+ * removed outside this extension (Chrome's bookmark manager, sync, another device).
+ */
+export type TrashOrigin = 'manual' | 'duplicate-finder' | 'external';
+
+/** Folder colour and search visibility saved with a deleted folder (see folder_prefs.ts). */
+export interface SavedFolderPref {
+    color?: string;
+    hideFromSearch?: true;
+}
 
 export interface TrashEntry {
     version: 1;
@@ -65,6 +80,10 @@ export interface TrashEntry {
     ancestors: Array<{ oldId: string; title: string }>;
     scope: TrashScope;
     tree: SavedNode;
+    /** Folder prefs of folders in `tree`, keyed by their old id. */
+    folderPrefs?: Record<string, SavedFolderPref>;
+    /** External deletes: event order inside the operation (restore goes in reverse). */
+    seq?: number;
 }
 
 export type TrashState = 'prepared' | 'deleted' | 'restoring' | 'restored' | 'failed';
@@ -201,6 +220,13 @@ export function isTrashEntry(value: unknown): value is TrashEntry {
 }
 
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
+
+/** Old ids of every folder in a saved subtree. */
+export function folderIds(node: SavedNode, out: string[] = []): string[] {
+    if (!node.url) out.push(node.oldId);
+    for (const c of node.children ?? []) folderIds(c, out);
+    return out;
+}
 
 /** Every bookmark URL in a saved subtree, in order, de-duplicated. */
 export function collectUrls(node: SavedNode, out: Set<string> = new Set()): Set<string> {

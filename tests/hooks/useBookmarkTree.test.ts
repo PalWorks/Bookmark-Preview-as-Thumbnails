@@ -69,3 +69,26 @@ describe('useBookmarkTree (reactive)', () => {
         expect(fakeBookmarks.onImportEnded._count()).toBe(0);
     });
 });
+
+describe('useBookmarkTree: folders hidden from search', () => {
+    it('holds matches inside hidden folders (and their subfolders) apart until Show them', async () => {
+        const tools = fakeBookmarks.seed('1', 'Tools');
+        const deep = fakeBookmarks.seed(tools.id, 'Deep');
+        fakeBookmarks.seed(tools.id, 'Recipe tool', 'https://tool.example/recipe');
+        fakeBookmarks.seed(deep.id, 'Recipe deep', 'https://deep.example/recipe');
+        fakeBookmarks.seed('1', 'Recipe visible', 'https://visible.example/recipe');
+        const hidden = new Set([tools.id]);
+        const { result } = renderHook(() => useBookmarkTree(hidden));
+        await waitFor(() => expect(result.current.currentFolder?.id).toBe('1'));
+        act(() => result.current.setSearchQuery('recipe'));
+        await waitFor(() => expect(result.current.searchResults.map(n => n.title)).toEqual(['Recipe visible']));
+        expect(result.current.hiddenResultCount).toBe(2);
+        act(() => result.current.showHiddenResults());
+        await waitFor(() => expect(result.current.searchResults).toHaveLength(3));
+        expect(result.current.hiddenResultCount).toBe(0);
+        // A new query hides them again.
+        act(() => result.current.setSearchQuery('recipe d'));
+        await waitFor(() => expect(result.current.hiddenResultCount).toBe(1));
+        expect(result.current.searchResults).toHaveLength(0);
+    });
+});

@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy Details
 
-_Last updated: 2026-11-08T10:20:54+00:00 (1.3.0: `favicon` and `alarms` added; Chrome 156 shows no new install warning for either)._
+_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: optional `history` permission; Chrome 156 shows the same install warnings as 1.3.0)._
 
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
@@ -25,6 +25,7 @@ These are the permissions actually declared in the manifest:
 | **unlimitedStorage** | Store many thumbnail images without hitting the standard quota. |
 | **favicon** | Show a bookmark's site icon from Chrome's local favicon cache when no thumbnail exists yet. No network request. |
 | **alarms** | Run a daily local clean-up that permanently removes Trash items older than 30 days. |
+| **history** (optional) | Requested only when the user turns on the Visits or Last visited column in list view. Reads visit count and last visit time for the bookmarks on screen with `chrome.history.getVisits`; nothing is stored or sent anywhere. Optional permissions add no install warning. |
 | **webNavigation** | Detect when a page finishes loading during batch capture so the screenshot reflects the rendered page. |
 | **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and — only if the user enables a cloud AI provider — send requests to that provider's API endpoint. |
 

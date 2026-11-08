@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
+import { DEFAULT_LIST_COLUMNS, sanitizeListColumns, type ListColumn } from '../../lib/list_columns';
 
 export function useSettings() {
     const [useIncognito, setUseIncognito] = useState(false);
@@ -8,6 +9,10 @@ export function useSettings() {
     const [useActiveTabCapture, setUseActiveTabCapture] = useState(false);
     // Desktop preference: hide the folder panel. Synced like the other settings.
     const [sidebarHidden, setSidebarHidden] = useState(false);
+    // List view columns (1.4.0).
+    const [listColumns, setListColumns] = useState<ListColumn[]>(DEFAULT_LIST_COLUMNS);
+    // Keep deletes made outside this extension in Trash (1.4.0, default on).
+    const [trashExternal, setTrashExternal] = useState(true);
     // Bumped by reloadSettings() (after a settings import).
     const [loadSeq, setLoadSeq] = useState(0);
 
@@ -15,7 +20,7 @@ export function useSettings() {
         let cancelled = false;
         const load = async () => {
             const result = await chrome.storage.sync.get(
-                ['useIncognito', 'theme', 'captureDelay', 'useActiveTabCapture', 'sidebarHidden'],
+                ['useIncognito', 'theme', 'captureDelay', 'useActiveTabCapture', 'sidebarHidden', 'listColumns', 'trashExternal'],
             );
             if (cancelled) return;
             setUseIncognito(!!result.useIncognito);
@@ -23,6 +28,8 @@ export function useSettings() {
             if (result.captureDelay) setCaptureDelay(Number(result.captureDelay));
             setUseActiveTabCapture(!!result.useActiveTabCapture);
             setSidebarHidden(result.sidebarHidden === true);
+            setListColumns(sanitizeListColumns(result.listColumns) ?? DEFAULT_LIST_COLUMNS);
+            setTrashExternal(result.trashExternal !== false);
         };
         load().catch(err => console.error('[Settings] load failed', err));
         return () => { cancelled = true; };
@@ -33,6 +40,23 @@ export function useSettings() {
     const handleSetSidebarHidden = (value: boolean) => {
         setSidebarHidden(value);
         chrome.storage.sync.set({ sidebarHidden: value });
+    };
+
+    const handleSetListColumns = (cols: ListColumn[]) => {
+        setListColumns(cols);
+        chrome.storage.sync.set({ listColumns: cols });
+    };
+
+    /** Resolves false when the setting could not be saved (the switch moves back). */
+    const handleSetTrashExternal = async (value: boolean): Promise<boolean> => {
+        setTrashExternal(value);
+        try {
+            await chrome.storage.sync.set({ trashExternal: value });
+            return true;
+        } catch {
+            setTrashExternal(!value);
+            return false;
+        }
     };
 
     const handleToggleIncognito = (value: boolean) => {
@@ -95,5 +119,9 @@ export function useSettings() {
         sidebarHidden,
         setSidebarHidden: handleSetSidebarHidden,
         reloadSettings,
+        listColumns,
+        setListColumns: handleSetListColumns,
+        trashExternal,
+        setTrashExternal: handleSetTrashExternal,
     };
 }

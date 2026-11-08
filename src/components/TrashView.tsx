@@ -15,6 +15,9 @@ interface TrashViewProps {
     /** Bookmark tree roots, for the "Restore to..." picker. */
     roots: Node[];
     onBack: () => void;
+    /** Keep deletes made outside this extension (1.4.0). */
+    keepExternal: boolean;
+    onKeepExternalChange: (value: boolean) => void;
 }
 
 const PAGE = 50;
@@ -28,6 +31,11 @@ function entrySummary(e: TrashEntry): string {
 
 function operationSummary(op: TrashOperation): string {
     if (op.origin === 'duplicate-finder') return `${plural(op.items.length, 'duplicate')} removed by Duplicate Finder`;
+    if (op.origin === 'external' && op.items.length > 1) {
+        const paths = new Set(op.items.map(i => entryPath(i.entry)));
+        const [only] = [...paths];
+        return paths.size === 1 && only ? `${plural(op.items.length, 'item')} from ${only}` : plural(op.items.length, 'item');
+    }
     if (op.items.length === 1) return entrySummary(op.items[0].entry);
     const paths = new Set(op.items.map(i => entryPath(i.entry)));
     const [only] = [...paths];
@@ -41,7 +49,7 @@ function itemStatus(item: TrashItem): string | null {
     return null;
 }
 
-export const TrashView: React.FC<TrashViewProps> = ({ trash, roots, onBack }) => {
+export const TrashView: React.FC<TrashViewProps> = ({ trash, roots, onBack, keepExternal, onKeepExternalChange }) => {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
     const [shown, setShown] = useState(PAGE);
     const [picker, setPicker] = useState<{ operationId: string; entryId?: string; subject: string } | null>(null);
@@ -136,7 +144,11 @@ export const TrashView: React.FC<TrashViewProps> = ({ trash, roots, onBack }) =>
             <div className="empty-state trash-empty">
                 <Trash2 size={40} aria-hidden="true" className="trash-empty-icon" />
                 <p>Nothing in Trash.</p>
-                <p className="sub-text">Bookmarks you delete in this extension stay here for 30 days.</p>
+                <p className="sub-text">
+                    {keepExternal
+                        ? "Bookmarks deleted here, in Chrome's bookmark manager or on your other devices stay here for 30 days."
+                        : 'Bookmarks you delete in this extension stay here for 30 days.'}
+                </p>
                 <button type="button" className="btn btn--secondary" onClick={onBack}>Back to bookmarks</button>
             </div>
         );
@@ -169,6 +181,7 @@ export const TrashView: React.FC<TrashViewProps> = ({ trash, roots, onBack }) =>
                                 <div className="trash-row-text">
                                     <div className="trash-row-title">{operationSummary(op)}</div>
                                     <div className="trash-row-meta">
+                                        {op.origin === 'external' && <span className="trash-source">Deleted outside this extension · </span>}
                                         Deleted {formatAgo(op.deletedAt)} · removed {formatIn(op.expiresAt)}
                                     </div>
                                     {firstError && <div className="trash-row-error" role="status">{firstError}</div>}
@@ -246,7 +259,23 @@ export const TrashView: React.FC<TrashViewProps> = ({ trash, roots, onBack }) =>
         <div className="main-content trash-view">
             {header}
             <div className="trash-scroll">
-                <p className="trash-intro">Bookmarks deleted in this extension stay here for 30 days, then they are removed for good.</p>
+                <p className="trash-intro">Deleted bookmarks stay here for 30 days, then they are removed for good.</p>
+                {!readOnly && (
+                    <label className="trash-switch">
+                        <input
+                            type="checkbox"
+                            role="switch"
+                            checked={keepExternal}
+                            onChange={e => onKeepExternalChange(e.target.checked)}
+                        />
+                        <span className="trash-switch-text">
+                            <span className="trash-switch-title">Also keep bookmarks deleted outside this extension</span>
+                            <span className="trash-switch-sub">
+                                In Chrome's bookmark manager, by sync or on your other devices, while Chrome is open on this computer. Turning this off keeps what is already here.
+                            </span>
+                        </span>
+                    </label>
+                )}
                 {readOnly && (
                     <div className="inline-banner" role="note">
                         <Info size={16} aria-hidden="true" />

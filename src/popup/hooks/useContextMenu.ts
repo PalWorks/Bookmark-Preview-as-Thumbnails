@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useRef, useState } from 'react';
+import type { FolderPrefs } from '../../lib/folder_prefs';
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 
@@ -17,6 +18,12 @@ interface ContextMenuDeps {
     onDelete: (node: { id: string; title: string }) => void;
     /** False in incognito, where Trash is read-only. */
     canDelete: boolean;
+    /** Folder colours and hidden-from-search (1.4.0). */
+    folderPrefs?: FolderPrefs;
+    onEditColor?: (folder: { id: string; title: string }) => void;
+    onSetHidden?: (folder: { id: string; title: string }, hidden: boolean) => void;
+    /** Links opened from the menu (recorded as "Opened"). */
+    onOpened?: (urls: string[]) => void;
 }
 
 export function useContextMenu({
@@ -31,6 +38,10 @@ export function useContextMenu({
     onPaste,
     onDelete,
     canDelete,
+    folderPrefs = {},
+    onEditColor,
+    onSetHidden,
+    onOpened,
 }: ContextMenuDeps) {
     const [contextMenu, setContextMenu] = useState<{
         visible: boolean;
@@ -111,6 +122,7 @@ export function useContextMenu({
             if (!results?.length) return;
             const node = results[0];
             if (node.url) {
+                onOpened?.([node.url]);
                 if (mode === 'tab') chrome.tabs.create({ url: node.url });
                 else if (mode === 'window') chrome.windows.create({ url: node.url });
                 else chrome.windows.create({ url: node.url, incognito: true });
@@ -118,6 +130,7 @@ export function useContextMenu({
                 chrome.bookmarks.getChildren(targetId, (children) => {
                     const urls = children.filter(c => c.url).map(c => c.url!);
                     if (!urls.length) return;
+                    onOpened?.(urls);
                     if (mode === 'tab') urls.forEach(url => chrome.tabs.create({ url }));
                     else if (mode === 'window') chrome.windows.create({ url: urls });
                     else chrome.windows.create({ url: urls, incognito: true });
@@ -150,11 +163,22 @@ export function useContextMenu({
     // Rebuilt each render (cheap, and the menu only renders while visible). A
     // useMemo here was ineffective anyway — its handler closures are recreated
     // every render, so they could never match the manual dependency list.
+    const isFolder = contextMenu.type === 'folder';
+    const hidden = !!folderPrefs[contextMenu.targetId]?.hideFromSearch;
+    const folderItems = isFolder && !contextMenu.permanent && onEditColor && onSetHidden ? [
+        { separator: true, label: '', action: () => { } },
+        { label: 'Colour…', action: () => onEditColor({ id: contextMenu.targetId, title: contextMenu.title }) },
+        {
+            label: hidden ? 'Show in search' : 'Hide from search',
+            action: () => onSetHidden({ id: contextMenu.targetId, title: contextMenu.title }, !hidden),
+        },
+    ] : [];
     const menuItems = [
         { label: 'Rename', action: handleRename },
         { label: 'Delete', action: handleDelete, danger: true, disabled: !canDelete || contextMenu.permanent },
         { separator: true, label: '', action: () => { } },
         { label: 'Regenerate Preview', action: handleRegenerate, disabled: contextMenu.type === 'folder' },
+        ...folderItems,
         { separator: true, label: '', action: () => { } },
         { label: 'Cut', action: () => onCut(contextMenu.targetId) },
         { label: 'Copy', action: () => onCopy(contextMenu.targetId) },

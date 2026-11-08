@@ -2,6 +2,7 @@
 import React from 'react';
 import { Folder } from 'lucide-react';
 import { faviconUrl, getDomain } from '../lib/utils';
+import type { FolderColor } from '../lib/folder_prefs';
 
 interface BookmarkPreviewProps {
     url: string;
@@ -40,7 +41,10 @@ export const BookmarkPreview: React.FC<BookmarkPreviewProps> = ({ url, title, th
     );
 };
 
-/** Yellow folder icon (tokens --folder-fill / --folder-stroke, 3:1 in both themes). */
-export const FolderGlyph: React.FC<{ size?: number; className?: string }> = ({ size = 16, className = '' }) => (
-    <Folder size={size} className={`folder-glyph ${className}`} aria-hidden="true" focusable="false" />
+/**
+ * Folder icon (tokens --folder-fill / --folder-stroke, 3:1 in both themes). Yellow
+ * unless the folder has a colour from folder prefs.
+ */
+export const FolderGlyph: React.FC<{ size?: number; className?: string; color?: FolderColor }> = ({ size = 16, className = '', color }) => (
+    <Folder size={size} className={`folder-glyph ${color ? `folder-glyph--${color}` : ''} ${className}`} aria-hidden="true" focusable="false" />
 );

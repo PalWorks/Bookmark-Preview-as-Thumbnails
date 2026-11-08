@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BackupManager } from '../src/lib/backup_manager';
 import type { BackupData } from '../src/lib/backup_manager';
 import { localStore, syncStore } from './setup';
@@ -431,5 +431,89 @@ describe('BackupManager', () => {
             expect(r.count).toBe(0);
             expect(localStore['thumb_https://x.example']).toBeUndefined();
         });
+    });
+});
+
+describe('BackupManager 1.4.0: metadata and folder prefs', () => {
+    it('exports ratings for links without previews, keyed by bookmark URL, and folder prefs by path', async () => {
+        const { localStore } = await import('./setup');
+        const { fakeBookmarks } = await import('./fakes/chrome_bookmarks');
+        const { backupManager } = await import('../src/lib/backup_manager');
+        const f = fakeBookmarks.seed('1', 'Work');
+        localStore[`fpref_${f.id}`] = { color: 'red' };
+        localStore['meta_https://a.example/'] = { id: 'https://a.example/', url: 'https://redirected.example/', title: 'A', status: 'none', rating: 4 };
+        const blob = await backupManager.createBackup();
+        const data = JSON.parse(await blob.text());
+        expect(data.metadata).toEqual([{ url: 'https://a.example/', rating: 4 }]);
+        expect(data.folderPrefs).toEqual([{ path: ['Bookmarks bar', 'Work'], color: 'red' }]);
+        const settings = JSON.parse(await (await backupManager.createSettingsBackup()).text());
+        expect(settings.folderPrefs).toEqual([{ path: ['Bookmarks bar', 'Work'], color: 'red' }]);
+    });
+
+    it('imports metadata without overwriting newer local choices, and hostile values are dropped', async () => {
+        const { localStore } = await import('./setup');
+        const { backupManager } = await import('../src/lib/backup_manager');
+        localStore['meta_https://kept.example/'] = { id: 'https://kept.example/', url: 'https://kept.example/', title: '', status: 'none', rating: 2, lastOpenedAt: 500 };
+        const file = new File([JSON.stringify({
+            version: 1, kind: 'full', settings: {}, thumbnails: [],
+            metadata: [
+                { url: 'https://kept.example/', rating: 5, lastOpenedAt: 900 },
+                { url: 'https://new.example/', rating: 3, tags: ['x'] },
+                { url: 'https://bad.example/', rating: 'lots', status: 'error' },
+                { url: 'x'.repeat(5000), rating: 1 },
+            ],
+        })], 'b.json');
+        const r = await backupManager.importBackup(file);
+        expect(r.metadataApplied).toBe(2);
+        expect(localStore['meta_https://kept.example/']).toMatchObject({ rating: 2, lastOpenedAt: 900 });
+        expect(localStore['meta_https://new.example/']).toMatchObject({ rating: 3, tags: ['x'] });
+        expect(localStore['meta_https://bad.example/']).toBeUndefined();
+    });
+
+    it('imports folder prefs only for a unique exact path; bad items are skipped', async () => {
+        const { fakeBookmarks } = await import('./fakes/chrome_bookmarks');
+        const { backupManager } = await import('../src/lib/backup_manager');
+        const work = fakeBookmarks.seed('1', 'Work');
+        fakeBookmarks.seed('1', 'Twin');
+        fakeBookmarks.seed('1', 'Twin');
+        const send = chrome.runtime.sendMessage as unknown as ReturnType<typeof vi.fn>;
+        send.mockImplementation(async (m: { type: string; ids: string[] }) => (m.type === 'FOLDER_PREFS_SET' ? { ok: true, changed: m.ids } : undefined));
+        const file = new File([JSON.stringify({
+            version: 1, kind: 'settings', settings: {},
+            folderPrefs: [
+                { path: ['Bookmarks bar', 'Work'], color: 'teal', hideFromSearch: true },
+                { path: ['Bookmarks bar', 'Twin'], color: 'red' },
+                { path: ['Bookmarks bar', 'Missing'], color: 'red' },
+                { path: 'not-a-path', color: 'red' },
+                { path: ['Bookmarks bar', 'Work'], color: 'magenta' },
+            ],
+        })], 's.json');
+        const r = await backupManager.importBackup(file);
+        expect(r.folderPrefsApplied).toBe(1);
+        expect(r.folderPrefsSkipped).toBe(4);
+        expect(send).toHaveBeenCalledWith({ type: 'FOLDER_PREFS_SET', ids: [work.id], patch: { color: 'teal', hideFromSearch: true } });
+    });
+
+    it('listColumns and trashExternal are allowlisted settings', async () => {
+        const { sanitizeSettings } = await import('../src/lib/backup_manager');
+        expect(sanitizeSettings({ listColumns: ['added', 'evil', 'added', 'visits'], trashExternal: false }).settings)
+            .toEqual({ listColumns: ['added', 'visits'], trashExternal: false });
+        expect(sanitizeSettings({ trashExternal: 'yes' }).skipped).toEqual(['trashExternal']);
+    });
+});
+
+describe('BackupManager 1.4.0: import never overwrites a rating saved meanwhile', () => {
+    it('decides against the stored record at write time', async () => {
+        const { localStore } = await import('./setup');
+        const { backupManager } = await import('../src/lib/backup_manager');
+        const send = chrome.runtime.sendMessage as unknown as ReturnType<typeof vi.fn>;
+        // Another tab saves rating 5 just before the import's write lands (no worker: local path).
+        send.mockImplementation(async (m: { type: string }) => {
+            if (m.type === 'META_PATCH') localStore['meta_https://race.example/'] = { id: 'https://race.example/', url: 'https://race.example/', title: '', status: 'none', rating: 5 };
+            return undefined;
+        });
+        const file = new File([JSON.stringify({ version: 1, kind: 'full', settings: {}, thumbnails: [], metadata: [{ url: 'https://race.example/', rating: 2 }] })], 'b.json');
+        await backupManager.importBackup(file);
+        expect((localStore['meta_https://race.example/'] as { rating: number }).rating).toBe(5);
     });
 });

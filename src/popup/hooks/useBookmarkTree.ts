@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { buildParentMap, isInHiddenFolder } from '../../lib/folder_prefs';
 
 // Chrome's permanent ID for the "Bookmarks bar" folder
 const BOOKMARKS_BAR_ID = '1';
@@ -35,12 +36,19 @@ async function ancestorIds(id: string): Promise<string[]> {
  * events, so changes made anywhere (this page, another tab, Chrome's bookmark
  * manager, sync, a Trash restore) show up without a reload.
  */
-export function useBookmarkTree() {
+export function useBookmarkTree(
+    /** Folders hidden from search (folder prefs). */
+    hiddenFolderIds: Set<string> = new Set(),
+) {
     const [bookmarkTree, setBookmarkTree] = useState<Node[]>([]);
     const [selectedFolderId, setSelectedFolderId] = useState<string>(BOOKMARKS_BAR_ID);
     const [currentFolder, setCurrentFolder] = useState<Node | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<Node[]>([]);
+    // Matches inside hidden folders, and whether the user asked to see them for this query.
+    const [hiddenResults, setHiddenResults] = useState<Node[]>([]);
+    const [includeHiddenFor, setIncludeHiddenFor] = useState<string | null>(null);
+    const hiddenKey = useMemo(() => [...hiddenFolderIds].sort().join(','), [hiddenFolderIds]);
     // Bumped (coalesced) by bookmark events; every read below re-runs on it.
     const [treeRev, setTreeRev] = useState(0);
 
@@ -112,22 +120,39 @@ export function useBookmarkTree() {
         return () => { cancelled = true; };
     }, [selectedFolderId, treeRev]);
 
-    // Search, re-run when bookmarks change.
+    // Search, re-run when bookmarks change. Matches inside folders hidden from search
+    // are held apart; the parent map is read in the same pass so it is never stale.
     useEffect(() => {
         if (searchQuery.length > 2) {
             let cancelled = false;
-            chrome.bookmarks.search(searchQuery)
-                .then(results => { if (!cancelled) setSearchResults(results); })
-                .catch(() => { if (!cancelled) setSearchResults([]); });
+            const hidden = new Set(hiddenKey ? hiddenKey.split(',') : []);
+            const run = async () => {
+                const results = await chrome.bookmarks.search(searchQuery);
+                let visible = results;
+                let held: Node[] = [];
+                if (hidden.size) {
+                    const tree = await chrome.bookmarks.getTree();
+                    const parentOf = buildParentMap(tree);
+                    visible = results.filter(n => !isInHiddenFolder(n.id, parentOf, hidden));
+                    held = results.filter(n => isInHiddenFolder(n.id, parentOf, hidden));
+                }
+                if (cancelled) return;
+                setSearchResults(visible);
+                setHiddenResults(held);
+            };
+            run().catch(() => { if (!cancelled) { setSearchResults([]); setHiddenResults([]); } });
             return () => { cancelled = true; };
         }
         // Benign one-shot reset when the query drops below the search threshold.
         // Not a cascading render (fires only on query change) and this state
         // isn't even read while the query is short — see App.tsx displayedNodes.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSearchResults([]);
+        setHiddenResults([]);
         return undefined;
-    }, [searchQuery, treeRev]);
+    }, [searchQuery, treeRev, hiddenKey]);
+
+    // "Show them" applies to the query it was pressed for only.
+    const includeHidden = includeHiddenFor !== null && includeHiddenFor === searchQuery;
 
     // Bookmark events → one refresh per burst; paused during a bookmark import.
     useEffect(() => {
@@ -183,7 +208,11 @@ export function useBookmarkTree() {
         currentFolder,
         searchQuery,
         setSearchQuery,
-        searchResults,
+        /** Visible matches, plus the hidden ones when the user chose to see them. */
+        searchResults: includeHidden ? [...searchResults, ...hiddenResults] : searchResults,
+        /** Matches inside hidden folders that are not shown. */
+        hiddenResultCount: includeHidden ? 0 : hiddenResults.length,
+        showHiddenResults: () => setIncludeHiddenFor(searchQuery),
         handleNavigate,
         handleNavigateBack,
         refreshTree,

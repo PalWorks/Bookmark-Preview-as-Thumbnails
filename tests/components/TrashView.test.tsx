@@ -5,7 +5,7 @@ import { TrashView } from '../../src/components/TrashView';
 import { Toast } from '../../src/components/Toast';
 import { useTrash } from '../../src/popup/hooks/useTrash';
 import { useToast } from '../../src/popup/hooks/useToast';
-import { FakeBookmarks } from '../fakes/chrome_bookmarks';
+import { FakeBookmarks, fakeBookmarks } from '../fakes/chrome_bookmarks';
 import { connectTrash } from '../sw_bridge';
 
 afterEach(() => cleanup());
@@ -15,7 +15,7 @@ function Harness({ readOnly = false, roots }: { readOnly?: boolean; roots: chrom
     const trash = useTrash({ toast, onOpenFolder: () => { }, onOpenTrash: () => { }, readOnly });
     return (
         <>
-            <TrashView trash={trash} roots={roots} onBack={() => { }} />
+            <TrashView trash={trash} roots={roots} onBack={() => { }} keepExternal onKeepExternalChange={() => { }} />
             <Toast toast={toast.toast} onDismiss={toast.dismiss} />
         </>
     );
@@ -68,5 +68,17 @@ describe('TrashView', () => {
         const row = (await screen.findByText(/^X, from Other bookmarks/)).closest('li')!;
         expect((within(row).getByRole('button', { name: 'Restore' }) as HTMLButtonElement).disabled).toBe(true);
         expect(screen.queryByRole('button', { name: 'Empty Trash' })).toBeNull();
+    });
+
+    it('a delete made in Chrome shows as one row marked "Deleted outside this extension"', async () => {
+        const { service } = connectTrash();
+        const f = fakeBookmarks.seed('1', 'Work');
+        fakeBookmarks.seed(f.id, 'Doc', 'https://doc.example/');
+        fakeBookmarks.onRemoved.addListener(((id: string, info: never) => service.noteRemoved(id, info)) as never);
+        await chrome.bookmarks.removeTree(f.id);
+        await service.flushExternal();
+        render(<Harness roots={[]} />);
+        const row = (await screen.findByText(/^Work, 1 bookmark, from Bookmarks bar/)).closest('li')!;
+        expect(within(row).getByText(/Deleted outside this extension/)).toBeTruthy();
     });
 });

@@ -4,6 +4,7 @@
 // TRASH_CHANGED broadcasts reach chrome.runtime.onMessage listeners.
 import { vi } from 'vitest';
 import { createTrashService, handleTrashMessage, isTrashMessage } from '../src/sw/trash';
+import { createFolderPrefsService, handleFolderPrefsMessage } from '../src/sw/folder_prefs';
 import { EXTENSION_ORIGIN } from './setup';
 
 type Listener = (message: unknown) => void;
@@ -16,7 +17,11 @@ export function connectTrash(opts: { incognito?: boolean; failFirstSend?: boolea
     };
     rt.onMessage.addListener.mockImplementation((fn: Listener) => { listeners.add(fn); });
     rt.onMessage.removeListener.mockImplementation((fn: Listener) => { listeners.delete(fn); });
-    const service = createTrashService({ broadcast: (m) => listeners.forEach(l => l(m)) });
+    const folderPrefs = createFolderPrefsService({ broadcast: (m) => listeners.forEach(l => l(m)) });
+    const service = createTrashService({
+        broadcast: (m) => listeners.forEach(l => l(m)),
+        applyFolderPrefs: (map) => folderPrefs.applySnapshot(map),
+    });
     let failNext = !!opts.failFirstSend;
     const sendMessage = vi.fn(async (msg: unknown) => {
         if (failNext) {
@@ -27,9 +32,12 @@ export function connectTrash(opts: { incognito?: boolean; failFirstSend?: boolea
             return handleTrashMessage(service, msg, { url: `${EXTENSION_ORIGIN}index.html` }, !!opts.incognito);
         }
         if ((msg as { type?: string })?.type === 'CHECK_AI_AVAILABILITY') return { available: 'unsupported' };
+        if ((msg as { type?: string })?.type === 'FOLDER_PREFS_SET') {
+            return handleFolderPrefsMessage(folderPrefs, msg as Record<string, unknown>, { url: `${EXTENSION_ORIGIN}index.html` });
+        }
         return undefined;
     });
     rt.sendMessage = sendMessage;
     const broadcast = (m: unknown) => listeners.forEach(l => l(m));
-    return { service, sendMessage, listeners, broadcast };
+    return { service, folderPrefs, sendMessage, listeners, broadcast };
 }
