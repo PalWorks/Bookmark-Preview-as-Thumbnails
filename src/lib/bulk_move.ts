@@ -48,7 +48,8 @@ export async function moveNodes(ids: string[], targetId: string): Promise<MoveRe
         if (!n) { failed.push({ id, title: '', reason: 'It no longer exists.' }); continue; }
         nodes.push(n);
     }
-    const selected = new Set(nodes.map(n => n.id));
+    // Only folders that will actually move can carry their contents along.
+    const selected = new Set(nodes.filter(n => !isPermanent(n) && !isManaged(n)).map(n => n.id));
     const cache = new Map<string, BookmarkNode | undefined>();
     const roots: BookmarkNode[] = [];
     for (const n of nodes) {
