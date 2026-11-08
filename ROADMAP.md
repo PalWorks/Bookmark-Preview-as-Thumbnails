@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T13:24:59+00:00 (1.4.0 built and verified: rows 1 to 5 done on the branch; rows 12 to 14 added)._
+> _Last updated: 2026-11-08T13:42:32+00:00 (owner: 1.3.0 ships inside 1.4.0; 1.4.0 submitted; row 7 done; row 6 next)._
 
 ## 0. North star: every open item, one row each
 
@@ -19,14 +19,12 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 
 | # | Bucket | Priority | State | Size | Impact | Raised | Problem | Solution or next step |
 |---|---|---|---|---|---|---|---|---|
-| 7 | §3.3 | P2 | **Open** | S | M | 2026-11-08 | The real-Chrome checks run locally (`npm run e2e`, added in 1.4.0) but not in CI. | Add a CI job that installs Chrome and runs `npm run e2e` after the build; it needs `--enable-unsafe-extension-debugging` on the runner. |
 | 6 | §3.2 | P3 | **Open** | M | L | 2026-11-08 | Rename and single move have no Undo; bulk move's Undo lasts only as long as its toast (D14). | Extend the Trash operation journal to rename and move, persisted in the worker. |
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
-| 9 | §3.1 | P1 | **Decision** | S | H | 2026-11-08 | 1.3.0 is built and verified on `release/1.3.0` (also on the owner's profile); users get Trash and the parity fixes only once it is submitted. | 1.2.1 is live, nothing is in review. Recommendation: merge PR #2, tag v1.3.0 and submit. Owner decides. |
-| 12 | §3.1 | P1 | **Decision** | S | H | 2026-11-08 | 1.4.0 (rows 1 to 5) is built and verified on `release/1.4.0`, stacked on 1.3.0. Both review models suggested shipping 1.3.0 first and waiting for feedback before 1.4.0. | Recommendation: submit 1.3.0 now, then 1.4.0 once 1.3.0 is approved (about a week), so a problem in either release is easy to place. Owner decides. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
-| 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.3.0 is live, listing what shipped and that their remaining requests (rows 1 to 5) are built for 1.4.0. |
+| 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.4.0 (which contains 1.3.0, owner decision 2026-11-08) is merged, tagged v1.4.0 and submitted to the Web Store. | When approved: run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1), then row 10 and the website feature list. |
+| 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.4.0 is live, listing what shipped (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 
 **Reading the narrow columns.** Bucket is the §3 area: 3.1 Release, 3.2 Features, 3.3 Engineering.
@@ -85,15 +83,17 @@ Priority, Size and Impact are separate columns because they answer separate ques
 | Thumbnail grid and list for bookmarks, batch capture, dark mode, JSON backup | 1.0 |
 | AI Auto-Tag, Smart Search, Duplicate Finder (on-device or bring your own key) | 1.2.0 |
 | Safe updates (schema-gated migration), tags kept on recapture, API key bound to its provider | 1.2.1 (live 2026-11-08) |
-| Trash with Undo, favicon previews, deep counts, folder panel toggle, 360px layout, settings export | 1.3.0 (built, not yet released) |
-| Deletes made outside the extension in Trash, folder colours, hidden from search, multi-select with bulk delete/move/open, list columns and ratings | 1.4.0 (built, not yet released) |
+| Trash with Undo, favicon previews, deep counts, folder panel toggle, 360px layout, settings export | 1.3.0 (not released on its own; ships in 1.4.0) |
+| Deletes made outside the extension in Trash, folder colours, hidden from search, multi-select with bulk delete/move/open, list columns and ratings | 1.4.0 (submitted 2026-11-08, in review) |
 
 ## 2. Next up
 
-### 2.1 Status: 1.3.0 and 1.4.0 built and verified, releases pending rows 9 and 12 (updated 2026-11-08T13:24:59+00:00)
+### 2.1 Status: 1.4.0 in Web Store review (updated 2026-11-08T13:42:32+00:00)
 
-1.2.1 is live on the Chrome Web Store. 1.3.0 is on `release/1.3.0` (PR #2). 1.4.0 is on
-`release/1.4.0`, stacked on 1.3.0: 322 tests, lint, build, bundle check and `npm run e2e` pass;
+1.2.1 is live on the Chrome Web Store. The owner chose to ship 1.3.0 inside 1.4.0 rather than on
+its own (2026-11-08): PRs #2 and #3 are merged, `v1.4.0` is tagged and submitted. Users update
+from 1.2.1 straight to 1.4.0; that path (AI key, tags, Trash, alarms, identical install warnings)
+was checked in headless Chrome 156 before submission. 1.4.0: 322 tests, lint, build, bundle check and `npm run e2e` pass;
 the update from 1.3.0, the permission gate (identical install warnings), deletes made outside the
 extension, selection, columns and dialogs were checked in headless Chrome 156 and again on the
 owner's profile (794 bookmarks, unchanged afterwards). Design and review record:
@@ -106,20 +106,20 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 
 | # | Item | Section | State | Size | Impact |
 |---|---|---|---|---|---|
-| 7 | Real-Chrome checks in CI | §3.3 | **Open** | S | M |
 | 6 | Undo for rename and move | §3.2 | **Open** | M | L |
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
-| 9 | Release 1.3.0 to the Web Store | §3.1 | **Decision** | S | H |
-| 12 | Release 1.4.0 to the Web Store | §3.1 | **Decision** | S | H |
+| 12 | Release 1.4.0 to the Web Store | §3.1 | **Waiting**: Web Store review | S | H |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
-| 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.3.0 is live | T | M |
+| 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.4.0 is live | T | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
 | 1 | Record deletions made outside the extension | §3.2 | **Done** 2026-11-08 (built in 1.4.0, ships with row 12) | Was M | M |
 | 2 | Exclude chosen folders from search | §3.2 | **Done** 2026-11-08 (1.4.0) | Was S | M |
 | 3 | List view columns | §3.2 | **Done** 2026-11-08 (1.4.0) | Was M | M |
 | 4 | Range multi-select with bulk actions | §3.2 | **Done** 2026-11-08 (1.4.0) | Was M | M |
 | 5 | Per-folder colours | §3.2 | **Done** 2026-11-08 (1.4.0) | Was S | L |
+| 7 | Real-Chrome checks in CI | §3.3 | **Done** 2026-11-08 (CI job "Real-Chrome smoke test") | Was S | M |
+| 9 | Release 1.3.0 to the Web Store | §3.1 | **Done** 2026-11-08 (ships inside 1.4.0, row 12) | Was S | H |
 
 ---
 
@@ -137,8 +137,9 @@ the per-device limit of folder prefs (DECISIONS D12).
 
 ### 3.3 Engineering
 
-Rows 7 and 8 are debt recorded during the 1.3.0 review; 1.4.0 added the local half of row 7
-(`npm run e2e`).
+Rows 7 and 8 are debt recorded during the 1.3.0 review. Row 7 is done: `npm run e2e` runs in CI
+as the "Real-Chrome smoke test" job (Node 22, the runner's Chrome, `--no-sandbox` via
+`E2E_NO_SANDBOX=1`).
 
 ## 5. Not doing: decided against, with the reason
 

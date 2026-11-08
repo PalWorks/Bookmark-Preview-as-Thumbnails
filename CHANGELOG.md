@@ -55,10 +55,13 @@ parity, plus recovery of bookmarks deleted outside this extension.
 - `src/sw/folder_prefs.ts` (single writer of `fpref_*`), `src/lib/metadata_sanitize.ts`
   (allowlist), `src/lib/bulk_move.ts`, `src/lib/list_columns.ts`; hooks `useSelection`,
   `useLinkMeta`, `useHistoryStats`, `useFolderPrefs`.
-- `npm run e2e`: a real-Chrome smoke test in a throwaway headless profile.
+- `npm run e2e`: a real-Chrome smoke test in a throwaway headless profile; CI runs it as the
+  "Real-Chrome smoke test" job.
 - 322 tests (257 before).
 
 ## [1.3.0] - 2026-11-08T12:18:14+00:00
+
+Not released on its own: these changes reach users in 1.4.0 (owner decision, 2026-11-08).
 
 A safer, more familiar bookmark manager: every delete can be undone, and the
 gaps against Chrome's own bookmark manager reported by a daily user are closed.

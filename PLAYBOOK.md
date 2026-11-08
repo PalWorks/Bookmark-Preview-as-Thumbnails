@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: e2e smoke, optional permissions in the gate, folder prefs rules)._
+_Last updated: 2026-11-08T13:42:32+00:00 (CI runs the real-Chrome smoke test)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -24,7 +24,7 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 2. Add the CHANGELOG entry with a UTC timestamp (`date -u --iso-8601=seconds`).
 3. If permissions changed, run the permission gate below. Update PRIVACY.md and
    PRIVACY_DETAILS.md in the same change.
-4. Open a PR to `main`; CI must pass (lint, test, build, bundle check).
+4. Open a PR to `main`; CI must pass (lint, test, build, bundle check, real-Chrome smoke test).
 5. Merge, then tag with `TZ=UTC git tag -a v<version>` and push the tag.
 6. `npm run zip` (builds, runs the bundle check, writes `extension.zip`). Confirm the zip has
    no `.map` files.
