@@ -105,3 +105,15 @@ export function sanitizeBackupMeta(raw: unknown, now = Date.now()): BackupMeta |
     if (tags && tags.length) out.tags = tags;
     return out.rating || out.lastOpenedAt || out.tags ? out : undefined;
 }
+
+/**
+ * Merge a backed-up record into the stored one without overwriting the user's
+ * newer choices: rating and tags only where none are stored; the later opened time.
+ */
+export function mergeImported(existing: Partial<MetadataRecord> | undefined, m: BackupMeta): Partial<MetadataRecord> | undefined {
+    const change: Partial<MetadataRecord> = {};
+    if (m.rating && !existing?.rating) change.rating = m.rating;
+    if (m.tags?.length && !existing?.tags?.length) change.tags = m.tags;
+    if (m.lastOpenedAt && m.lastOpenedAt > (existing?.lastOpenedAt ?? 0)) change.lastOpenedAt = m.lastOpenedAt;
+    return Object.keys(change).length ? change : undefined;
+}

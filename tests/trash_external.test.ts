@@ -199,4 +199,53 @@ describe('external deletes', () => {
         expect(res.removedRoots).toBe(300);
         expect(external()).toHaveLength(0);
     });
+
+    it('restoring a burst somewhere else keeps the original order', async () => {
+        const { folder, soup, cake, pie } = seedRecipes();
+        const service = makeWired();
+        await chrome.bookmarks.remove(soup.id);
+        await chrome.bookmarks.remove(cake.id);
+        await chrome.bookmarks.remove(pie.id);
+        await service.flushExternal();
+        const target = fakeBookmarks.seed('2', 'Elsewhere');
+        await service.restore({ operationId: external()[0].operationId, targetParentId: target.id });
+        expect(fakeBookmarks.titlesIn(target.id)).toEqual(['Soup', 'Cake', 'Pie']);
+        expect(folder.id).toBeTruthy();
+    });
+
+    it('a failed own delete does not hide a later delete made in Chrome', async () => {
+        const { soup } = seedRecipes();
+        const service = makeWired();
+        fakeBookmarks.failAfter('remove', 0, 'Boom');
+        const res = await service.deleteItems({ ids: [soup.id] });
+        expect(res.ok).toBe(false);
+        await chrome.bookmarks.remove(soup.id);
+        await service.flushExternal();
+        expect(external().map(e => e.title)).toEqual(['Soup']);
+    });
+
+    it('bookmarks removed by an organisation policy are not kept', async () => {
+        const service = makeService().service;
+        service.noteRemoved('900', { parentId: '1', index: 0, node: { id: '900', title: 'Policy', url: 'https://policy.example/', unmodifiable: 'managed' } as never });
+        await service.flushExternal();
+        expect(entries()).toHaveLength(0);
+    });
+
+    it('restoring a folder that already came back with the same links reuses it', async () => {
+        const { folder } = seedRecipes();
+        const original = shape((await chrome.bookmarks.getSubTree(folder.id))[0]);
+        const service = makeWired();
+        await chrome.bookmarks.removeTree(folder.id);
+        await service.flushExternal();
+        // The same folder syncs back from another device before Restore here.
+        const back = await chrome.bookmarks.create({ parentId: '1', title: 'Recipes', index: 1 });
+        for (const [t, u] of [['Soup', 'https://soup.example/'], ['Cake', 'https://cake.example/']]) await chrome.bookmarks.create({ parentId: back.id, title: t, url: u });
+        const drinks = await chrome.bookmarks.create({ parentId: back.id, title: 'Drinks' });
+        await chrome.bookmarks.create({ parentId: drinks.id, title: 'Tea', url: 'https://tea.example/' });
+        await chrome.bookmarks.create({ parentId: back.id, title: 'Pie', url: 'https://pie.example/' });
+        await service.restore({ operationId: external()[0].operationId });
+        const recipes = (await chrome.bookmarks.getChildren('1')).filter(c => c.title === 'Recipes');
+        expect(recipes).toHaveLength(1);
+        expect(shape((await chrome.bookmarks.getSubTree(recipes[0].id))[0])).toEqual(original);
+    });
 });

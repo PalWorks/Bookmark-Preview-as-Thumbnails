@@ -239,6 +239,11 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         walk(tree);
     }
 
+    function unmarkSelfRemoved(tree: SavedNode): void {
+        const walk = (n: SavedNode) => { selfRemoved.delete(n.oldId); (n.children ?? []).forEach(walk); };
+        walk(tree);
+    }
+
     function forgetExpiredSelfRemoved(): void {
         const t = now();
         for (const [id, until] of selfRemoved) if (until <= t) selfRemoved.delete(id);
@@ -365,6 +370,8 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
                 done.push(e);
             } catch (err) {
                 failed.push({ id: e.tree.oldId, error: errorMessage(err) });
+                // Still there: a later delete of it in Chrome must reach Trash.
+                unmarkSelfRemoved(e.tree);
                 console.error('[Trash] remove failed', operationId, e.tree.oldId, err);
             }
         }
@@ -531,11 +538,28 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             return children.find(c => !c.url && c.title === entry.title && !isManaged(c) && recreated.has(c.id));
         };
 
-        // A bookmark deleted on another device may already be back (restored there and
-        // synced here): reuse an identical one instead of making a duplicate.
-        const alreadyPresent = async (pid: string, saved: SavedNode) => {
+        // Something deleted on another device may already be back (restored there and
+        // synced here). External entries reuse an identical bookmark, or a folder with
+        // the same title and the same links, instead of making a duplicate; inside a
+        // reused folder, identical children are reused too.
+        const reusedFolders = new Set<string>();
+        const linksOf = (n: { url?: string; title?: string; children?: Array<{ url?: string; title?: string; children?: unknown[] }> }, out: string[] = []): string[] => {
+            if (n.url) out.push(`${n.title}\n${n.url}`);
+            for (const c of n.children ?? []) linksOf(c as never, out);
+            return out;
+        };
+        const sameLinks = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join('\0') === [...b].sort().join('\0');
+        const alreadyPresent = async (pid: string, saved: SavedNode): Promise<BookmarkNode | undefined> => {
             const children = await chrome.bookmarks.getChildren(pid).catch(() => [] as BookmarkNode[]);
-            return children.find(c => c.url === saved.url && c.title === saved.title);
+            if (saved.url) return children.find(c => c.url === saved.url && c.title === saved.title);
+            const candidates = children.filter(c => !c.url && c.title === saved.title && !isManaged(c));
+            if (reusedFolders.has(pid)) return candidates[0];
+            const want = linksOf(saved);
+            for (const c of candidates) {
+                const sub = (await chrome.bookmarks.getSubTree(c.id).catch(() => []))[0];
+                if (sub && sameLinks(linksOf(sub), want)) return c;
+            }
+            return undefined;
         };
         const prefsToApply: Array<{ newId: string; pref: SavedFolderPref }> = [];
 
@@ -545,8 +569,15 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
                 findExisting: async (pid, saved) => {
                     const reused = resume ? await fromInterruptedAttempt(pid, saved) : undefined;
                     if (reused) return reused;
-                    if (saved === entry.tree && entry.isFolder && pid === targetId) return recreatedFolder(pid);
-                    if (saved === entry.tree && saved.url && entry.origin === 'external') return alreadyPresent(pid, saved);
+                    if (saved === entry.tree && entry.isFolder && pid === targetId) {
+                        const merged = await recreatedFolder(pid);
+                        if (merged) return merged;
+                    }
+                    if (entry.origin === 'external' && (saved === entry.tree || reusedFolders.has(pid))) {
+                        const present = await alreadyPresent(pid, saved);
+                        if (present && !present.url) reusedFolders.add(present.id);
+                        if (present) return present;
+                    }
                     return undefined;
                 },
                 onNode: async (saved, node, wasCreated) => {
@@ -579,13 +610,9 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         const items = all.filter(i => (req.entryId ? i.entry.entryId === req.entryId : i.entry.operationId === req.operationId));
         if (items.length === 0) return { ok: false, error: 'Nothing to restore. It may have been emptied from Trash.' };
 
-        // Original order. Extension deletes saved every index before removing anything:
-        // restore a parent's roots in ascending index. External deletes arrive one by
-        // one, each index taken after the earlier removals: restore in reverse event order.
-        items.sort((a, b) => a.entry.parentId.localeCompare(b.entry.parentId)
-            || (a.entry.seq !== undefined && b.entry.seq !== undefined
-                ? b.entry.seq - a.entry.seq
-                : a.entry.index - b.entry.index));
+        // Original order: a parent's roots in ascending original index, so positions
+        // line up (external entries store original positions too, see recordExternalNow).
+        items.sort((a, b) => a.entry.parentId.localeCompare(b.entry.parentId) || a.entry.index - b.entry.index);
         const results: TrashRestoreItemResult[] = [];
         let changed = false;
         try {
@@ -748,6 +775,14 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         }
     }
 
+    /** Ids inside deletes that are buffered but not yet written (their prefs must stay). */
+    function pendingRemovedIds(): Set<string> {
+        const out = new Set<string>();
+        const walk = (n: BookmarkNode) => { out.add(n.id); (n.children ?? []).forEach(walk); };
+        for (const e of externalBuffer) if (e.info.node) walk(e.info.node);
+        return out;
+    }
+
     /** Write buffered external deletes now (also used by tests). */
     function flushExternal(): Promise<unknown> {
         if (externalTimer) { clearTimeout(externalTimer); externalTimer = null; }
@@ -766,6 +801,8 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             if (!e.info.node) { skippedNoNode++; return false; }
             if (selfRemoved.has(e.id)) { skippedOwn++; return false; }
             if (!e.info.parentId || e.info.parentId === ROOT_ID) { skippedPermanent++; return false; }
+            // Removed by an organisation's policy: not the user's to restore.
+            if (isManaged(e.info.node)) { skippedPermanent++; return false; }
             return true;
         });
         if (candidates.length === 0) return 0;
@@ -802,6 +839,24 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             }
         }
 
+        // Each index was taken after the earlier removals in this burst. Replay the
+        // removals of a folder backwards to get every item's original position, so a
+        // restore (to the original folder or elsewhere) keeps the original order.
+        const originalIndex = new Map<number, number>();
+        const byParent = new Map<string, ExternalEvent[]>();
+        for (const e of kept) {
+            if (nested.has(e.seq)) continue;
+            byParent.set(e.info.parentId, [...(byParent.get(e.info.parentId) ?? []), e]);
+        }
+        for (const list of byParent.values()) {
+            const placed: Array<{ seq: number; pos: number }> = [];
+            for (const e of [...list].sort((a, b) => b.seq - a.seq)) {
+                for (const p of placed) if (p.pos >= e.info.index) p.pos++;
+                placed.push({ seq: e.seq, pos: e.info.index });
+            }
+            for (const p of placed) originalIndex.set(p.seq, p.pos);
+        }
+
         const operationId = uuid();
         const toSet: Record<string, unknown> = {};
         let roots = 0, nodes = 0;
@@ -826,7 +881,7 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
                 deletedAt: e.at,
                 expiresAt: e.at + TRASH_RETENTION_MS,
                 parentId: e.info.parentId,
-                index: e.info.index,
+                index: originalIndex.get(e.seq) ?? e.info.index,
                 ancestors: ctx.chain.map(a => ({ oldId: a.id, title: a.title ?? '' })),
                 scope: {
                     rootId: top.id,
@@ -862,6 +917,7 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         reconcile: () => enqueue(async () => true),
         noteRemoved,
         flushExternal,
+        pendingRemovedIds,
         /** True while a restore is creating bookmarks (auto-capture skips them). */
         isRestoreActive: () => restoringUntil > now(),
     };

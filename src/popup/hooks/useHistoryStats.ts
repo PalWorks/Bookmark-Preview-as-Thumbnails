@@ -78,7 +78,11 @@ export function useHistoryStats(urls: string[], wanted: boolean) {
             setLoading(false);
         };
         void run();
-        return () => { cancelled = true; };
+        return () => {
+            cancelled = true;
+            // The next view may have everything cached: never leave "loading" on.
+            setLoading(false);
+        };
     }, [wanted, permission, key]);
 
     /**

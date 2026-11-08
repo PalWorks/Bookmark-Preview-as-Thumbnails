@@ -66,12 +66,14 @@ export function createFolderPrefsService(deps: FolderPrefsServiceDeps = {}) {
 
     /**
      * Remove prefs of folders that no longer exist. Trash entries keep their own
-     * copy, so this never loses a pref Undo could bring back. Daily alarm only.
+     * copy, so this never loses a pref Undo could bring back. Daily alarm only, after
+     * Trash has written any buffered deletes (sw.ts), and never for `keep` ids.
      */
-    async function pruneNow(): Promise<number> {
+    async function pruneNow(keep: Set<string>): Promise<number> {
         const prefs: FolderPrefs = await readFolderPrefs();
         const gone: string[] = [];
         for (const id of Object.keys(prefs)) {
+            if (keep.has(id)) continue;
             if (!(await getNode(id))) gone.push(id);
         }
         if (gone.length) await chrome.storage.local.remove(gone.map(folderPrefKey));
@@ -81,7 +83,8 @@ export function createFolderPrefsService(deps: FolderPrefsServiceDeps = {}) {
     return {
         set: (ids: string[], patch: FolderPrefPatch) => enqueue(() => setNow(ids, patch)),
         applySnapshot: (map: Array<{ newId: string; pref: unknown }>) => enqueue(() => applySnapshotNow(map)),
-        prune: () => enqueue(() => pruneNow()),
+        /** `keep`: ids of folders in deletes Trash has not written yet. */
+        prune: (keep: Set<string> = new Set()) => enqueue(() => pruneNow(keep)),
     };
 }
 

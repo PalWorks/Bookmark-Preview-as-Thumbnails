@@ -12,7 +12,7 @@ import { migrateStorageSchema, markFreshInstall, repairMisMigratedKeys } from '.
 import { createTrashService, handleTrashMessage, isTrashMessage } from './sw/trash';
 import { createFolderPrefsService, handleFolderPrefsMessage } from './sw/folder_prefs';
 import { TRASH_RESTORING_KEY } from './lib/trash_store';
-import { isValidMetaId, sanitizePagePatch } from './lib/metadata_sanitize';
+import { isValidMetaId, sanitizePagePatch, sanitizeBackupMeta, mergeImported } from './lib/metadata_sanitize';
 
 // Service Worker for BookmarksThumbnails
 
@@ -70,14 +70,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 
     if (message.type === 'META_PATCH') {
-        const { id, update, titleIfNew } = message as {
-            id?: unknown; update?: unknown; titleIfNew?: unknown;
+        const { id, update, titleIfNew, importMerge } = message as {
+            id?: unknown; update?: unknown; titleIfNew?: unknown; importMerge?: unknown;
         };
         // Only extension pages may write metadata; content scripts run inside
         // third-party pages.
         if (!_sender.url?.startsWith(chrome.runtime.getURL(''))) {
             sendResponse({ ok: false, error: 'META_PATCH rejected: not an extension page' });
             return false;
+        }
+        // Backup import: decide against the stored record inside the per-URL queue, so
+        // a rating saved in another tab meanwhile is never overwritten.
+        if (importMerge === true) {
+            const incoming = isValidMetaId(id) ? sanitizeBackupMeta({ ...(update as object), url: id }) : undefined;
+            if (!incoming) {
+                sendResponse({ ok: false, error: 'Invalid META_PATCH message' });
+                return false;
+            }
+            storageIndex.update(incoming.url, existing => mergeImported(existing, incoming))
+                .then(() => {
+                    sendResponse({ ok: true });
+                    chrome.runtime.sendMessage({ type: 'META_UPDATED', urls: [incoming.url] }).catch(() => { });
+                })
+                .catch((err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+            return true;
         }
         const clean = isValidMetaId(id) ? sanitizePagePatch(update, Date.now(), id) : undefined;
         if (!isValidMetaId(id) || !clean) {
@@ -694,7 +710,9 @@ if (!IS_INCOGNITO_WORKER) {
             .then(n => { if (n) console.log(`[Trash] purged ${n} expired entr${n === 1 ? 'y' : 'ies'}`); })
             .catch(err => console.error('[Trash] purge failed', err));
         // Prefs of folders that no longer exist (Trash entries keep their own copy).
-        folderPrefs.prune()
+        // Buffered outside deletes are written first, so their prefs are saved.
+        trash.flushExternal()
+            .then(() => folderPrefs.prune(trash.pendingRemovedIds()))
             .then(n => { if (n) console.log(`[FolderPrefs] pruned ${n}`); })
             .catch(err => console.error('[FolderPrefs] prune failed', err));
     });

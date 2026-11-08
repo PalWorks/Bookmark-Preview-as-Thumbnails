@@ -57,7 +57,8 @@ export function useLinkMeta(urls: string[]) {
         const onMessage = (m: { type?: string; urls?: unknown }) => {
             if (m?.type !== 'META_UPDATED' || !Array.isArray(m.urls)) return;
             const urls = m.urls.filter((u): u is string => typeof u === 'string');
-            setUpdated(d => ({ rev: d.rev + 1, urls }));
+            // Add to the pending list: two broadcasts before a render must both refresh.
+            setUpdated(d => ({ rev: d.rev + 1, urls: [...new Set([...d.urls, ...urls])].slice(-500) }));
         };
         chrome.runtime.onMessage.addListener(onMessage);
         return () => chrome.runtime.onMessage.removeListener(onMessage);

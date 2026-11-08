@@ -5,7 +5,7 @@
 // cannot interleave with a capture or auto-tag write for the same URL.
 
 import { storageIndex } from './storage_index';
-import { sanitizePagePatch, type PagePatch } from './metadata_sanitize';
+import { sanitizePagePatch, sanitizeBackupMeta, mergeImported, type PagePatch, type BackupMeta } from './metadata_sanitize';
 
 export async function patchMetadata(
     id: string,
@@ -37,4 +37,24 @@ export async function patchMetadata(
     // The worker answered with an error: surface it instead of writing behind its back.
     const error = typeof res === 'object' && res !== null && 'error' in res ? String((res as { error: unknown }).error) : 'META_PATCH failed';
     throw new Error(error);
+}
+
+/**
+ * Restore one backed-up record (rating, tags, opened time) without overwriting
+ * newer choices; the worker decides inside its per-URL queue.
+ */
+export async function importMetadata(m: BackupMeta): Promise<void> {
+    let res: unknown;
+    try {
+        res = await chrome.runtime.sendMessage({ type: 'META_PATCH', id: m.url, update: m, importMerge: true });
+    } catch {
+        res = undefined;
+    }
+    if (res === undefined) {
+        const clean = sanitizeBackupMeta(m);
+        if (clean) await storageIndex.update(clean.url, existing => mergeImported(existing, clean));
+        return;
+    }
+    if (typeof res === 'object' && res !== null && 'ok' in res && (res as { ok: boolean }).ok) return;
+    throw new Error(typeof res === 'object' && res !== null && 'error' in res ? String((res as { error: unknown }).error) : 'META_PATCH failed');
 }

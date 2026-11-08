@@ -4,7 +4,7 @@ import { fakeBookmarks } from './fakes/chrome_bookmarks';
 import { localStore, EXTENSION_ORIGIN } from './setup';
 import { createFolderPrefsService, handleFolderPrefsMessage } from '../src/sw/folder_prefs';
 import {
-    readFolderPrefs, applyFolderPrefPatch, sanitizeFolderPrefPatch, isInHiddenFolder, hiddenAncestor, buildParentMap,
+    readFolderPrefs, applyFolderPrefPatch, sanitizeFolderPrefPatch, isInHiddenFolder, buildParentMap,
 } from '../src/lib/folder_prefs';
 
 const page = { url: `${EXTENSION_ORIGIN}index.html` } as chrome.runtime.MessageSender;
@@ -76,9 +76,18 @@ describe('folder prefs', () => {
         const hidden = new Set(['a']);
         expect(isInHiddenFolder('c', parentOf, hidden)).toBe(true);
         expect(isInHiddenFolder('1', parentOf, hidden)).toBe(false);
-        expect(hiddenAncestor('b', parentOf, hidden)).toBe('a');
-        expect(hiddenAncestor('a', parentOf, hidden)).toBeUndefined();
         const map = buildParentMap([{ id: '1', parentId: '0', title: '', syncing: false, children: [{ id: '5', parentId: '1', title: 'x', syncing: false }] }]);
         expect(map.get('5')).toBe('1');
+    });
+});
+
+describe('folder prefs prune and pending Trash captures', () => {
+    it('keeps prefs of folders whose delete is still buffered', async () => {
+        const f = fakeBookmarks.seed('1', 'Buffered');
+        localStore[`fpref_${f.id}`] = { color: 'red' };
+        await chrome.bookmarks.removeTree(f.id);
+        const svc = createFolderPrefsService({ broadcast: vi.fn() });
+        expect(await svc.prune(new Set([f.id]))).toBe(0);
+        expect(localStore[`fpref_${f.id}`]).toEqual({ color: 'red' });
     });
 });

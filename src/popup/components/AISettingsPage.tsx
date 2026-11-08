@@ -9,6 +9,7 @@ import {
 import { AI_TAGS, validateProviderKey, SEARCH_CAP_BUILTIN, SEARCH_CAP_CLOUD, type AIAvailability } from '../../lib/ai_tagger';
 import { storageIndex } from '../../lib/storage_index';
 import { patchMetadata } from '../../lib/metadata_client';
+import { cleanTags } from '../../lib/metadata_sanitize';
 import type { TrashDeleteResult } from '../../lib/trash_store';
 
 type KeepPolicy = 'oldest' | 'newest';
@@ -357,7 +358,11 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
             setFolderOptions(folders);
             setSearchRoots(roots);
             // Default the search scope to the folder the user was viewing, if it has bookmarks.
-            const preferred = currentFolder?.id && folders.some(f => f.id === currentFolder.id)
+            // A folder hidden from search is only searched when picked in the list.
+            const hiddenNow = new Set(hiddenKey ? hiddenKey.split(',') : []);
+            const currentHidden = !!currentFolder?.id && collectFolderOptions(roots, 0, [], hiddenNow)
+                .some(f => f.id === currentFolder.id && f.hidden);
+            const preferred = currentFolder?.id && !currentHidden && folders.some(f => f.id === currentFolder.id)
                 ? currentFolder.id
                 : ALL_FOLDERS_ID;
             setSearchFolderId(prev => (prev === ALL_FOLDERS_ID ? preferred : prev));
@@ -376,7 +381,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
         };
         void load();
         return () => { cancelled = true; };
-    }, [activeTab, currentFolder?.id]);
+    }, [activeTab, currentFolder?.id, hiddenKey]);
 
     // ── Auto-Tag: live-update rows as the service worker reports progress ───────
     useEffect(() => {
@@ -596,7 +601,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
 
     // Manual tag edits go through the service worker (META_PATCH) and notify the popup (via a
     // TAG_EDITED broadcast) so its filter pills stay in sync.
-    const persistTags = async (row: TagRow, newTags: string[]) => {
+    const persistTags = async (row: TagRow, requested: string[]) => {
+        // Same limits the worker applies (50 characters, 20 tags), so the page shows what is stored.
+        const newTags = cleanTags(requested) ?? [];
         // Routed through the service worker so it serialises with capture and
         // auto-tag writes for the same URL (no lost updates).
         await patchMetadata(row.url, { tags: newTags }, row.title);
@@ -1086,6 +1093,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                                         <input
                                                             className="ai-tag-add-input"
                                                             list="ai-tag-options"
+                                                            maxLength={50}
                                                             autoFocus
                                                             placeholder="tag…"
                                                             onKeyDown={e => {
@@ -1130,8 +1138,10 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                 onChange={e => setSearchFolderId(e.target.value)}
                             >
                                 <option value={ALL_FOLDERS_ID}>All bookmarks ({allBookmarks.length})</option>
-                                {folderOptions.map(f => (
-                                    <option key={f.id} value={f.id}>{f.label} ({f.bookmarks.length})</option>
+                                {searchOptions.map(f => (
+                                    <option key={f.id} value={f.id}>
+                                        {f.label} ({f.bookmarks.length}){f.hidden ? ', hidden from search' : ''}
+                                    </option>
                                 ))}
                             </select>
                             {' '}using natural language

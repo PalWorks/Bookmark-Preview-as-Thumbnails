@@ -55,3 +55,15 @@ describe('useSelection', () => {
         expect(result.current.active).toBe(false);
     });
 });
+
+describe('useSelection: items that leave the view', () => {
+    it('are forgotten, so they are not selected again when they come back', () => {
+        const { result, rerender } = renderHook(({ order }) => useSelection(order, 'v'), { initialProps: { order: ids } });
+        act(() => result.current.toggle('a'));
+        act(() => result.current.toggle('b'));
+        rerender({ order: ['b', 'c', 'd', 'e'] });
+        expect([...result.current.selected]).toEqual(['b']);
+        rerender({ order: ids });
+        expect([...result.current.selected]).toEqual(['b']);
+    });
+});

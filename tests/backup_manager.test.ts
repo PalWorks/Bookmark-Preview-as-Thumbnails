@@ -501,3 +501,19 @@ describe('BackupManager 1.4.0: metadata and folder prefs', () => {
         expect(sanitizeSettings({ trashExternal: 'yes' }).skipped).toEqual(['trashExternal']);
     });
 });
+
+describe('BackupManager 1.4.0: import never overwrites a rating saved meanwhile', () => {
+    it('decides against the stored record at write time', async () => {
+        const { localStore } = await import('./setup');
+        const { backupManager } = await import('../src/lib/backup_manager');
+        const send = chrome.runtime.sendMessage as unknown as ReturnType<typeof vi.fn>;
+        // Another tab saves rating 5 just before the import's write lands (no worker: local path).
+        send.mockImplementation(async (m: { type: string }) => {
+            if (m.type === 'META_PATCH') localStore['meta_https://race.example/'] = { id: 'https://race.example/', url: 'https://race.example/', title: '', status: 'none', rating: 5 };
+            return undefined;
+        });
+        const file = new File([JSON.stringify({ version: 1, kind: 'full', settings: {}, thumbnails: [], metadata: [{ url: 'https://race.example/', rating: 2 }] })], 'b.json');
+        await backupManager.importBackup(file);
+        expect((localStore['meta_https://race.example/'] as { rating: number }).rating).toBe(5);
+    });
+});

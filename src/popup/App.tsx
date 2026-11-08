@@ -114,6 +114,8 @@ function App() {
     const openPanel = (panel: Panel) => {
         setActivePanel(panel);
         setDrawerOpen(false);
+        // Another tab may have changed the Trash setting since this page loaded.
+        if (panel === 'trash') reloadSettings();
     };
     const openFolder = (id: string) => {
         handleNavigate(id);
@@ -292,12 +294,25 @@ function App() {
         if (res?.ok) selection.clear();
     };
 
+    // Folders found by search come without their children: read those once selected.
+    const [folderLinks, setFolderLinks] = useState<Record<string, string[]>>({});
+    const bareFolderKey = selectedNodes.filter(n => !n.url && !n.children).map(n => n.id).sort().join(',');
+    useEffect(() => {
+        if (!bareFolderKey) return;
+        let cancelled = false;
+        const ids = bareFolderKey.split(',');
+        Promise.all(ids.map(id => chrome.bookmarks.getChildren(id).then(kids => [id, kids.filter(k => k.url).map(k => k.url!)] as const).catch(() => [id, []] as const)))
+            .then(pairs => { if (!cancelled) setFolderLinks(prev => ({ ...prev, ...Object.fromEntries(pairs) })); });
+        return () => { cancelled = true; };
+    }, [bareFolderKey]);
+
     // Links a bulk Open would open: selected bookmarks, plus bookmarks directly in selected folders.
     const bulkOpenUrls = (() => {
         const urls: string[] = [];
         for (const n of selectedNodes) {
             if (n.url) urls.push(n.url);
-            else for (const c of n.children ?? []) if (c.url) urls.push(c.url);
+            else if (n.children) { for (const c of n.children) if (c.url) urls.push(c.url); }
+            else urls.push(...(folderLinks[n.id] ?? []));
         }
         return [...new Set(urls)];
     })();
@@ -350,6 +365,7 @@ function App() {
     };
 
     // Keyboard: Ctrl/Cmd+A selects everything in view, Escape leaves selection mode.
+    const { selectAll: selectAllInView, clear: clearSelection, active: selectionActive } = selection;
     useEffect(() => {
         if (activePanel !== 'bookmarks') return;
         const onKey = (e: KeyboardEvent) => {
@@ -360,15 +376,15 @@ function App() {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !e.shiftKey && !e.altKey) {
                 if (document.querySelector('[role="dialog"]')) return;
                 e.preventDefault();
-                selection.selectAll();
-            } else if (e.key === 'Escape' && selection.active && !document.querySelector('[role="dialog"], .context-menu')) {
-                selection.clear();
+                selectAllInView();
+            } else if (e.key === 'Escape' && selectionActive && !document.querySelector('[role="dialog"], .context-menu')) {
+                clearSelection();
                 document.querySelector<HTMLElement>('.select-toggle')?.focus();
             }
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [activePanel, selection]);
+    }, [activePanel, selectionActive, selectAllInView, clearSelection]);
 
     // ── Rating and folder colour dialogs ──────────────────────────────────────
     const [ratingFor, setRatingFor] = useState<{ url: string; title: string } | null>(null);

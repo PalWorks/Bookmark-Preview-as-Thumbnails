@@ -121,16 +121,6 @@ export function isInHiddenFolder(id: string, parentOf: Map<string, string>, hidd
     return false;
 }
 
-/** The nearest hidden ancestor (not the node itself), for "Hidden with <folder>". */
-export function hiddenAncestor(id: string, parentOf: Map<string, string>, hidden: Set<string>): string | undefined {
-    let cur = parentOf.get(id);
-    for (let guard = 0; cur && guard < 256; guard++) {
-        if (hidden.has(cur)) return cur;
-        cur = parentOf.get(cur);
-    }
-    return undefined;
-}
-
 /** Parent map of a bookmark tree (id -> parentId). */
 export function buildParentMap(roots: chrome.bookmarks.BookmarkTreeNode[]): Map<string, string> {
     const map = new Map<string, string>();

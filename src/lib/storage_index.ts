@@ -81,6 +81,33 @@ export class StorageIndex {
         return next;
     }
 
+    /**
+     * Read-modify-write through the same per-id queue as patch(): `fn` gets the
+     * current record (or undefined) and returns the fields to merge, or undefined
+     * to leave it alone. Used where the decision depends on the stored value.
+     */
+    update(
+        id: string,
+        fn: (existing: MetadataRecord | undefined) => Partial<Omit<MetadataRecord, 'id'>> | undefined,
+    ): Promise<MetadataRecord | undefined> {
+        const previous = this.queues.get(id) ?? Promise.resolve();
+        const next = previous
+            .catch(() => undefined)
+            .then(async () => {
+                const existing = await this.get(id);
+                const change = fn(existing);
+                if (!change || Object.keys(change).length === 0) return existing;
+                const merged: MetadataRecord = { id, url: id, title: '', status: 'none', ...(existing ?? {}), ...change };
+                await this.set(merged);
+                return merged;
+            });
+        this.queues.set(id, next);
+        void next.finally(() => {
+            if (this.queues.get(id) === next) this.queues.delete(id);
+        }).catch(() => undefined);
+        return next;
+    }
+
     async remove(id: string): Promise<void> {
         await chrome.storage.local.remove(this.key(id));
     }

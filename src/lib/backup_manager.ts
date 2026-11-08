@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { thumbnailStorage } from './thumbnail_storage';
-import { patchMetadata } from './metadata_client';
+import { patchMetadata, importMetadata as importMetaRecord } from './metadata_client';
 import type { ThumbnailStatus } from './storage_index';
 import { PROVIDERS } from './ai_settings_storage';
 import { sanitizeListColumns } from './list_columns';
-import { sanitizeBackupMeta, type BackupMeta } from './metadata_sanitize';
+import { sanitizeBackupMeta, mergeImported, type BackupMeta } from './metadata_sanitize';
 import { readFolderPrefs, sanitizeFolderPref, type FolderPref, type FolderPrefPatch } from './folder_prefs';
 import { storageIndex } from './storage_index';
 
@@ -117,7 +117,8 @@ async function importFolderPrefs(raw: unknown): Promise<{ applied: number; skipp
 
 /**
  * Restore ratings, tags and opened times without overwriting the user's newer
- * choices: rating and tags only where this device has none; the later opened time.
+ * choices (mergeImported, applied by the worker inside its per-URL queue). The
+ * count is of links that had something to restore when the import started.
  */
 async function importMetadata(raw: unknown): Promise<number> {
     if (!Array.isArray(raw)) return 0;
@@ -125,13 +126,9 @@ async function importMetadata(raw: unknown): Promise<number> {
     for (const item of raw) {
         const m = sanitizeBackupMeta(item);
         if (!m) continue;
-        const existing = await storageIndex.get(m.url);
-        const patch: { rating?: number; tags?: string[]; lastOpenedAt?: number } = {};
-        if (m.rating && !existing?.rating) patch.rating = m.rating;
-        if (m.tags?.length && !existing?.tags?.length) patch.tags = m.tags;
-        if (m.lastOpenedAt && m.lastOpenedAt > (existing?.lastOpenedAt ?? 0)) patch.lastOpenedAt = m.lastOpenedAt;
-        if (Object.keys(patch).length === 0) continue;
-        await patchMetadata(m.url, patch);
+        const before = await storageIndex.get(m.url);
+        if (!mergeImported(before, m)) continue;
+        await importMetaRecord(m);
         applied++;
     }
     return applied;

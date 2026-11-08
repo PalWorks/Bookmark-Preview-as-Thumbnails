@@ -15,9 +15,13 @@ export function useSelection(orderedIds: string[], viewKey: string) {
     const current = state.viewKey === viewKey ? state : { viewKey, active: false, ids: new Set<string>(), anchor: null };
     if (current !== state) setState(current);
 
-    // Ids that left the view (deleted or moved elsewhere) drop out.
+    // Ids that left the view (deleted or moved elsewhere) drop out for good, so an
+    // item that comes back later is not silently selected again.
     const visible = new Set(orderedIds);
     const selected = new Set([...current.ids].filter(id => visible.has(id)));
+    if (current === state && (selected.size !== state.ids.size || (state.anchor !== null && !visible.has(state.anchor)))) {
+        setState({ ...state, ids: selected, anchor: state.anchor !== null && visible.has(state.anchor) ? state.anchor : null });
+    }
 
     const toggle = useCallback((id: string) => {
         setState(s => {
