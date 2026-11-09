@@ -12,16 +12,23 @@ preview_urls = false
 [vars]
 FEEDBACK_FROM = "Visual Bookmark Manager feedback <feedback.ThumbnailBookmarks@palworks.ai>"
 FEEDBACK_TO = "support@palworks.ai"
+# Only these pages may post: the Web Store build, then the maintainer's unpacked build.
+# Add your own unpacked extension id here to test the form from a development build.
+ALLOWED_ORIGINS = "chrome-extension://eedekafhclngkhhkcocblnllkbodgnhj,chrome-extension://pinepbhghhkcpnjmkohlfnipldbgcogm"
 
-# Rate-limit counters only, named by an HMAC of the IP and never the IP; every
-# key expires within 26 hours.
-# Created with: wrangler kv namespace create thumbnail-bookmarks-feedback-counters
-[[kv_namespaces]]
-binding = "FEEDBACK_RATE_LIMIT"
-id = "f1973c663dd34dee9b189c42c395ad61"
+# Rate-limit counters only, in one Durable Object (src/limiter.ts): exact counts,
+# named by an HMAC of the network and never the address; none outlives 26 hours.
+# Replaced the KV counters on 2026-11-09 (review of PR #11: KV is not atomic).
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "FeedbackLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["FeedbackLimiter"]
 
 # Burst limit per network, per data centre, approximate by design. `period`
-# may only be 10 or 60. The KV counters above are the real ceiling and the
+# may only be 10 or 60. The Durable Object limiter above is the real ceiling and the
 # fallback if this binding is missing or fails. Namespace ids on this account:
 # 2001 website contact worker, 2002 Gmail Labels as Tabs feedback, 2003 this one.
 [[ratelimits]]

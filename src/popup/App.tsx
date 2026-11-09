@@ -35,7 +35,7 @@ import { hiddenFolderIds, type FolderColor } from '../lib/folder_prefs';
 import { HISTORY_COLUMNS, openedAt, compareOptional, type SortOrder } from '../lib/list_columns';
 import { moveNodes, undoMoves, type MoveResult } from '../lib/bulk_move';
 import { undoRename, type RenameResult } from '../lib/rename';
-import { buildDiagnostics } from '../lib/feedback';
+import { buildDiagnostics, type FeedbackDiagnostics } from '../lib/feedback';
 import { FeedbackDialog } from '../components/FeedbackDialog';
 
 /** Bookmark and folder counts for feedback diagnostics (numbers only). */
@@ -607,7 +607,8 @@ function App() {
 
     // ── Welcome modal ─────────────────────────────────────────────────────────
     const [showWelcome, setShowWelcome] = useState(false);
-    const [feedbackOpen, setFeedbackOpen] = useState(false);
+    // Diagnostics are counted once, when the form opens (not on every render).
+    const [feedbackDiagnostics, setFeedbackDiagnostics] = useState<FeedbackDiagnostics | null>(null);
     useEffect(() => {
         chrome.storage.local.get('hasSeenWelcome', (result) => {
             if (!result.hasSeenWelcome) setShowWelcome(true);
@@ -666,7 +667,7 @@ function App() {
                 availableTags={availableTags}
                 activeTag={activeTag}
                 onTagChange={setActiveTag}
-                onOpenFeedback={() => setFeedbackOpen(true)}
+                onOpenFeedback={() => setFeedbackDiagnostics(buildDiagnostics({ ...countTree(bookmarkTree), view: viewMode }))}
                 onAISettings={() => openPanel('ai-settings')}
                 isAISettingsActive={activePanel === 'ai-settings'}
                 onToggleFolders={toggleFolders}
@@ -816,10 +817,10 @@ function App() {
                 />
             )}
 
-            {feedbackOpen && (
+            {feedbackDiagnostics && (
                 <FeedbackDialog
-                    onClose={() => setFeedbackOpen(false)}
-                    diagnostics={buildDiagnostics({ ...countTree(bookmarkTree), view: viewMode })}
+                    onClose={() => setFeedbackDiagnostics(null)}
+                    diagnostics={feedbackDiagnostics}
                 />
             )}
 

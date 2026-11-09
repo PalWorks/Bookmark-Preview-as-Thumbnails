@@ -166,7 +166,7 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-370 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
+374 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, the reactive bookmark tree, backups, and the
 whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome. See

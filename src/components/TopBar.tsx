@@ -407,6 +407,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                         <button
                             type="button"
+                            role="menuitem"
                             className="menu-item menu-disclosure"
                             aria-expanded={isCaptureSettingsOpen}
                             aria-controls="capture-settings"

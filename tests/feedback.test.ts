@@ -179,3 +179,35 @@ describe('submitFeedback', () => {
         expect(result).toEqual({ ok: false, error: expect.stringMatching(/took too long/i) });
     });
 });
+
+describe('browser build in diagnostics (review of PR #11)', () => {
+    it('reports Edge as Edge, not Chrome', () => {
+        Object.defineProperty(navigator, 'userAgent', {
+            value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0',
+            configurable: true,
+        });
+        expect(buildDiagnostics({ bookmarks: 1, folders: 1, view: 'grid' }).browser).toBe('Edg/156.0.0.0 on Windows');
+    });
+});
+
+describe('submitFeedback timeouts and odd replies (review of PR #11)', () => {
+    it('gives up after 12 seconds with a clear message', async () => {
+        vi.useFakeTimers();
+        try {
+            (globalThis as any).fetch = vi.fn((_u: string, init: RequestInit) => new Promise((_, reject) => {
+                init.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+            }));
+            const pending = submitFeedback({ category: 'bug', message: 'A real message here.' }, ENDPOINT);
+            await vi.advanceTimersByTimeAsync(12000);
+            expect(await pending).toEqual({ ok: false, error: expect.stringMatching(/took too long/i) });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('falls back to a generic message when the error reply is not JSON', async () => {
+        (globalThis as any).fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: () => Promise.reject(new SyntaxError('x')) });
+        expect(await submitFeedback({ category: 'bug', message: 'A real message here.' }, ENDPOINT))
+            .toEqual({ ok: false, error: 'Could not send right now. Please try again later.' });
+    });
+});

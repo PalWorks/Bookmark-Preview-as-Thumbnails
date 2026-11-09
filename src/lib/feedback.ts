@@ -97,7 +97,8 @@ export function buildDiagnostics(counts: {
 /** "Chrome/153.0.0.0 on Linux" — build and platform, not the full UA string. */
 function browserBuild(): string {
     const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-    const browser = ua.match(/(Chrome|Edg|OPR)\/[\d.]+/)?.[0] || 'unknown';
+    // Edge and Opera also carry a Chrome/ token, so look for them first.
+    const browser = ua.match(/(Edg|OPR)\/[\d.]+/)?.[0] || ua.match(/Chrome\/[\d.]+/)?.[0] || 'unknown';
     const platform = /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'unknown';
     return `${browser} on ${platform}`;
 }

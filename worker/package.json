@@ -5,8 +5,8 @@
     "license": "AGPL-3.0-only",
     "description": "Cloudflare Worker that relays in-extension feedback to email via Resend.",
     "scripts": {
-        "dev": "wrangler dev",
-        "deploy": "wrangler deploy",
+        "dev": "npx wrangler dev",
+        "deploy": "npx wrangler deploy",
         "test": "node --test test/index.test.ts",
         "typecheck": "tsc --noEmit"
     },

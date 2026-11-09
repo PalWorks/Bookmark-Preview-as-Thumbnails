@@ -84,14 +84,7 @@ export function useAITagger(currentFolder: chrome.bookmarks.BookmarkTreeNode | n
         return () => chrome.runtime.onMessage.removeListener(listener);
     }, []);
 
-    const triggerAutoTag = (bookmarks: Array<{ url: string; title: string }>) => {
-        chrome.runtime.sendMessage({ type: 'AUTO_TAG', bookmarks })
-            .catch((err: unknown) => console.error('[useAITagger] Failed to send AUTO_TAG', err));
-    };
-
-    const stopAutoTag = () => {
-        chrome.runtime.sendMessage({ type: 'STOP_TAG' }).catch(() => { });
-    };
-
-    return { aiAvailability, isTagging, taggingProgress, tags, triggerAutoTag, stopAutoTag };
+    // Auto-Tag is started and stopped from the AI Settings page (1.6.0); this hook
+    // only follows its progress and the tags it writes.
+    return { aiAvailability, isTagging, taggingProgress, tags };
 }

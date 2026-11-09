@@ -160,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="sidebar-footer">
                 <button
                     type="button"
-                    className={`sidebar-ai-btn ${isTrashActive ? 'sidebar-ai-btn--active' : ''}`}
+                    className={`sidebar-action-btn ${isTrashActive ? 'sidebar-action-btn--active' : ''}`}
                     onClick={onTrash}
                     aria-current={isTrashActive ? 'page' : undefined}
                 >

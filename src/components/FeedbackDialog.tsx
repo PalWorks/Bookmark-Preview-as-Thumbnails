@@ -39,11 +39,15 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ onClose, diagnos
     const [error, setError] = useState<string | null>(null);
     const [sent, setSent] = useState(false);
     const messageRef = useRef<HTMLTextAreaElement>(null);
+    // Synchronous guard: two submits in one tick (double Enter) both see busy=false.
+    const inFlight = useRef(false);
     const doneRef = useRef<HTMLButtonElement>(null);
 
     const submit = async () => {
+        if (inFlight.current) return;
         const problem = validateFeedback({ message, replyTo });
         if (problem) { setError(problem); return; }
+        inFlight.current = true;
         setBusy(true);
         setError(null);
         const result = await send({
@@ -52,6 +56,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ onClose, diagnos
             replyTo,
             ...(includeDiagnostics ? { diagnostics } : {}),
         });
+        inFlight.current = false;
         setBusy(false);
         if (result.ok) {
             setSent(true);

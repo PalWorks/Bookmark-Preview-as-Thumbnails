@@ -43,6 +43,12 @@ in review.
   failed on CSS colour functions such as `color()`, `oklch()` and `lab()` (Google Docs and others),
   forcing a slower fallback. The page copy it makes no longer includes the page's scripts, so
   Chrome stops logging a blocked-script error for each one.
+- **Feedback relay hardening (pre-landing review).** Rate-limit counters moved from KV to a
+  Durable Object, which counts exactly under concurrency and refuses when it cannot count; only
+  the extension's own origins may post; an IPv6 sender counts as its /64; a failed send gives the
+  allowance back; multi-line messages keep their line breaks; a non-object JSON body is a 400; the
+  body size is checked in bytes and against Content-Length first. The form ignores a double
+  submit, counts its technical details once when it opens, and reports Edge as Edge.
 - Expected per-site capture failures are logged as warnings, not errors, so the extension's
   Errors page in `chrome://extensions` shows only real faults.
 - Privacy policy (PRIVACY.md and the website) describes the feedback data flow.

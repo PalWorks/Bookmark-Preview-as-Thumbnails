@@ -16,6 +16,7 @@ on:
       - "*.json"
       - "*.ts"
       - "*.js"
+      - "*.html"
       - ".github/workflows/extension-ci.yml"
   workflow_dispatch:
 

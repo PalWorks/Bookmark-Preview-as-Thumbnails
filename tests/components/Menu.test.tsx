@@ -37,7 +37,7 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         render(<App />);
         const menu = await openMenu();
         expect(within(menu).queryByText('Use Incognito Window')).toBeNull();
-        const disclosure = within(menu).getByRole('button', { name: /Generate Preview settings/ });
+        const disclosure = within(menu).getByRole('menuitem', { name: /Generate Preview settings/ });
         expect(disclosure.getAttribute('aria-expanded')).toBe('false');
         fireEvent.click(disclosure);
         expect(disclosure.getAttribute('aria-expanded')).toBe('true');
@@ -142,6 +142,19 @@ describe('FeedbackDialog', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
         await screen.findByRole('dialog', { name: 'Feedback sent' });
         expect(send.mock.calls[0][0]).not.toHaveProperty('diagnostics');
+    });
+
+    it('a double submit sends once', async () => {
+        let resolve: (v: { ok: true }) => void = () => { };
+        const send = vi.fn(() => new Promise<{ ok: true }>(r => { resolve = r; }));
+        render(<FeedbackDialog onClose={() => { }} diagnostics={diagnostics} send={send} />);
+        fireEvent.change(screen.getByLabelText('Your message'), { target: { value: 'Sent only once, please.' } });
+        const form = document.getElementById('feedback-form') as HTMLFormElement;
+        fireEvent.submit(form);
+        fireEvent.submit(form);
+        resolve({ ok: true });
+        await screen.findByRole('dialog', { name: 'Feedback sent' });
+        expect(send).toHaveBeenCalledTimes(1);
     });
 
     it('validates before sending and keeps what was typed on a send error', async () => {

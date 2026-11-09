@@ -32,7 +32,7 @@ working exploits or keys publicly.
 | Restore destination | Never chosen across storage scopes (local vs synced) without the user picking it. |
 | Managed bookmarks | Never deleted; a request that includes one is rejected as a whole. |
 | Extension pages | CSP `script-src 'self'; object-src 'self'`; no remote code. |
-| Feedback relay (public, unauthenticated endpoint) | JSON only, 16 KB body, 4,000-character message, plausible-email check, honeypot; per-network burst and hourly limits plus a daily global cap; generic errors that never echo the provider's response; stores only rate-limit counters keyed by an HMAC of the IP. |
+| Feedback relay (public, unauthenticated endpoint) | JSON only, 16 KB body, 4,000-character message, plausible-email check, honeypot; accepts only our extension's origins (a web page from any other origin gets 403); per-network burst and hourly limits plus a daily global cap, counted atomically in a Durable Object that refuses when it cannot count (an IPv6 sender counts as its /64); a failed send gives the allowance back; generic errors that never echo the provider's response; stores only rate-limit counters keyed by an HMAC of the network, deleted within 26 hours. |
 
 ## Permissions
 

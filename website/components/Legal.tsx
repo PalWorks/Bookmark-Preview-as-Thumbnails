@@ -37,7 +37,7 @@ export const PrivacyPolicy: React.FC = () => (
         <li>your email address, only if you typed one, so we can reply;</li>
         <li>unless you untick "Include technical details": the Extension version, browser build and operating system, how many bookmarks and folders you have, and whether you use grid or list view. No bookmark titles, links, folder names or tags.</li>
       </ul>
-      <p>The relay stores no message content. To limit abuse it keeps short-lived counters per network, named by a keyed one-way hash of the IP address and never the address itself, which expire within 26 hours. We use what you send only to answer you and improve the Extension, and never sell it. To have a message deleted, write to support@palworks.ai.</p>
+      <p>The relay stores no message content. To limit abuse it keeps short-lived counters per network, named by a keyed one-way hash of the network address and never the address itself, which expire within 26 hours. We use what you send only to answer you and improve the Extension, and never sell it. To have a message deleted, write to support@palworks.ai.</p>
 
       <h3 className="text-xl font-bold text-slate-900">5. Permissions</h3>
       <ul className="list-disc pl-5 space-y-2">

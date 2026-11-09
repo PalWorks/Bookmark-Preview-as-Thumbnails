@@ -79,7 +79,7 @@ email provider (Resend):
   links, folder names or tags.**
 
 The relay stores no message content. To limit abuse it keeps short-lived counters per
-network, named by a keyed one-way hash of the IP address and never the address itself;
+network, named by a keyed one-way hash of the network address and never the address itself;
 they expire within 26 hours. We use what you send only to answer you and improve the
 extension, and we never sell it. To have a message deleted, write to
 support@palworks.ai.
