@@ -50,7 +50,7 @@ in review.
   sent, or a 4xx); stale counters are swept hourly; a chunked oversized body is cut off while
   reading; invisible control and bidi characters are stripped; reply addresses must be plain;
   multi-line messages keep their line breaks; a non-object JSON body is a 400; the
-  body size is checked in bytes and against Content-Length first. The form ignores a double
+  body size is checked in bytes and against Content-Length first. At most 30 messages a day are accepted in total (owner decision). The form ignores a double
   submit, counts its technical details once when it opens, and reports Edge as Edge.
 - Expected per-site capture failures are logged as warnings, not errors, so the extension's
   Errors page in `chrome://extensions` shows only real faults.

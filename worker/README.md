@@ -33,7 +33,7 @@ Rate limits, cheapest first:
 
 1. Cloudflare's `BURST` binding: about 3 a minute per network, per data centre.
 2. 5 messages per network per hour (`429`).
-3. 300 messages a day for everyone together (`503`).
+3. 30 messages a day for everyone together (owner decision 2026-11-09) (`503`).
 
 Limits 2 and 3 live in one Durable Object, `FeedbackLimiter` (`src/limiter.ts`). It handles one
 request at a time, so counts are exact under concurrency (KV counters were not: review of PR #11).

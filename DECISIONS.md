@@ -15,7 +15,7 @@ anyone could use to send mail as palworks.ai. The form posts instead to a Cloudf
 (`worker/`, copied from the proven Gmail Labels as Tabs relay) that holds a send-only Resend key
 scoped to the palworks.ai domain. The Worker validates hard (JSON only, 16 KB, 4,000-character
 message, honeypot), accepts only our extension's origins, rate limits per network (burst binding,
-5 an hour, 300 a day for everyone), stores no message content, and names networks by an HMAC of
+5 an hour, 30 a day for everyone: owner decision 2026-11-09), stores no message content, and names networks by an HMAC of
 the address (an IPv6 /64 counts as one network), never the address. The pre-landing review of
 PR #11 (Claude and Codex agreeing) found the first version's KV counters non-atomic and failing
 open under a flood; this relay shares the Resend account with other palworks.ai senders, so the

@@ -18,7 +18,7 @@
 
 export const NETWORK_MAX = 5;
 export const NETWORK_WINDOW_MS = 60 * 60 * 1000;
-export const DAILY_MAX = 300;
+export const DAILY_MAX = 30;
 const SWEEP_EVERY_MS = 60 * 60 * 1000;
 
 interface Counter {
