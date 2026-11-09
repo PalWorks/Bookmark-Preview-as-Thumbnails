@@ -85,7 +85,7 @@ Approach B, in two milestones.
 
 ## Open Questions
 
-- Does optional `nativeMessaging` activate on Chrome 156? (One unconfirmed report says no.) The spike answers it.
+- ~~Does optional `nativeMessaging` activate on Chrome 156?~~ Answered by the spike on 2026-11-09: yes, on Chrome 156 and Edge 156 (Linux); see DECISIONS.md D17. Still open: Brave, Windows, macOS, reconnect on startup.
 - Package name and whether the CLI is the same binary as the host.
 - Language for the host: Node (one runtime with the extension's tooling, needs Node installed) or a single Go/Rust binary (no runtime, harder per-OS builds). Recommendation to test in the plan review: Node, distributed through npm, since every target user runs a coding agent that already needs Node.
 - Whether the panel opens automatically when a proposal arrives, or shows a badge on the toolbar icon only.
