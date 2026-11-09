@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI changes and bridge tests; 411 Vitest tests, 8 bridge tests, two e2e scripts)._
+_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI changes and bridge tests; 416 Vitest tests, 9 bridge tests, two e2e scripts)._
 
 ## Commands
 
@@ -12,7 +12,7 @@ npm run lint                             # ESLint incl. React Compiler rules (CI
 npm run build && npm run check:bundle    # build, then worker hygiene + secret/source-map scan
 npm run e2e                              # real Chrome, headless, throwaway profile (needs a build)
 cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback relay, 32 tests
-cd bridge && node build.mjs && node --test test/*.test.ts                            # coding-agent helper, 8 tests
+cd bridge && node build.mjs && node --test test/*.test.ts                            # coding-agent helper, 9 tests
 node scripts/e2e/bridge.mjs <build> bridge/dist/cli.js                               # real Chrome + host + CLI
 ```
 

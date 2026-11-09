@@ -108,7 +108,7 @@ describe('change-set validation', () => {
         const big = fakeBookmarks.seed('1', 'Big');
         for (let i = 0; i < 1000; i++) fakeBookmarks.seed(big.id, `b${i}`, `https://b${i}.example/`);
         const v = validateChangeSet(set([{ op: 'trash', id: big.id }]), { roots: await tree(), hiddenFolderIds: new Set() });
-        expect(v.verdicts[0].reason).toMatch(/limit is 1000/);
+        expect(v.verdicts[0].reason).toMatch(/more than 1000/);
     });
 });
 
@@ -305,6 +305,68 @@ describe('change sets: import, apply, undo', () => {
         const snapshot = JSON.stringify(keys.map(k => localStore[k]));
         await migrateStorageSchema();
         expect(JSON.stringify(keys.map(k => localStore[k]))).toBe(snapshot);
+    });
+
+    it('review F1: Undo reverts a rename inside a folder the set trashed (new ids after restore)', async () => {
+        const f = fakeBookmarks.seed('1', 'F');
+        const b = fakeBookmarks.seed(f.id, 'Original', 'https://b.example/');
+        const before = await shape('1');
+        const { cs } = svc();
+        const imp = await cs.importText(text([{ op: 'rename', id: b.id, title: 'AI name' }, { op: 'trash', id: f.id }]), { kind: 'paste' }) as { id: string };
+        await cs.apply(imp.id, [0, 1]);
+        const u = await cs.undo(imp.id);
+        expect(u).toMatchObject({ ok: true, skipped: 0 });
+        expect(await shape('1')).toEqual(before);
+    });
+
+    it('review F2: a failing bookmarks call during Undo never leaves the set stuck', async () => {
+        const b = fakeBookmarks.seed('1', 'Orig', 'https://r5.example/');
+        const { cs } = svc();
+        const imp = await cs.importText(text([{ op: 'rename', id: b.id, title: 'New' }]), { kind: 'paste' }) as { id: string };
+        await cs.apply(imp.id, [0]);
+        fakeBookmarks.failAfter('update', 0);
+        const res = await cs.undo(imp.id);
+        expect(res.ok).toBe(true);
+        let got = await cs.get(imp.id);
+        expect(got.ok && got.set.state).toBe('partly_undone');
+        expect(got.ok && got.items[0].reason).toMatch(/Couldn't undo it/);
+        // It can be tried again once the cause is gone.
+        localStore[csjItemKey(imp.id, 0)] = { ...(localStore[csjItemKey(imp.id, 0)] as JournalItem), state: 'done' };
+        await cs.undo(imp.id);
+        got = await cs.get(imp.id);
+        expect(fakeBookmarks.titlesIn('1')).toEqual(['Orig']);
+    });
+
+    it('review F3: an interrupted tag change keeps the original tags for Undo', async () => {
+        const b = fakeBookmarks.seed('1', 'B', 'https://t.example/');
+        await storageIndex.patch('https://t.example/', { tags: ['orig'] }, { title: 'B' });
+        const { cs } = svc();
+        const imp = await cs.importText(text([{ op: 'set_tags', id: b.id, tags: ['ai'] }]), { kind: 'paste' }) as { id: string };
+        await cs.apply(imp.id, [0]);
+        const it = localStore[csjItemKey(imp.id, 0)] as JournalItem;
+        expect(it.before?.tags).toEqual(['orig']);
+        // The worker stopped after the write, before the item was marked done.
+        localStore[csjItemKey(imp.id, 0)] = { ...it, state: 'applying' };
+        localStore[csKey(imp.id)] = { ...(localStore[csKey(imp.id)] as ChangeSetRecord), state: 'applying' };
+        await cs.recover();
+        const got = await cs.get(imp.id);
+        expect(got.ok && got.items[0].state).toBe('done');
+        await cs.undo(imp.id);
+        expect((await storageIndex.get('https://t.example/'))?.tags).toEqual(['orig']);
+    });
+
+    it('review F8: an interrupted Undo of a partly applied set keeps Finish available', async () => {
+        const t = fakeBookmarks.seed('2', 'T');
+        const xs = [0, 1].map(i => fakeBookmarks.seed('1', `X${i}`, `https://x${i}.example/`));
+        const { cs } = svc();
+        const imp = await cs.importText(text(xs.map(x => ({ op: 'move' as const, id: x.id, parentId: t.id }))), { kind: 'paste' }) as { id: string };
+        await cs.apply(imp.id, [0, 1]);
+        await chrome.bookmarks.move(xs[1].id, { parentId: '1' });
+        localStore[csKey(imp.id)] = { ...(localStore[csKey(imp.id)] as ChangeSetRecord), state: 'undoing' };
+        localStore[csjItemKey(imp.id, 1)] = { ...(localStore[csjItemKey(imp.id, 1)] as JournalItem), state: 'pending' };
+        await cs.recover();
+        const got = await cs.get(imp.id);
+        expect(got.ok && got.set.state).toBe('partly_applied');
     });
 
     it('accepts messages only from extension pages, and not in incognito', async () => {

@@ -344,11 +344,16 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
             memo.set(id, result);
             return result;
         };
+        // Paths start at the granted folder: names of folders above it are not shared.
         const path = (id: string) => {
             const parts: string[] = [];
             let cur = byId.get(id);
             let guard = 0;
-            while (cur && cur.id !== '0' && guard++ < 64) { parts.unshift(cur.title); cur = cur.parentId ? byId.get(cur.parentId) : undefined; }
+            while (cur && cur.id !== '0' && guard++ < 64) {
+                parts.unshift(cur.title);
+                if (grantedSet.has(cur.id)) break;
+                cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+            }
             return parts.join(' / ');
         };
         return { byId, inScope, path, granted };
@@ -400,7 +405,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         const meta = await metaFor(nodes.filter(n => n.url).map(n => n.url!));
         const keys = new Set((await listLocalKeys()).filter(k => k.startsWith('thumb_')));
         return nodes.map(n => {
-            if (!n.url) return { id: n.id, title: n.title, isFolder: true, path: scope.path(n.id), count: (n.children ?? []).length };
+            if (!n.url) return { id: n.id, title: n.title, isFolder: true, path: scope.path(n.id), count: (n.children ?? []).filter(c => scope.inScope(c.id)).length };
             const m = meta.get(n.url);
             return {
                 id: n.id, title: n.title, url: showUrl(client, n.url), isFolder: false, folder: scope.path(n.parentId ?? ''),
@@ -416,7 +421,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         const folders: Array<{ id: string; path: string; count: number }> = [];
         const walk = (n: Node) => {
             if (n.url || !scope.inScope(n.id)) return;
-            folders.push({ id: n.id, path: scope.path(n.id), count: (n.children ?? []).length });
+            folders.push({ id: n.id, path: scope.path(n.id), count: (n.children ?? []).filter(c => scope.inScope(c.id)).length });
             (n.children ?? []).forEach(walk);
         };
         scope.granted.forEach(id => walk(scope.byId.get(id)!));
@@ -449,7 +454,8 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         const scored: Array<{ n: Node; s: number }> = [];
         for (const n of marks) {
             const title = n.title.toLowerCase();
-            const url = n.url!.toLowerCase();
+            // With query stripping on, never match the hidden part (it could be probed letter by letter).
+            const url = (showUrl(client, n.url) ?? '').toLowerCase();
             const tags = (meta.get(n.url!)?.tags ?? []).map(t => t.toLowerCase());
             let s = 0;
             if (title.startsWith(q)) s = 4; else if (title.includes(q)) s = 3;

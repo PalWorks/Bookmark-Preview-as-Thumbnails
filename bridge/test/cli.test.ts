@@ -35,7 +35,7 @@ test('install writes the manifest, launcher and host copy; it is idempotent; uni
     assert.deepEqual(m.allowed_origins, [`chrome-extension://${STORE_EXTENSION_ID}/`, 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/']);
     assert.ok(m.path.startsWith(env.BOOKMARKS_THUMBNAILS_DATA_DIR), 'launcher is in the stable data folder, not the npx cache');
     const launcher = fs.readFileSync(m.path, 'utf8');
-    assert.match(launcher, new RegExp(`exec "${process.execPath.replace(/[/.]/g, '\\$&')}"`));
+    assert.ok(launcher.includes(`exec '${process.execPath}' '`), launcher);
     assert.ok((fs.statSync(m.path).mode & 0o111) !== 0);
     assert.equal(run(['install', '--json'], env).status, 0, 'second run is fine');
     const dry = run(['install', '--dry-run'], { ...env });
@@ -43,6 +43,16 @@ test('install writes the manifest, launcher and host copy; it is idempotent; uni
     const un = run(['uninstall', '--json'], env);
     assert.equal(un.status, 0);
     assert.equal(fs.existsSync(manifest), false);
+    fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('review F4: the client refuses a socket folder it does not trust', () => {
+    const { root, env } = home();
+    fs.mkdirSync(env.BOOKMARKS_THUMBNAILS_RUNTIME_DIR, { mode: 0o777 });
+    fs.chmodSync(env.BOOKMARKS_THUMBNAILS_RUNTIME_DIR, 0o777);
+    const r = run(['list-folders', '--json'], env);
+    assert.equal(r.status, EXIT_CODES.NOT_CONNECTED);
+    assert.match(JSON.parse(r.stderr).error.message, /open to other users/);
     fs.rmSync(root, { recursive: true, force: true });
 });
 

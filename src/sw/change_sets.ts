@@ -336,6 +336,12 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
 
         const runOne = async (it: JournalItem): Promise<void> => {
             const op = r.ops[it.n];
+            // Tags and ratings: journal the value being replaced before writing, so an
+            // interrupted apply can still be undone to the original.
+            if ((op.op === 'set_tags' || op.op === 'set_rating') && it.url) {
+                const existing = await index.get(it.url);
+                it.before = op.op === 'set_tags' ? { tags: existing?.tags ? [...existing.tags] : [] } : { rating: existing?.rating ?? null };
+            }
             it.state = 'applying';
             if (op.op === 'create_folder') it.intentAt = now();
             await writeItem(r.id, it);
@@ -354,13 +360,16 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
         // Everything but Trash, one at a time.
         for (const it of items) {
             if (it.state !== 'pending' || it.kind === 'trash') continue;
-            await runOne(it);
+            try { await runOne(it); } catch (err) { console.error('[AIChanges] item failed', r.id, it.k, err); }
         }
         // Trash last, as one batch (one Trash operation for the set).
-        const trashItems = items.filter(it => it.state === 'pending' && it.kind === 'trash');
-        if (trashItems.length) await runTrash(r, items, trashItems);
-
-        await finishState(r, items);
+        try {
+            const trashItems = items.filter(it => it.state === 'pending' && it.kind === 'trash');
+            if (trashItems.length) await runTrash(r, items, trashItems);
+        } finally {
+            // Whatever happened, the set leaves "applying" (Finish runs what is left).
+            await finishState(r, items);
+        }
     }
 
     /** Perform one non-Trash change. Returns a reason when it was skipped. */
@@ -413,14 +422,17 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
                 const node = await getNode(op.id);
                 if (!node?.url || node.url !== it.url) return 'It no longer exists, or its link changed.';
                 const url = node.url;
+                const outcome = { changed: false };
                 await index.update(url, existing => {
+                    // Something else wrote it between the journal entry and now: keep theirs.
                     if (op.op === 'set_tags') {
-                        it.before = { tags: existing?.tags ? [...existing.tags] : [] };
+                        if (!sameTags(existing?.tags ?? [], it.before?.tags ?? [])) { outcome.changed = true; return undefined; }
                         return { tags: it.after!.tags };
                     }
-                    it.before = { rating: existing?.rating ?? null };
+                    if ((existing?.rating ?? null) !== (it.before?.rating ?? null)) { outcome.changed = true; return undefined; }
                     return { rating: op.rating === null ? undefined : op.rating };
                 });
+                if (outcome.changed) return 'It was changed meanwhile, so the newer value was kept.';
                 chrome.runtime.sendMessage({ type: 'META_UPDATED', urls: [url] }).catch(() => undefined);
                 return undefined;
             }
@@ -460,7 +472,7 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
             }
             if (expected.some(x => hiddenIds.has(x))) {
                 it.state = 'skipped';
-                it.reason = 'It now contains a folder hidden from search, so it was kept.';
+                it.reason = 'It changed after you reviewed it, so it was kept.';
                 await writeItem(r.id, it);
                 continue;
             }
@@ -551,6 +563,11 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
             if (reason) it.reason = reason; else delete it.reason;
             await writeItem(id, it);
         };
+        // One failing item never stops the rest, and the set always leaves "undoing".
+        const safe = async (it: JournalItem, job: () => Promise<void>) => {
+            try { await job(); } catch (err) { await mark(it, 'undo_skipped', `Couldn't undo it: ${message(err)}`).catch(() => undefined); }
+        };
+        try {
         const todo = (kind: OpKind) => items.filter(i => i.kind === kind && (i.state === 'done' || i.state === 'undoing'));
 
         // Reverse apply order: Trash, metadata, renames, moves, created folders.
@@ -559,7 +576,8 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
         for (const operationId of ops) {
             const group = trashItems.filter(i => i.trashOperationId === operationId);
             for (const it of group) { it.state = 'undoing'; await writeItem(id, it); }
-            const res = await trash.restore({ operationId });
+            let res: Awaited<ReturnType<typeof trash.restore>>;
+            try { res = await trash.restore({ operationId }); } catch (err) { res = { ok: false, error: message(err) }; }
             for (const it of group) {
                 const one = res.results?.find(x => x.entryId === it.trashEntryId);
                 if (one?.state === 'restored') {
@@ -572,9 +590,9 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
             }
         }
 
-        for (const it of [...todo('set_tags'), ...todo('set_rating')].reverse()) {
+        for (const it of [...todo('set_tags'), ...todo('set_rating')].reverse()) await safe(it, async () => {
             const url = it.url;
-            if (!url) { await mark(it, 'undo_skipped', 'Unknown link.'); continue; }
+            if (!url) { await mark(it, 'undo_skipped', 'Unknown link.'); return; }
             const result = { undone: false };
             await index.update(url, existing => {
                 if (it.kind === 'set_tags') {
@@ -590,56 +608,68 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
                 chrome.runtime.sendMessage({ type: 'META_UPDATED', urls: [url] }).catch(() => undefined);
                 await mark(it, 'undone');
             } else await mark(it, 'undo_skipped', 'Changed again since, so the newer value was kept.');
-        }
+        });
 
-        for (const it of todo('rename').reverse()) {
+        for (const it of todo('rename').reverse()) await safe(it, async () => {
             const op = r.ops[it.n] as { op: 'rename'; id: string };
-            const node = await getNode(op.id);
-            if (!node) { await mark(it, 'undo_skipped', 'It no longer exists.'); continue; }
-            if (node.title !== it.after?.title) { await mark(it, 'undo_skipped', 'Renamed again since, so the newer name was kept.'); continue; }
-            await chrome.bookmarks.update(op.id, { title: it.before?.title ?? '' });
+            // A renamed item inside a folder this set trashed has a new id after the restore.
+            const nodeId = mapId(op.id)!;
+            const node = await getNode(nodeId);
+            if (!node) { await mark(it, 'undo_skipped', 'It no longer exists.'); return; }
+            if (node.title !== it.after?.title) { await mark(it, 'undo_skipped', 'Renamed again since, so the newer name was kept.'); return; }
+            await chrome.bookmarks.update(nodeId, { title: it.before?.title ?? '' });
             await mark(it, 'undone');
-        }
+        });
 
         // Moves: per original folder, lowest original position first (as undoMoves does).
         const moves = todo('move').sort((a, b) => (a.before?.parentId ?? '').localeCompare(b.before?.parentId ?? '') || (a.before?.index ?? 0) - (b.before?.index ?? 0));
         const skippedPer = new Map<string, number>();
-        for (const it of moves) {
+        for (const it of moves) await safe(it, async () => {
             const op = r.ops[it.n] as { op: 'move'; id: string };
             const origParent = mapId(it.before?.parentId);
-            const node = await getNode(op.id);
+            const nodeId = mapId(op.id)!;
+            const node = await getNode(nodeId);
             const parent = origParent ? await getNode(origParent) : undefined;
             const bump = () => skippedPer.set(it.before?.parentId ?? '', (skippedPer.get(it.before?.parentId ?? '') ?? 0) + 1);
-            if (!node || !parent || parent.url) { bump(); await mark(it, 'undo_skipped', 'It, or the folder it came from, is gone.'); continue; }
-            if (node.parentId !== mapId(it.after?.parentId)) { bump(); await mark(it, 'undo_skipped', 'Moved again since, so it was left where it is.'); continue; }
+            if (!node || !parent || parent.url) { bump(); await mark(it, 'undo_skipped', 'It, or the folder it came from, is gone.'); return; }
+            if (node.parentId !== mapId(it.after?.parentId)) { bump(); await mark(it, 'undo_skipped', 'Moved again since, so it was left where it is.'); return; }
             const count = (await chrome.bookmarks.getChildren(parent.id)).length;
             const at = Math.max(0, (it.before?.index ?? 0) - (skippedPer.get(it.before?.parentId ?? '') ?? 0));
-            await chrome.bookmarks.move(op.id, { parentId: parent.id, index: Math.min(at, count) });
+            try {
+                await chrome.bookmarks.move(nodeId, { parentId: parent.id, index: Math.min(at, count) });
+            } catch (err) { bump(); throw err; }
             await mark(it, 'undone');
-        }
+        });
 
         // Created folders go (through Trash) only if untouched and empty.
         const creates = todo('create_folder').reverse();
         const removable: JournalItem[] = [];
-        for (const it of creates) {
+        for (const it of creates) await safe(it, async () => {
             const node = it.createdId ? await getNode(it.createdId) : undefined;
-            if (!node) { await mark(it, 'undone'); continue; }
-            if (node.title !== it.after?.title) { await mark(it, 'undo_skipped', 'Renamed since, so the folder was kept.'); continue; }
+            if (!node) { await mark(it, 'undone'); return; }
+            if (node.title !== it.after?.title) { await mark(it, 'undo_skipped', 'Renamed since, so the folder was kept.'); return; }
             const children = await chrome.bookmarks.getChildren(node.id);
             const createdChild = children.every(c => removable.some(x => x.createdId === c.id));
-            if (children.length && !createdChild) { await mark(it, 'undo_skipped', 'It holds items added since, so the folder was kept.'); continue; }
+            if (children.length && !createdChild) { await mark(it, 'undo_skipped', 'It holds items added since, so the folder was kept.'); return; }
             removable.push(it);
-        }
+        });
         // Remove only the outermost created folders; nested created ones go with them.
         const outer = removable.filter(it => !removable.some(o => o !== it && o.createdId === (it.after?.parentId)));
         if (outer.length) {
-            const res = await trash.deleteItems({ ids: outer.map(o => o.createdId!), origin: 'ai-changes' });
+            let res: Awaited<ReturnType<typeof trash.deleteItems>>;
+            try { res = await trash.deleteItems({ ids: outer.map(o => o.createdId!), origin: 'ai-changes' }); }
+            catch (err) { res = { ok: false, failed: outer.map(o => ({ id: o.createdId!, error: message(err) })) }; }
             for (const it of removable) {
                 const failed = res.failed?.some(f => f.id === it.createdId) || res.rejected?.some(f => f.id === it.createdId);
                 if (failed) await mark(it, 'undo_skipped', "The folder couldn't be removed.");
                 else await mark(it, 'undone');
             }
         }
+        } catch (err) {
+            console.error('[AIChanges] undo failed', id, err);
+        }
+        // Items left mid-undo stay applied, so Undo can be tried again.
+        for (const it of items) if (it.state === 'undoing') { it.state = 'done'; await writeItem(id, it).catch(() => undefined); }
 
         const undone = items.filter(i => i.state === 'undone').length;
         const undoSkipped = items.filter(i => i.state === 'undo_skipped').length;
@@ -701,7 +731,7 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
             const done = items.filter(i => i.state === 'done').length;
             const skipped = items.filter(i => i.state === 'skipped').length;
             if (r.state === 'applying') { r.state = left ? 'partly_applied' : 'applied'; r.outcome = { done, skipped }; }
-            else r.state = items.some(i => i.state === 'undone') ? 'partly_undone' : 'applied';
+            else r.state = items.some(i => i.state === 'undone' || i.state === 'undo_skipped') ? 'partly_undone' : left ? 'partly_applied' : 'applied';
             await writeSet(r);
             fixed++;
         }
@@ -734,6 +764,17 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
                 const node = await getNode(op.id);
                 if (node?.title === it.after?.title) return set('done');
                 if (node?.title === it.before?.title) return set('pending');
+                return set('skipped', 'Interrupted and changed since.');
+            }
+            case 'set_tags':
+            case 'set_rating': {
+                const m = it.url ? await index.get(it.url) : undefined;
+                const now = op.op === 'set_tags' ? m?.tags ?? [] : m?.rating ?? null;
+                const after = op.op === 'set_tags' ? it.after?.tags ?? [] : it.after?.rating ?? null;
+                const before = op.op === 'set_tags' ? it.before?.tags ?? [] : it.before?.rating ?? null;
+                const same = (a: unknown, b: unknown) => (Array.isArray(a) && Array.isArray(b) ? sameTags(a, b) : a === b);
+                if (same(now, after)) return set('done');
+                if (same(now, before)) return set('pending');
                 return set('skipped', 'Interrupted and changed since.');
             }
             case 'trash':

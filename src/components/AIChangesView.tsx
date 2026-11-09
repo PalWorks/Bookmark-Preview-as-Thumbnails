@@ -123,8 +123,10 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
             case 'set_rating': return { title: name(op.id), after: op.rating === null ? 'no rating' : `${op.rating} of 5 stars` };
             case 'trash': {
                 const n = idx.byId.get(op.id);
-                const count = n && !n.url ? (n.children ?? []).length : 0;
-                return { title: name(op.id), after: n && !n.url ? `folder with ${plural(count, 'item')}` : idx.path(n?.parentId) };
+                // Everything inside goes with it: count the whole subtree recorded at validation.
+                const n0 = set.ops.indexOf(op);
+                const inside = Math.max(0, (set.verdicts[n0]?.baseline?.descendantIds?.length ?? 1) - 1);
+                return { title: name(op.id), after: n && !n.url ? `folder and everything in it (${plural(inside, 'item')})` : idx.path(n?.parentId) };
             }
         }
     };

@@ -11,7 +11,7 @@ import {
     PROTOCOL_VERSION, bridgeError,
     type BridgeError, type ClientResponse, type RequestType,
 } from '../../src/lib/bridge/protocol.ts';
-import { runtimeDir, tokenFile } from './paths.ts';
+import { runtimeDir, tokenFile, verifyRuntimeDir } from './paths.ts';
 
 export interface Target { browser: string; profileId: string; socket: string }
 interface TokenStore {
@@ -57,6 +57,12 @@ async function isLive(socket: string): Promise<boolean> {
 /** Live hosts, one per running browser profile with the switch on. */
 export async function liveTargets(): Promise<Target[]> {
     const dir = runtimeDir();
+    const problem = verifyRuntimeDir(dir);
+    if (problem) {
+        throw new BridgeFailure(bridgeError('NOT_CONNECTED', `Refusing to use ${dir}: ${problem}.`, {
+            fix: 'Remove that folder, or set BOOKMARKS_THUMBNAILS_RUNTIME_DIR to the folder Chrome uses (run doctor in a desktop terminal), then try again.',
+        }));
+    }
     let names: string[] = [];
     try { names = fs.readdirSync(dir); } catch { return []; }
     const out: Target[] = [];
@@ -64,6 +70,10 @@ export async function liveTargets(): Promise<Target[]> {
         const m = /^([a-z]{2,12})-([a-z0-9]{8})\.sock$/.exec(n);
         if (!m) continue;
         const socket = path.join(dir, n);
+        try {
+            const st = fs.lstatSync(socket);
+            if (!st.isSocket() || (typeof process.getuid === 'function' && st.uid !== process.getuid())) continue;
+        } catch { continue; }
         if (await isLive(socket)) out.push({ browser: m[1], profileId: m[2], socket });
     }
     return out;

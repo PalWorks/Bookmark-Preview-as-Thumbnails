@@ -56,6 +56,20 @@ export const versionFile = () => path.join(dataDir(), 'VERSION');
 export const hostLog = () => path.join(dataDir(), 'host.log');
 export const socketPath = (browser: string, profileId: string) => path.join(runtimeDir(), `${browser}-${profileId}.sock`);
 
+/**
+ * Client side: the same checks without creating anything. A folder another user
+ * made (for example /tmp/bookmarks-thumbnails-<uid> when XDG_RUNTIME_DIR is unset in
+ * an ssh session) is never trusted. Returns the problem, or null when it is safe.
+ */
+export function verifyRuntimeDir(dir: string): string | null {
+    let st: fs.Stats;
+    try { st = fs.lstatSync(dir); } catch { return null; } // missing: nothing to connect to
+    if (st.isSymbolicLink() || !st.isDirectory()) return `${dir} is not a real folder`;
+    if (typeof process.getuid === 'function' && st.uid !== process.getuid()) return `${dir} belongs to another user`;
+    if ((st.mode & 0o077) !== 0) return `${dir} is open to other users`;
+    return null;
+}
+
 /** The runtime folder must be a real folder, owned by this user, closed to others. */
 export function checkRuntimeDir(dir: string): string | null {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });

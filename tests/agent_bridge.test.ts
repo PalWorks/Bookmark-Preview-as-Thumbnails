@@ -119,6 +119,24 @@ describe('agent bridge', () => {
         expect(one.body!.url).toBe('https://alpha.example/');
     });
 
+    it('review F5/F6: search never matches a stripped query; paths start at the granted folder; counts show only shared items', async () => {
+        const s = setup();
+        const secret = fakeBookmarks.seed('1', 'Secret Project Falcon');
+        const shared = fakeBookmarks.seed(secret.id, 'Shared');
+        fakeBookmarks.seed(shared.id, 'Reset', 'https://x.example/reset?token=s3cretvalue');
+        const hidden = fakeBookmarks.seed(shared.id, 'Hidden');
+        localStore[`fpref_${hidden.id}`] = { hideFromSearch: true };
+        const { token, clientId } = await pairClient(s, 1, [shared.id]);
+        await s.bridge.updateClient(clientId, { stripQuery: true });
+        expect((await s.req(1, 'search', { query: 's3cret' }, token)).body!.total).toBe(0);
+        expect((await s.req(1, 'search', { query: 'reset' }, token)).body!.total).toBe(1);
+        const f = await s.req(1, 'list_folders', {}, token);
+        const folder = (f.body!.folders as Array<{ path: string; count: number }>)[0];
+        expect(folder.path).toBe('Shared');
+        expect(folder.count).toBe(1);
+        expect(JSON.stringify(f)).not.toContain('Falcon');
+    });
+
     it('pages with opaque cursors that go stale after a change', async () => {
         const s = setup();
         const f = fakeBookmarks.seed('1', 'Many');

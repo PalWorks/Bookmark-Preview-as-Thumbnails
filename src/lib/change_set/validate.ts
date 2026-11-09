@@ -265,7 +265,7 @@ export function validateChangeSet(set: ChangeSetInput, ctx: ValidateContext): Va
     }
 
     if (impact > MAX_IMPACT_NODES) {
-        set.ops.forEach((op, n) => { if (op.op === 'trash' && verdicts[n].ok) refuse(n, `This set would remove ${impact} items; the limit is ${MAX_IMPACT_NODES}.`); });
+        set.ops.forEach((op, n) => { if (op.op === 'trash' && verdicts[n].ok) refuse(n, `This set would remove more than ${MAX_IMPACT_NODES} items. Ask for a smaller set.`); });
     }
 
     return { ok: verdicts.every(v => v.ok), verdicts, order, impact };

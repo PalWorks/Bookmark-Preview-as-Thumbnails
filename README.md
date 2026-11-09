@@ -181,13 +181,13 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-411 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
+416 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
 apply, Undo, recovery), the coding-agent bridge, the reactive bookmark tree, backups, and the
 whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome, and
 `scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together. The feedback relay has
-32 tests of its own and the helper package 8 (`bridge/test/`). See
+32 tests of its own and the helper package 9 (`bridge/test/`). See
 [TESTING.md](TESTING.md).
 
 ## Deployment

@@ -32,6 +32,8 @@ export function bundledHost(): string {
 }
 
 const ORIGIN = (id: string) => `chrome-extension://${id}/`;
+/** Single-quote for sh: nothing inside is expanded. */
+const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 const isExtId = (id: string) => /^[a-p]{32}$/.test(id);
 
 export function install(o: InstallOptions): { ok: boolean; results: StepResult[]; paths: string[] } {
@@ -60,7 +62,7 @@ export function install(o: InstallOptions): { ok: boolean; results: StepResult[]
             const manifest = manifestPath(b, o.manifestDir);
             paths.push(launcher, manifest);
             if (!o.dryRun) {
-                fs.writeFileSync(launcher, `#!/bin/sh\n# ${PACKAGE_NAME} ${o.version}: Chrome starts this when the extension's switch is on.\nexec "${node}" "${host}" --browser ${b} "$@"\n`, { mode: 0o755 });
+                fs.writeFileSync(launcher, `#!/bin/sh\n# ${PACKAGE_NAME} ${o.version}: Chrome starts this when the extension's switch is on.\nexec ${shq(node)} ${shq(host)} --browser ${b} "$@"\n`, { mode: 0o755 });
                 fs.chmodSync(launcher, 0o755);
                 fs.mkdirSync(path.dirname(manifest), { recursive: true });
                 fs.writeFileSync(manifest, JSON.stringify({
@@ -116,7 +118,7 @@ export async function doctor(o: { manifestDir?: string; version: string }): Prom
             const launcherOk = fs.existsSync(launcher);
             add(`${b}: launcher`, launcherOk, launcher || 'not set', `Run: npx ${PACKAGE_NAME} install`);
             if (launcherOk) {
-                const nodeInLauncher = /exec "([^"]+)"/.exec(fs.readFileSync(launcher, 'utf8'))?.[1];
+                const nodeInLauncher = /exec '((?:[^']|'\\'')+)'/.exec(fs.readFileSync(launcher, 'utf8'))?.[1]?.replace(/'\\''/g, "'");
                 add(`${b}: Node in launcher`, !!nodeInLauncher && fs.existsSync(nodeInLauncher), nodeInLauncher ?? 'not found', `Node moved. Run: npx ${PACKAGE_NAME} install`);
             }
         }
