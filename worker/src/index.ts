@@ -1,0 +1,269 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+/**
+ * feedback worker
+ *
+ * Relays the extension's in-product feedback form to email via Resend.
+ *
+ * The extension cannot call Resend directly: a published CRX is a zip anyone
+ * can unpack, so an API key inside it is a public key. This Worker holds the
+ * key instead. It is the only server of ours the extension talks to; the
+ * others are the pages it captures and, only if the user sets one up, the
+ * AI provider they chose.
+ *
+ * It accepts one POST, validates it hard, rate limits per network, and sends.
+ * It stores no message content. The only things it writes are rate-limit
+ * counters: one per network, named by a keyed hash of the IP rather than the
+ * IP, and one for everyone together; each expires within a day.
+ */
+
+export interface Env {
+    RESEND_API_KEY: string;
+    /** Keys the HMAC that names a network in its counter, so no IP is ever stored. */
+    IP_HASH_SECRET: string;
+    /** KV namespace used only for rate-limit counters. */
+    FEEDBACK_RATE_LIMIT: KVNamespace;
+    /** Cloudflare's rate-limit binding: a burst limit per network, per data centre. */
+    BURST?: { limit: (o: { key: string }) => Promise<{ success: boolean }> };
+    /** Verified Resend sender, e.g. feedback.ThumbnailBookmarks@palworks.ai */
+    FEEDBACK_FROM: string;
+    /** Destination mailbox, e.g. support@palworks.ai */
+    FEEDBACK_TO: string;
+}
+
+// Limits are deliberately tight: this endpoint is public and unauthenticated.
+const MAX_MESSAGE_CHARS = 4000;
+const MAX_EMAIL_CHARS = 254;
+const MAX_BODY_BYTES = 16 * 1024;
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_SECONDS = 3600;
+/** Everyone together, per UTC day: bounds the worst case however a flood arrives. */
+const DAILY_GLOBAL_MAX = 300;
+const DAILY_WINDOW_SECONDS = 60 * 60 * 26;
+/** Resend normally answers in well under a second; past this, give up and say so. */
+const SEND_TIMEOUT_MS = 8000;
+
+const CATEGORIES = ['bug', 'feature', 'question', 'other'] as const;
+type Category = (typeof CATEGORIES)[number];
+
+interface FeedbackPayload {
+    category: Category;
+    message: string;
+    replyTo?: string;
+    /** Optional, user-toggled diagnostics. Never contains email addresses. */
+    diagnostics?: Record<string, string | number | boolean>;
+    /** Honeypot: must be absent or empty. Bots fill every field they see. */
+    website?: string;
+}
+
+const CORS_HEADERS: Record<string, string> = {
+    // The endpoint is public and takes no credentials, and an extension's
+    // origin changes between the unpacked build and the store build, so
+    // pinning an origin would only break development.
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+};
+
+function json(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
+}
+
+/** Collapse anything unexpected into a short, safe, single-line string. */
+function clean(value: unknown, maxChars: number): string {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+}
+
+function isPlausibleEmail(value: string): boolean {
+    return /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(value);
+}
+
+/** Escape for inclusion in the HTML email body. */
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * Name a network without storing its address: HMAC-SHA256 of the IP under a
+ * secret, so the key cannot be reversed or matched against a list of IPs by
+ * anyone without the secret.
+ */
+export async function ipKey(secret: string, ip: string): Promise<string> {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
+        'sign',
+    ]);
+    const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`ip:${ip}`)));
+    return Array.from(mac.slice(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Increment a counter in KV; true when it was already at the cap. Best effort
+ * by design: if KV is unavailable the request is allowed rather than dropping
+ * genuine feedback on the floor.
+ */
+async function overCap(env: Env, key: string, cap: number, ttl: number): Promise<boolean> {
+    if (!env.FEEDBACK_RATE_LIMIT) return false;
+    try {
+        const current = parseInt((await env.FEEDBACK_RATE_LIMIT.get(key)) || '0', 10);
+        if (current >= cap) return true;
+        await env.FEEDBACK_RATE_LIMIT.put(key, String(current + 1), { expirationTtl: ttl });
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+export function buildEmail(payload: FeedbackPayload) {
+    const diagnostics = payload.diagnostics || {};
+    const diagnosticRows = Object.entries(diagnostics)
+        .map(([k, v]) => `<tr><td><strong>${escapeHtml(k)}</strong></td><td>${escapeHtml(String(v))}</td></tr>`)
+        .join('');
+
+    const subject = `[Thumbnail Bookmarks feedback] ${payload.category}: ${payload.message.slice(0, 60)}`;
+    const html = `
+        <h2>Visual Bookmark Manager with Thumbnail Previews: feedback</h2>
+        <p><strong>Category:</strong> ${escapeHtml(payload.category)}</p>
+        <p><strong>Reply to:</strong> ${payload.replyTo ? escapeHtml(payload.replyTo) : 'not supplied'}</p>
+        <hr />
+        <p style="white-space: pre-wrap">${escapeHtml(payload.message)}</p>
+        <hr />
+        <table>${diagnosticRows}</table>
+    `;
+
+    return { subject, html };
+}
+
+async function handleFeedback(request: Request, env: Env): Promise<Response> {
+    // Without the secret the counter would have to name the raw IP, which the
+    // privacy policy says is never kept. Refuse rather than store it.
+    if (!env.IP_HASH_SECRET) {
+        return json({ error: 'Feedback is not available right now. Please try again later.' }, 500);
+    }
+
+    const contentType = request.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+        return json({ error: 'Expected application/json' }, 415);
+    }
+
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return json({ error: 'Payload too large' }, 413);
+
+    let parsed: FeedbackPayload;
+    try {
+        parsed = JSON.parse(raw) as FeedbackPayload;
+    } catch {
+        return json({ error: 'Malformed JSON' }, 400);
+    }
+
+    // Honeypot: a real form never fills this, so answer 200 and drop it
+    // silently rather than teaching the bot what failed.
+    if (clean(parsed.website, 100)) return json({ ok: true });
+
+    const message = clean(parsed.message, MAX_MESSAGE_CHARS);
+    if (message.length < 5) return json({ error: 'Message is too short' }, 400);
+
+    const category = (CATEGORIES as readonly string[]).includes(parsed.category) ? parsed.category : 'other';
+
+    const replyTo = clean(parsed.replyTo, MAX_EMAIL_CHARS);
+    if (replyTo && !isPlausibleEmail(replyTo)) {
+        return json({ error: 'That email address does not look right' }, 400);
+    }
+
+    const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+    const who = await ipKey(env.IP_HASH_SECRET, ip);
+    if (env.BURST) {
+        try {
+            const { success } = await env.BURST.limit({ key: who });
+            if (!success) return json({ error: 'Too many messages from this network. Try again later.' }, 429);
+        } catch {
+            /* the KV counters below still hold */
+        }
+    }
+    if (await overCap(env, `rl:${who}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_SECONDS)) {
+        return json({ error: 'Too many messages from this network. Try again later.' }, 429);
+    }
+    if (await overCap(env, `all:${today()}`, DAILY_GLOBAL_MAX, DAILY_WINDOW_SECONDS)) {
+        return json({ error: 'Feedback is busy today. Please try again tomorrow.' }, 503);
+    }
+
+    const diagnostics: Record<string, string> = {};
+    if (parsed.diagnostics && typeof parsed.diagnostics === 'object') {
+        for (const [k, v] of Object.entries(parsed.diagnostics).slice(0, 12)) {
+            diagnostics[clean(k, 40)] = clean(String(v), 200);
+        }
+    }
+
+    const { subject, html } = buildEmail({ category: category as Category, message, replyTo, diagnostics });
+
+    let res: Response;
+    try {
+        res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                from: env.FEEDBACK_FROM,
+                to: [env.FEEDBACK_TO],
+                subject,
+                html,
+                // Lets you hit reply straight from the inbox when the user left an
+                // address; Resend omits the header when the array is empty.
+                reply_to: replyTo ? [replyTo] : undefined,
+            }),
+            signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        });
+    } catch (e) {
+        // A provider that hangs must not hold the form open until the
+        // extension's own timeout fires.
+        if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+            return json({ error: 'Sending took too long. Please try again later.' }, 504);
+        }
+        return json({ error: 'Could not send right now. Please try again later.' }, 502);
+    }
+
+    if (!res.ok) {
+        // Never echo the provider's response: it can carry account details.
+        return json({ error: 'Could not send right now. Please try again later.' }, 502);
+    }
+
+    return json({ ok: true });
+}
+
+export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+        const url = new URL(request.url);
+
+        if (request.method === 'OPTIONS') {
+            return new Response(null, { status: 204, headers: CORS_HEADERS });
+        }
+        if (url.pathname === '/health') {
+            return json({ ok: true });
+        }
+        if (url.pathname !== '/feedback') {
+            return json({ error: 'Not found' }, 404);
+        }
+        if (request.method !== 'POST') {
+            return json({ error: 'Method not allowed' }, 405);
+        }
+
+        try {
+            return await handleFeedback(request, env);
+        } catch {
+            return json({ error: 'Unexpected error' }, 500);
+        }
+    },
+};

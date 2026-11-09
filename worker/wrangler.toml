@@ -1,0 +1,30 @@
+name = "thumbnail-bookmarks-feedback"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+account_id = "96ec2a311affbd387b884673c0e84eb8"
+
+# Served on workers.dev. Preview URLs are off: one public endpoint is enough
+# surface for an unauthenticated form.
+workers_dev = true
+preview_urls = false
+
+# Required: without them every POST /feedback fails.
+[vars]
+FEEDBACK_FROM = "Visual Bookmark Manager feedback <feedback.ThumbnailBookmarks@palworks.ai>"
+FEEDBACK_TO = "support@palworks.ai"
+
+# Rate-limit counters only, named by an HMAC of the IP and never the IP; every
+# key expires within 26 hours.
+# Created with: wrangler kv namespace create thumbnail-bookmarks-feedback-counters
+[[kv_namespaces]]
+binding = "FEEDBACK_RATE_LIMIT"
+id = "f1973c663dd34dee9b189c42c395ad61"
+
+# Burst limit per network, per data centre, approximate by design. `period`
+# may only be 10 or 60. The KV counters above are the real ceiling and the
+# fallback if this binding is missing or fails. Namespace ids on this account:
+# 2001 website contact worker, 2002 Gmail Labels as Tabs feedback, 2003 this one.
+[[ratelimits]]
+name = "BURST"
+namespace_id = "2003"
+simple = { limit = 3, period = 60 }

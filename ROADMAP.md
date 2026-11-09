@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-09T03:11:55+00:00 (1.5.0 rejected for description keywords, fixed and resubmitted with new screenshots; row 16 done except the promo video)._
+> _Last updated: 2026-11-09T05:16:27+00:00 (row 17: 1.6.0 settings menu rework and in-built feedback form, waiting for 1.5.0 approval)._
 
 ## 0. North star: every open item, one row each
 
@@ -26,6 +26,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.5.0 is live, listing what shipped (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
+| 17 | §3.1 | P2 | **Waiting** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is built on branch `feat/1.6.0-menu-feedback`; the relay is deployed and tested end to end. | After 1.5.0 is approved: merge, tag v1.6.0, upload, update the Privacy tab (feedback data) in the dashboard, submit. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
 **Reading the narrow columns.** Bucket is the §3 area: 3.1 Release, 3.2 Features, 3.3 Engineering.
@@ -114,6 +115,7 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: resubmitted, in review | S | H |
+| 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **Waiting**: until 1.5.0 is approved | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.5.0 is live | T | M |

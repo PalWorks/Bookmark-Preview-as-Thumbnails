@@ -1469,3 +1469,108 @@
 .folder-title-line .folder-link {
     flex: 0 1 auto;
 }
+
+/* ── Feedback form (1.6.0) ─────────────────────────────────────────────────── */
+
+.feedback-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.feedback-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.feedback-categories .field-label {
+    flex: 1 1 100%;
+    padding: 0;
+}
+
+.feedback-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.feedback-chip input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.feedback-chip:has(input:focus-visible) {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+.feedback-chip--on {
+    border-color: var(--color-accent);
+    background-color: var(--color-accent-soft);
+    color: var(--color-accent-text);
+    font-weight: 500;
+}
+
+.feedback-message {
+    min-height: 120px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.feedback-count {
+    min-height: 16px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--color-muted);
+    text-align: right;
+}
+
+.feedback-diagnostics {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+.feedback-diagnostics input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.feedback-form .inline-banner {
+    margin-bottom: 0;
+}
+
+.feedback-sent {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.feedback-sent-icon {
+    flex-shrink: 0;
+    color: #188038;
+}
+
+.theme-dark .feedback-sent-icon {
+    color: #81c995;
+}

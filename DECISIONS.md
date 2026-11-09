@@ -1,11 +1,24 @@
 # Decisions
 
-_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0: D15)._
+_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0: D16)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D16. Feedback goes through our own relay, never straight to the mail provider (2026-11-09)
+
+The owner asked for a feedback form inside the extension, sent with Resend. A published
+extension is a zip anyone can unpack, so a Resend key in the bundle would be a public key that
+anyone could use to send mail as palworks.ai. The form posts instead to a Cloudflare Worker
+(`worker/`, copied from the proven Gmail Labels as Tabs relay) that holds a send-only Resend key
+scoped to the palworks.ai domain. The Worker validates hard (JSON only, 16 KB, 4,000-character
+message, honeypot), rate limits per network (burst binding, 5 an hour, 300 a day for everyone),
+stores no message content, and names networks by an HMAC of the IP, never the IP.
+
+**Rule: no provider key ever ships in the extension. New network calls from the extension go to
+a server we run that holds the key, and are listed in PRIVACY.md and SECURITY.md.**
 
 ## D15. Undo for rename and move lives in the toast and never overwrites a newer change (2026-11-08)
 

@@ -35,6 +35,21 @@ import { hiddenFolderIds, type FolderColor } from '../lib/folder_prefs';
 import { HISTORY_COLUMNS, openedAt, compareOptional, type SortOrder } from '../lib/list_columns';
 import { moveNodes, undoMoves, type MoveResult } from '../lib/bulk_move';
 import { undoRename, type RenameResult } from '../lib/rename';
+import { buildDiagnostics } from '../lib/feedback';
+import { FeedbackDialog } from '../components/FeedbackDialog';
+
+/** Bookmark and folder counts for feedback diagnostics (numbers only). */
+function countTree(roots: chrome.bookmarks.BookmarkTreeNode[]): { bookmarks: number; folders: number } {
+    let bookmarks = 0;
+    let folders = 0;
+    const walk = (n: chrome.bookmarks.BookmarkTreeNode) => {
+        if (n.url) { bookmarks++; return; }
+        if (n.parentId) folders++;
+        n.children?.forEach(walk);
+    };
+    roots.forEach(walk);
+    return { bookmarks, folders };
+}
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 type Panel = 'bookmarks' | 'ai-settings' | 'trash';
@@ -151,8 +166,8 @@ function App() {
 
     // ── AI auto-tagging ───────────────────────────────────────────────────────
     const {
-        aiAvailability, isTagging, taggingProgress,
-        tags: aiTags, triggerAutoTag, stopAutoTag,
+        isTagging, taggingProgress,
+        tags: aiTags,
     } = useAITagger(currentFolder, aiSettingsVersion);
     const storageWarning = useStorageWarning(isCapturing);
 
@@ -493,15 +508,6 @@ function App() {
         onRenamed: showRenameResult,
     });
 
-    // ── AI auto-tag: tag all bookmarks in the current view ───────────────────
-    const handleAutoTag = () => {
-        const bookmarks = displayedNodes
-            .filter(n => n.url)
-            .map(n => ({ url: n.url!, title: n.title }));
-        if (bookmarks.length === 0) return;
-        triggerAutoTag(bookmarks);
-    };
-
     // ── Thumbnail update (manual regenerate / resume) ─────────────────────────
     const handleUpdateThumbnails = async (force = false, regenerateFailed = false) => {
         if (!displayedNodes.length) return;
@@ -601,6 +607,7 @@ function App() {
 
     // ── Welcome modal ─────────────────────────────────────────────────────────
     const [showWelcome, setShowWelcome] = useState(false);
+    const [feedbackOpen, setFeedbackOpen] = useState(false);
     useEffect(() => {
         chrome.storage.local.get('hasSeenWelcome', (result) => {
             if (!result.hasSeenWelcome) setShowWelcome(true);
@@ -656,14 +663,12 @@ function App() {
                 onCaptureDelayCommit={onCaptureDelayCommit}
                 useActiveTabCapture={useActiveTabCapture}
                 onToggleActiveTabCapture={onToggleActiveTabCapture}
-                aiAvailability={aiAvailability}
                 isTagging={isTagging}
                 taggingProgress={taggingProgress}
                 availableTags={availableTags}
                 activeTag={activeTag}
                 onTagChange={setActiveTag}
-                onAutoTag={handleAutoTag}
-                onStopTag={stopAutoTag}
+                onOpenFeedback={() => setFeedbackOpen(true)}
                 onAISettings={() => openPanel('ai-settings')}
                 isAISettingsActive={activePanel === 'ai-settings'}
                 onToggleFolders={toggleFolders}
@@ -810,6 +815,13 @@ function App() {
                     busy={colorBusy}
                     onCancel={() => setColorFor(null)}
                     onSave={(c) => { void saveColor(c); }}
+                />
+            )}
+
+            {feedbackOpen && (
+                <FeedbackDialog
+                    onClose={() => setFeedbackOpen(false)}
+                    diagnostics={buildDiagnostics({ ...countTree(bookmarkTree), view: viewMode })}
                 />
             )}
 

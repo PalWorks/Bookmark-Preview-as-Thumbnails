@@ -8,7 +8,7 @@ A Chrome extension that turns your bookmarks into a visual grid of page previews
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-08T18:13:35+00:00 (1.5.0 submitted for review)._
+_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0 on a branch: settings menu rework, in-built feedback form)._
 
 ## Contents
 
@@ -111,7 +111,8 @@ There are no environment variables. Everything is set in the extension:
 
 | Setting | Where | Stored in |
 |---|---|---|
-| Theme, capture delay, active-tab capture, incognito window, folder panel | Top bar, settings menu | `chrome.storage.sync` |
+| Theme, folder panel | Top bar | `chrome.storage.sync` |
+| Capture delay, active-tab capture, incognito window | Settings menu → Generate Preview settings | `chrome.storage.sync` |
 | List view columns | List view, Columns | `chrome.storage.sync` |
 | Keep deletes made outside the extension | Trash view, top switch | `chrome.storage.sync` |
 | Folder colour, hidden from search | Folder's More actions menu | `chrome.storage.local` (this device; included in exports by folder path) |
@@ -122,7 +123,7 @@ There are no environment variables. Everything is set in the extension:
 ## Usage
 
 1. Click the extension icon; the manager opens in a tab.
-2. Pick a folder on the left (or **Folders** on a phone). Press the play button to capture
+2. Pick a folder on the left (the menu icon at the top left shows or hides the folder panel). Press the play button to capture
    previews for the folder; Shift+click recaptures all, Ctrl+click retries failed ones.
 3. Click a tile to open the page. Use the trash icon to delete it; **Undo** brings it back.
 4. **Trash** (sidebar or settings menu) lists deletions from the last 30 days. **Restore**,
@@ -132,7 +133,9 @@ There are no environment variables. Everything is set in the extension:
 6. A folder's **More actions** menu has **Colour...** and **Hide from search**.
 7. In list view, **Columns** chooses Added, Opened, Rating, Visits and Last visited; click
    **Rate** to give a link 1 to 5 stars.
-8. **AI Settings** turns on Auto-Tag, Smart Search and Duplicate Finder.
+8. **AI Settings** (top bar, sidebar or settings menu) turns on Auto-Tag, Smart Search and Duplicate Finder.
+9. **Settings → Submit Feedback** sends a message to the team from inside the extension; the
+   backup buttons (export backup, export settings, import) are the icon row in the same menu.
 
 ## Project structure
 
@@ -149,6 +152,7 @@ public/manifest.json    extension manifest
 tests/                  Vitest suites, fakes/, sw_bridge.ts
 scripts/check-bundle.mjs  post-build checks
 scripts/e2e/smoke.mjs     npm run e2e: real-Chrome smoke test
+worker/                 feedback relay (Cloudflare Worker, Resend); see worker/README.md
 website/                marketing site (GitHub Pages)
 docs/designs/           design documents
 ```
@@ -162,9 +166,9 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-338 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
+367 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
-folder prefs, selection and bulk move, list columns, the reactive bookmark tree, backups, and the
+folder prefs, selection and bulk move, list columns, the feedback form, the reactive bookmark tree, backups, and the
 whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome. See
 [TESTING.md](TESTING.md).
 

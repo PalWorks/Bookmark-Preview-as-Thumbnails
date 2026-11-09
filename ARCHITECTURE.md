@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0: Undo for rename and Cut and Paste)._
+_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0: feedback relay)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has no server. Everything
 runs in three browser contexts and stores data in `chrome.storage`. Storage keys and
@@ -195,8 +195,11 @@ bottom-aligned dialogs. Colours for new components come from tokens in
 
 ## External dependencies
 
-React 19, lucide-react, html2canvas (content script). No network services of our own.
-Optional AI calls go only to the provider the user configures (see PRIVACY.md).
+React 19, lucide-react, html2canvas (content script). One network service of our own: the
+feedback relay in `worker/` (Cloudflare Worker, `https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev`),
+called only when the user sends the feedback form (`src/lib/feedback.ts`, D16). It emails
+support@palworks.ai through Resend. Optional AI calls go only to the provider the user
+configures (see PRIVACY.md).
 
 ## Diagram
 

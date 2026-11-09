@@ -38,6 +38,16 @@ jobs:
       - name: Test
         run: npm test -- --run
 
+      # The feedback relay (worker/) is the only server-side code and has its own
+      # package and tsconfig. Its tests run on plain Node with type stripping,
+      # which needs Node 22.18 or later.
+      - name: Feedback worker tests and typecheck
+        working-directory: worker
+        run: |
+          npm ci
+          npx --yes node@22.18 --test test/index.test.ts
+          npm run typecheck
+
       - name: Build
         run: npm run build
 

@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: folder prefs and metadata allowlists, external deletes, optional history permission)._
+_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0: feedback relay)._
 
 ## Reporting a vulnerability
 
@@ -16,6 +16,8 @@ working exploits or keys publicly.
 - No API keys, tokens or provider secrets are part of the repository or the bundle. CI runs
   `scripts/check-bundle.mjs` after every build: it fails on key patterns (Google, OpenAI and
   Anthropic style, GitHub, Slack, Resend, JWT, private keys, webhook URLs) and on source maps.
+- The feedback relay (`worker/`, D16) holds a send-only Resend key scoped to palworks.ai and an
+  `IP_HASH_SECRET`, both as Cloudflare Worker secrets, never in the repository.
 
 ## Trust boundaries
 
@@ -30,6 +32,7 @@ working exploits or keys publicly.
 | Restore destination | Never chosen across storage scopes (local vs synced) without the user picking it. |
 | Managed bookmarks | Never deleted; a request that includes one is rejected as a whole. |
 | Extension pages | CSP `script-src 'self'; object-src 'self'`; no remote code. |
+| Feedback relay (public, unauthenticated endpoint) | JSON only, 16 KB body, 4,000-character message, plausible-email check, honeypot; per-network burst and hourly limits plus a daily global cap; generic errors that never echo the provider's response; stores only rate-limit counters keyed by an HMAC of the IP. |
 
 ## Permissions
 
