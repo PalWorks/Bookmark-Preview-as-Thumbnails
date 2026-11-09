@@ -39,7 +39,8 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
    upload only, so the dashboard can be reviewed first.
 7a. Before submitting, walk every dashboard page: Package (draft version and permissions),
    Store listing (description matches what ships), Privacy (a justification for every
-   permission, data usage), Distribution, Test instructions. The listing links the website
+   permission, data usage: since 1.6.0 the feedback form means "Personally identifiable information"
+   and "Personal communications" stay ticked), Distribution, Test instructions. The listing links the website
    privacy policy (`website/components/Legal.tsx`); keep it in line with PRIVACY.md. A
    submission locks the listing; "Cancel review" (menu at the top right) unlocks it.
    Never list brand, provider or site names in the description (for example the supported AI
