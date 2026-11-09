@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-09T03:11:55+00:00 (store description rule after the 1.5.0 rejection)._
+_Last updated: 2026-11-09T05:23:51+00:00 (GitHub Actions kept to the minimum)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -25,6 +25,10 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 3. If permissions changed, run the permission gate below. Update PRIVACY.md and
    PRIVACY_DETAILS.md in the same change.
 4. Open a PR to `main`; CI must pass (lint, test, build, bundle check, real-Chrome smoke test).
+   GitHub Actions are kept to the minimum (owner, 2026-11-09): CI is one job that runs only on
+   pull requests that change code, never on pushes to `main`. Run the full set locally first,
+   push each branch as few times as possible, and put docs-only changes in their own PR (no CI)
+   or fold them into the next code PR.
 5. Merge, then tag with `TZ=UTC git tag -a v<version>` and push the tag.
 6. `npm run zip` (builds, runs the bundle check, writes `extension.zip`). Confirm the zip has
    no `.map` files.
