@@ -104,8 +104,10 @@ function cleanMessage(value: unknown, maxChars: number): string {
     if (typeof value !== 'string') return '';
     return value
         .replace(/\r\n?/g, '\n')
+        // Controls (C0 except LF and tab, DEL, C1), line/paragraph separators and
+        // bidi overrides, which could make the support email read differently.
         // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+        .replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u2028\u2029\u202A-\u202E\u2066-\u2069]/g, '')
         .replace(/[ \t]+/g, ' ')
         .replace(/ *\n */g, '\n')
         .replace(/\n{3,}/g, '\n\n')
@@ -113,8 +115,9 @@ function cleanMessage(value: unknown, maxChars: number): string {
         .slice(0, maxChars);
 }
 
+/** A plain address only: no display names, lists or quoting the mail provider would refuse. */
 function isPlausibleEmail(value: string): boolean {
-    return /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(value);
+    return /^[^@\s<>,;"()[\]\\]+@[^@\s.<>,;"()[\]\\]+\.[^@\s<>,;"()[\]\\]+$/.test(value);
 }
 
 /** Escape for inclusion in the HTML email body. */
@@ -132,7 +135,10 @@ function escapeHtml(value: string): string {
  * IPv6 address by its /64 prefix. One IPv6 sender usually holds a whole /64 and
  * could otherwise rotate addresses to get a fresh allowance each time.
  */
-export function networkOf(ip: string): string {
+export function networkOf(rawIp: string): string {
+    const ip = rawIp.split('%')[0];
+    const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip);
+    if (mapped) return mapped[1];
     if (!ip.includes(':')) return ip;
     const [head, tail = ''] = ip.toLowerCase().split('::');
     const left = head ? head.split(':') : [];
@@ -156,11 +162,39 @@ export async function ipKey(secret: string, ip: string): Promise<string> {
     return Array.from(mac.slice(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Read the body, stopping as soon as it passes the cap, so a chunked upload with
+ * no Content-Length is never buffered in full. Null when it is too large.
+ */
+async function readCapped(request: Request, maxBytes: number): Promise<string | null> {
+    if (!request.body) return '';
+    const reader = request.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBytes) {
+            await reader.cancel().catch(() => undefined);
+            return null;
+        }
+        chunks.push(value);
+    }
+    const all = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) {
+        all.set(c, offset);
+        offset += c.byteLength;
+    }
+    return new TextDecoder().decode(all);
+}
+
 /** Ask the limiter. Any failure is a refusal: the relay never runs unlimited. */
-async function limiter(env: Env, op: 'take' | 'refund', who: string): Promise<TakeResult | null> {
+async function limiter(env: Env, op: 'take' | 'refund', who: string, slot?: { day: string; start: number }): Promise<TakeResult | null> {
     try {
         const stub = env.LIMITER.get(env.LIMITER.idFromName('global'));
-        const res = await stub.fetch('https://limiter/', { method: 'POST', body: JSON.stringify({ op, who }) });
+        const res = await stub.fetch('https://limiter/', { method: 'POST', body: JSON.stringify({ op, who, ...slot }) });
         if (!res.ok) return null;
         return (await res.json()) as TakeResult;
     } catch {
@@ -204,8 +238,8 @@ async function handleFeedback(request: Request, env: Env, origin: string | null)
     // Refuse a declared oversize body before reading it, then count real bytes.
     const declared = Number(request.headers.get('content-length') || '0');
     if (declared > MAX_BODY_BYTES) return reply({ error: 'Payload too large' }, 413);
-    const raw = await request.text();
-    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) return reply({ error: 'Payload too large' }, 413);
+    const raw = await readCapped(request, MAX_BODY_BYTES);
+    if (raw === null) return reply({ error: 'Payload too large' }, 413);
 
     let parsed: FeedbackPayload;
     try {
@@ -280,16 +314,19 @@ async function handleFeedback(request: Request, env: Env, origin: string | null)
     } catch (e) {
         // A provider that hangs must not hold the form open until the
         // extension's own timeout fires.
-        // Nothing was sent, so the sender gets the allowance back (best effort).
-        await limiter(env, 'refund', who);
         if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+            // The provider may still have sent it: no refund, so no duplicate slot.
             return reply({ error: 'Sending took too long. Please try again later.' }, 504);
         }
+        // The request never reached the provider: give the allowance back (best effort).
+        await limiter(env, 'refund', who, taken);
         return reply({ error: 'Could not send right now. Please try again later.' }, 502);
     }
 
     if (!res.ok) {
-        await limiter(env, 'refund', who);
+        // Refund only provider-side failures (429, 5xx). A 4xx means this request
+        // was refused as sent; refunding it would let a script retry without limit.
+        if (res.status === 429 || res.status >= 500) await limiter(env, 'refund', who, taken);
         // Never echo the provider's response: it can carry account details.
         return reply({ error: 'Could not send right now. Please try again later.' }, 502);
     }

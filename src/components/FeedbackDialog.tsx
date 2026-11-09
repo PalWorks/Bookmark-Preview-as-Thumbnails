@@ -50,14 +50,20 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ onClose, diagnos
         inFlight.current = true;
         setBusy(true);
         setError(null);
-        const result = await send({
-            category,
-            message,
-            replyTo,
-            ...(includeDiagnostics ? { diagnostics } : {}),
-        });
-        inFlight.current = false;
-        setBusy(false);
+        let result: Awaited<ReturnType<typeof send>>;
+        try {
+            result = await send({
+                category,
+                message,
+                replyTo,
+                ...(includeDiagnostics ? { diagnostics } : {}),
+            });
+        } catch {
+            result = { ok: false, error: 'Could not send right now. Please try again later.' };
+        } finally {
+            inFlight.current = false;
+            setBusy(false);
+        }
         if (result.ok) {
             setSent(true);
             setTimeout(() => doneRef.current?.focus(), 0);

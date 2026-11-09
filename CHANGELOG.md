@@ -46,7 +46,10 @@ in review.
 - **Feedback relay hardening (pre-landing review).** Rate-limit counters moved from KV to a
   Durable Object, which counts exactly under concurrency and refuses when it cannot count; only
   the extension's own origins may post; an IPv6 sender counts as its /64; a failed send gives the
-  allowance back; multi-line messages keep their line breaks; a non-object JSON body is a 400; the
+  allowance back only when the provider failed on its side (never after a timeout, which may have
+  sent, or a 4xx); stale counters are swept hourly; a chunked oversized body is cut off while
+  reading; invisible control and bidi characters are stripped; reply addresses must be plain;
+  multi-line messages keep their line breaks; a non-object JSON body is a 400; the
   body size is checked in bytes and against Content-Length first. The form ignores a double
   submit, counts its technical details once when it opens, and reports Edge as Edge.
 - Expected per-site capture failures are logged as warnings, not errors, so the extension's

@@ -236,7 +236,7 @@ test('our extension origin is echoed back for CORS', async () => {
     assert.equal(res.headers.get('Access-Control-Allow-Origin'), ORIGIN);
 });
 
-test('a failed send gives the allowance back', async () => {
+test('a provider-side failure (5xx) gives the allowance back', async () => {
     globalThis.fetch = (async () => new Response('{}', { status: 500 })) as any;
     for (let i = 0; i < 7; i++) assert.equal((await worker.fetch(post(good), env())).status, 502);
     const who = await ipKey('test-secret', '203.0.113.7');
@@ -249,7 +249,7 @@ test('the alarm deletes stale counters so nothing outlives a day', async () => {
     await limiter.instance.take('a'.repeat(32), now - NETWORK_WINDOW_MS - 1000);
     kv.store.set('d:2000-01-01', 3);
     await limiter.instance.take('b'.repeat(32), now);
-    await limiter.instance.alarm(now);
+    await limiter.instance.sweep(now);
     assert.ok(!kv.store.has(`n:${'a'.repeat(32)}`));
     assert.ok(!kv.store.has('d:2000-01-01'));
     assert.ok(kv.store.has(`n:${'b'.repeat(32)}`));
@@ -281,4 +281,60 @@ test('diagnostics are capped and escaped; an unknown category becomes other; rep
     assert.deepEqual(sent[0].body.reply_to, ['me@example.com']);
     assert.ok((sent[0].body.html.match(/<tr>/g) || []).length <= 12);
     assert.doesNotMatch(sent[0].body.html, /<b>|<i>/);
+});
+
+// Second review pass (2026-11-09).
+test('a 4xx from the provider is not refunded, so scripts cannot retry for free', async () => {
+    globalThis.fetch = (async () => new Response('{}', { status: 422 })) as any;
+    for (let i = 0; i < 5; i++) assert.equal((await worker.fetch(post(good), env())).status, 502);
+    assert.equal((await worker.fetch(post(good), env())).status, 429);
+});
+
+test('a timeout is not refunded: the provider may have sent it', async () => {
+    globalThis.fetch = (async () => { throw new DOMException('timed out', 'TimeoutError'); }) as any;
+    await worker.fetch(post(good), env());
+    const who = await ipKey('test-secret', '203.0.113.7');
+    assert.equal((kv.store.get(`n:${who}`) as { count: number }).count, 1);
+});
+
+test('a refund after the window reset leaves the new window alone', async () => {
+    const who = 'c'.repeat(32);
+    const now = Date.now();
+    const first = await limiter.instance.take(who, now - NETWORK_WINDOW_MS - 1);
+    assert.ok(first.ok);
+    await limiter.instance.take(who, now);
+    if (first.ok) await limiter.instance.refund(who, first.day, first.start);
+    assert.equal((kv.store.get(`n:${who}`) as { count: number }).count, 1);
+});
+
+test('the runtime alarm reads the clock itself (it is passed alarm info, not a time)', async () => {
+    kv.store.set('d:2000-01-01', 3);
+    await (limiter.instance as any).alarm({ retryCount: 0, isRetry: false });
+    assert.ok(!kv.store.has('d:2000-01-01'));
+});
+
+test('odd address forms map to the right network', () => {
+    assert.equal(networkOf('::ffff:198.51.100.4'), '198.51.100.4');
+    assert.equal(networkOf('fe80::1%eth0'), 'fe80:0:0:0::/64');
+});
+
+test('a chunked oversized body is refused without reading it all', async () => {
+    const big = new ReadableStream({
+        start(c) { for (let i = 0; i < 40; i++) c.enqueue(new TextEncoder().encode('x'.repeat(1024))); c.close(); },
+    });
+    const req = new Request('https://relay.example/feedback', {
+        method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.7' }, body: big, duplex: 'half',
+    } as any);
+    assert.equal((await worker.fetch(req, env())).status, 413);
+});
+
+test('bidi overrides and other invisible controls are stripped from the message', async () => {
+    await worker.fetch(post({ ...good, message: 'Pay \u202Eevil\u202C now\u0085 please' }), env());
+    assert.doesNotMatch(sent[0].body.html, /[\u202A-\u202E\u0085]/);
+});
+
+test('display-name and list addresses are refused as reply addresses', async () => {
+    for (const replyTo of ['A <a@b.co>', 'a@b.co,c@d.co', '"q"@b.co']) {
+        assert.equal((await worker.fetch(post({ ...good, replyTo }), env())).status, 400, replyTo);
+    }
 });
