@@ -54,6 +54,8 @@ export interface ChangeSetRecord {
     snapshotId?: string;
     /** False when the set did not answer an export of this browser (no scope known). */
     scoped: boolean;
+    /** Paired coding agent that proposed it (Stage 2). */
+    clientId?: string;
     ops: ChangeOp[];
     verdicts: OpVerdict[];
     order: number[];
@@ -220,7 +222,7 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
 
     // ── Import ──────────────────────────────────────────────────────────────
 
-    async function importNow(text: string, source: ChangeSetSource): Promise<
+    async function importNow(text: string, source: ChangeSetSource, opts: { scopeFolderIds?: Set<string>; clientId?: string; maxPendingForClient?: number } = {}): Promise<
         { ok: true; id: string } | { ok: false; error: string; verdicts?: OpVerdict[]; ops?: ChangeOp[] }
     > {
         const parsed = parseChangeSet(text);
@@ -230,7 +232,10 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
         if (pending.length >= MAX_PENDING_SETS) {
             return { ok: false, error: `You already have ${MAX_PENDING_SETS} change sets waiting. Apply or reject one in AI changes first.` };
         }
-        const scope = await scopeFor(set.snapshotId);
+        if (opts.clientId && opts.maxPendingForClient !== undefined && pending.filter(r => r.clientId === opts.clientId).length >= opts.maxPendingForClient) {
+            return { ok: false, error: `This agent already has ${opts.maxPendingForClient} change sets waiting for review.` };
+        }
+        const scope = opts.scopeFolderIds ?? await scopeFor(set.snapshotId);
         const roots = await chrome.bookmarks.getTree();
         const v = validateChangeSet(set, { roots, hiddenFolderIds: await hidden(), scopeFolderIds: scope, allowedKinds });
         if (!v.ok) {
@@ -240,7 +245,7 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
         const id = uuid();
         const record: ChangeSetRecord = {
             v: 1, id, createdAt: now(), updatedAt: now(), source, title: set.title, snapshotId: set.snapshotId,
-            scoped: !!scope, ops: set.ops, verdicts: v.verdicts, order: v.order, state: 'pending', undoAvailable: true,
+            scoped: !!scope, ...(opts.clientId ? { clientId: opts.clientId } : {}), ops: set.ops, verdicts: v.verdicts, order: v.order, state: 'pending', undoAvailable: true,
         };
         await writeSet(record);
         broadcast({ type: 'CS_CHANGED', id });
@@ -772,7 +777,7 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
 
     return {
         registerSnapshot: (folderIds: string[]) => enqueue(() => registerSnapshot(folderIds)),
-        importText: (text: string, source: ChangeSetSource) => enqueue(() => importNow(text, source)),
+        importText: (text: string, source: ChangeSetSource, opts?: { scopeFolderIds?: Set<string>; clientId?: string; maxPendingForClient?: number }) => enqueue(() => importNow(text, source, opts)),
         apply: (id: string, selected: number[]) => enqueue(() => applyNow(id, selected)),
         finish: (id: string) => enqueue(() => finishNow(id)),
         undo: (id: string) => enqueue(() => undoNow(id)),

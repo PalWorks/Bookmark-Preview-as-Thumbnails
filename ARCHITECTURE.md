@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-09T16:00:59+00:00 (feedback relay in the context diagram and d2, html2canvas-pro, planned Agent changes)._
+_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI changes and the coding-agent bridge)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. Its only server is the feedback
 relay in `worker/`, used when someone sends the feedback form (1.6.0). Everything else
@@ -204,14 +204,44 @@ called only when the user sends the feedback form (`src/lib/feedback.ts`, D16). 
 support@palworks.ai through Resend. Optional AI calls go only to the provider the user
 configures (see PRIVACY.md).
 
-## Planned: Agent changes (approved, not built)
+## AI changes (1.7.0)
 
-The approved plan ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md), D18) adds one
-change-set format with a validator in `src/lib/change_set/`, an apply coordinator with a
-per-item journal and Undo in the regular service worker (never the incognito one), an Agent
-changes panel and an Activity view. Stage 1 takes change sets from a paste or a file; a native
-messaging bridge for coding agents (Stage 2) only follows a demand check. Nothing of it is in the
-code yet; this section changes when Stage 1 lands.
+Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md); decisions D18 and D19.
+
+```
+ any AI (paste or file) ─┐                                    ┌─ chrome.bookmarks (create, move, update)
+ coding agent (bridge) ──┴─▶ CS_IMPORT / propose_changes ─▶ change_sets.ts ──┼─ storageIndex.update (tags, ratings)
+                              parse + validate (simulate)    pending cs_<id>  └─ trash.deleteItems(expectedSubtrees, origin ai-changes)
+ Review panel ── CS_APPLY(selected) ─▶ approval record ─▶ journal csj_<id>_<n> per item ─▶ apply ─▶ Activity (Undo, Finish)
+```
+
+- **One format** (`src/lib/change_set/format.ts`) and **one validator** (`validate.ts`) for every
+  source. The validator simulates the set on a working copy of the tree and refuses the whole
+  set, with a reason per change, on any problem.
+- **One coordinator** (`src/sw/change_sets.ts`) in the regular worker runs Apply, Finish and Undo
+  one at a time. Each change is journaled before it runs and re-checked against what the user
+  reviewed; a changed item is skipped, never overwritten. Trash runs last as one batch whose
+  approved contents are frozen. Undo runs in reverse and maps ids that Trash restore changed.
+  A fresh worker runs no job, so a set left mid-apply is classified item by item at start-up.
+- **Export** (`snapshot.ts`): only folders the user ticks, never hidden ones; optional query
+  stripping; the instructions tell any AI how to answer.
+
+## Coding-agent bridge (1.7.0)
+
+```
+ agent ─stdio MCP─▶ bookmarks-thumbnails-mcp ─Unix socket─▶ native host (bridge/src/host.ts) ─native port─▶ agent_bridge.ts
+                    (bridge/src/mcp.ts, cli.ts)  0600 socket in a 0700 folder      relay only, conn-tagged        pairing, grants, reads, propose
+```
+
+- The extension owns all state; the host is stateless and replaceable. Messages and errors
+  are defined once in `src/lib/bridge/protocol.ts`, bundled into the package.
+- `nativeMessaging` is optional, requested from the switch's click; the port keeps the worker
+  alive while connected; the worker reconnects at start and from a one-minute alarm.
+- Pairing: the extension shows a 6-digit code; the client sends it with the random pairing id it
+  started with; the token goes back once and only its SHA-256 is stored.
+- Reads see only the folders granted to that agent, minus folders hidden from search; cursors
+  go stale on any change. Proposals become pending change sets labelled with the agent; the
+  toolbar badge counts them.
 
 ## Diagram
 

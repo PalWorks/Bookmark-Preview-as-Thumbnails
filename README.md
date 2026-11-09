@@ -9,7 +9,7 @@ turn on a cloud AI provider or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-09T16:13:49+00:00 (1.6.0 live)._
+_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0 on a branch: AI changes and coding agents)._
 
 ## Contents
 
@@ -69,6 +69,10 @@ thing that talks to a server of ours, and only when you press Send; see [PRIVACY
   save previews to a folder on disk.
 - **Feedback from inside the extension** (1.6.0): Settings > Submit Feedback sends a
   message, with an optional reply address and optional counts-only technical details.
+- **AI changes** (1.7.0): share the folders you choose with any AI, paste back what it suggests,
+  review every change with tick boxes, apply them as one step, and undo them from AI changes.
+- **Coding agents** (1.7.0): Claude Code, Cursor or VS Code read the folders you share and propose
+  changes through a small helper (`npx bookmarks-thumbnails-mcp`); you review and can undo them.
 - **Light, dark and system themes**; works from 360px wide up; keyboard and screen reader support.
 
 ## Architecture
@@ -141,7 +145,10 @@ There are no environment variables. Everything is set in the extension:
 7. In list view, **Columns** chooses Added, Opened, Rating, Visits and Last visited; click
    **Rate** to give a link 1 to 5 stars.
 8. **AI Settings** (top bar or settings menu) turns on Auto-Tag, Smart Search and Duplicate Finder.
-9. **Settings → Submit Feedback** sends a message to the team from inside the extension; the
+9. **Settings → Organise with an AI** shares chosen folders with any AI and takes its answer
+   back for review; **AI changes** lists every change set with Undo; **Coding agents** pairs
+   Claude Code, Cursor or VS Code ([bridge/README.md](bridge/README.md)).
+10. **Settings → Submit Feedback** sends a message to the team from inside the extension; the
    backup buttons (export backup, export settings, import) are the icon row in the same menu.
 
 ## Project structure
@@ -160,6 +167,7 @@ tests/                  Vitest suites, fakes/, sw_bridge.ts
 scripts/check-bundle.mjs  post-build checks
 scripts/e2e/smoke.mjs     npm run e2e: real-Chrome smoke test
 worker/                 feedback relay (Cloudflare Worker, Resend); see worker/README.md
+bridge/                 coding-agent helper: native host, MCP server, CLI (npm package)
 website/                marketing site (GitHub Pages)
 docs/designs/           design documents
 ```
@@ -173,11 +181,13 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-374 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
+411 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
-folder prefs, selection and bulk move, list columns, the feedback form, the reactive bookmark tree, backups, and the
-whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome. The feedback relay has
-32 tests of its own (`cd worker && npx --yes node@22.18 --test test/index.test.ts`). See
+folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
+apply, Undo, recovery), the coding-agent bridge, the reactive bookmark tree, backups, and the
+whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome, and
+`scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together. The feedback relay has
+32 tests of its own and the helper package 8 (`bridge/test/`). See
 [TESTING.md](TESTING.md).
 
 ## Deployment
@@ -191,12 +201,10 @@ website deploys to GitHub Pages from `main`; the feedback relay is deployed by h
 
 ## Roadmap
 
-1.5.0 (which includes 1.3.0 and 1.4.0) is live. 1.6.0 (settings menu rework, feedback form) is
-live on the Chrome Web Store. Next, **Agent changes** (planned, not built): choose folders to
-share with any AI, paste back the changes it proposes, review them, apply them as one step and
-undo them from Activity; a live bridge for coding agents follows only if people ask for it
-([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md)). Later, a safety net that also
-recovers changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
+1.6.0 is live on the Chrome Web Store. 1.7.0 (AI changes and coding agents,
+[docs/designs/agent-bridge.md](docs/designs/agent-bridge.md)) is built on a branch and waits for
+release. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
+changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

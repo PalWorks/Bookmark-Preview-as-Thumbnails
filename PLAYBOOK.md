@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-09T16:01:20+00:00 (feedback relay deploy and rollback section)._
+_Last updated: 2026-11-09T17:05:49+00:00 (1.7.0: npm helper publishing; build into a scratch folder)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -14,7 +14,9 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
    Write metadata through `storageIndex.patch` (worker) or `patchMetadata` (page).
 4. Add tests next to the area (`tests/`); use the bookmarks fake for anything that touches
    `chrome.bookmarks`, and `tests/sw_bridge.ts` to run page code against the real worker logic.
-5. `npm run lint`, `npm test -- --run`, `npm run build`, `npm run check:bundle`, `npm run e2e`.
+5. `npm run lint`, `npm test -- --run`, then build into a scratch folder (`npx vite build --outDir
+   <scratch>/build`; never `npm run build` on a feature branch, it changes the maintainer's unpacked
+   install), `node scripts/check-bundle.mjs <scratch>/build`, `node scripts/e2e/smoke.mjs <scratch>/build`.
 6. Check 360px and desktop widths, light and dark (see "Browser QA" below).
 
 ## Release to the Chrome Web Store
@@ -93,6 +95,20 @@ targets only and expect slower timers there.
 Owner-profile QA (a real profile with real bookmarks) puts its test data in its own folder,
 snapshots bookmark and folder counts first, and removes the data and its Trash entries
 afterwards.
+
+## Coding-agent helper (`bridge/`, npm)
+
+Published by hand, after the owner approves, together with the extension release that needs it.
+
+1. `bridge/package.json` version equals `PACKAGE_VERSION` in `src/lib/bridge/protocol.ts`
+   (`tests/bridge_version.test.ts` checks it); the setup snippet pins that version.
+2. `cd bridge && node build.mjs && node --test test/*.test.ts`, then the real-Chrome run:
+   `npx vite build --outDir <scratch>/build && node scripts/e2e/bridge.mjs <scratch>/build bridge/dist/cli.js`.
+3. Scan `bridge/dist/` for keys like the extension bundle; it ships no source maps.
+4. `cd bridge && npm publish --provenance --access public` (from CI or with an npm account that
+   has 2FA). Publish before the extension release reaches users, so the snippet resolves.
+5. Roll back with `npm deprecate bookmarks-thumbnails-mcp@<version> "<reason>"`; never unpublish a
+   version people may have pinned.
 
 ## Feedback relay (`worker/`)
 

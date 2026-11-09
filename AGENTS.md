@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-11-09T16:00:17+00:00 (1.6.0: worker/, feedback form, rules 18 and 19, Agent changes plan)._
+_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI changes, coding-agent bridge, rules 20 and 21)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,
@@ -24,6 +24,8 @@ npm run e2e            # real-Chrome smoke test of dist/ in a throwaway headless
 npm run zip            # build + check + extension.zip for the Web Store (delete an old extension.zip first: zip appends)
 
 cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback relay
+cd bridge && node build.mjs && node --test test/*.test.ts                              # coding-agent helper
+npx vite build --outDir <scratch>/build && node scripts/e2e/bridge.mjs <scratch>/build bridge/dist/cli.js
 ```
 
 ## Layout
@@ -33,6 +35,10 @@ cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck
 | `src/sw.ts` | Service worker: message router, capture, AI batches, migration, Trash upkeep |
 | `src/sw/trash.ts` | Trash coordinator (single writer of `trash_*`), also records deletes made outside the extension; no import side effects |
 | `src/sw/folder_prefs.ts` | Folder colour and hidden-from-search writer (single writer of `fpref_*`) |
+| `src/sw/change_sets.ts` | AI change sets: import, apply, Finish, Undo, recovery, retention (single writer of `cs*` keys) |
+| `src/sw/agent_bridge.ts` | Coding-agent bridge, extension side: native port, pairing, grants, reads, proposals (single writer of `bridge_*`) |
+| `src/lib/change_set/` | Change-set format, validator (simulation), export snapshot; DOM-free |
+| `src/lib/bridge/protocol.ts` | Bridge messages, errors and limits; shared with `bridge/` |
 | `src/lib/` | Shared modules; keep DOM and React out of anything the worker imports |
 | `src/popup/App.tsx` | Composes hooks and renders; no logic of its own |
 | `src/popup/hooks/` | All page behaviour (`useTrash`, `useBookmarkTree`, `useThumbnails`, `useToast`, ...) |
@@ -42,6 +48,8 @@ cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck
 | `tests/` | Vitest; `tests/fakes/chrome_bookmarks.ts`, `tests/sw_bridge.ts` |
 | `scripts/check-bundle.mjs` | Post-build checks (CI) |
 | `scripts/e2e/smoke.mjs` | `npm run e2e`: real Chrome, headless, throwaway profile |
+| `scripts/e2e/bridge.mjs` | Real Chrome + real host + real CLI end to end (pairing, grants, propose, apply) |
+| `bridge/` | npm package `bookmarks-thumbnails-mcp`: native host, MCP server, CLI (Node 22, no runtime dependencies); publishing needs the owner |
 | `worker/` | Feedback relay (Cloudflare Worker, Resend, Durable Object rate limits); deployed by hand, see `worker/README.md` |
 | `website/` | Marketing site, deployed to GitHub Pages from `main`; its privacy page is `website/components/Legal.tsx` |
 | `docs/designs/` | Design documents with review history; `agent-bridge.md` is the approved, not yet built, Agent changes plan |
@@ -90,6 +98,11 @@ cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck
     upload (`npm run check:bundle`).
 19. **Docs-only changes go in their own pull request** (no CI run) or ride with the next code
     pull request; CI runs only on pull requests that change code.
+20. **AI changes go through the coordinator.** Pages and the bridge never apply a change set
+    themselves: they send `CS_*` messages or `propose_changes`; only `src/sw/change_sets.ts`
+    applies, journals and undoes, and it removes bookmarks only through Trash.
+21. **The native host holds no state.** Pairing, tokens, grants and decisions live in the
+    extension; tokens are stored only as SHA-256 hashes and never logged or printed.
 
 ## Allowed without asking
 

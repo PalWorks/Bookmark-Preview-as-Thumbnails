@@ -12,6 +12,8 @@ import type { ChangeOp } from '../lib/change_set/format';
 import type { OpVerdict } from '../lib/change_set/validate';
 import type { ChangeSetsApi } from '../popup/hooks/useChangeSets';
 import { plural } from '../lib/utils';
+import { FolderChecklist } from './FolderChecklist';
+import { folderRows } from '../lib/folder_rows';
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 
@@ -23,20 +25,6 @@ interface Props {
     onClose: () => void;
     /** A set was imported: open it for review. */
     onImported: (id: string) => void;
-}
-
-interface FolderRow { id: string; title: string; depth: number; count: number }
-
-function folderRows(roots: Node[], hidden: Set<string>): FolderRow[] {
-    const rows: FolderRow[] = [];
-    const count = (n: Node): number => (n.children ?? []).reduce((s, c) => s + (c.url ? 1 : count(c)), 0);
-    const walk = (n: Node, depth: number) => {
-        if (n.url || hidden.has(n.id)) return;
-        if (n.id !== '0') rows.push({ id: n.id, title: n.title || '(untitled)', depth, count: count(n) });
-        (n.children ?? []).forEach(c => walk(c, n.id === '0' ? 0 : depth + 1));
-    };
-    roots.forEach(r => walk(r, 0));
-    return rows;
 }
 
 function describeOp(op: ChangeOp): string {
@@ -65,11 +53,6 @@ export const AIOrganiseDialog: React.FC<Props> = ({ roots, hiddenFolderIds, api,
     const answerRef = useRef<HTMLTextAreaElement>(null);
     const [source, setSource] = useState<{ kind: 'paste' | 'file'; name?: string }>({ kind: 'paste' });
 
-    const toggle = (id: string) => setChosen(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        return next;
-    });
     const sharedCount = rows.filter(r => chosen.has(r.id)).reduce((s, r) => s + r.count, 0);
 
     const makeExport = async (): Promise<string | null> => {
@@ -161,17 +144,7 @@ export const AIOrganiseDialog: React.FC<Props> = ({ roots, hiddenFolderIds, api,
             {step === 'export' ? (
                 <div className="ai-dialog-body">
                     <p className="modal-text">Choose the folders the AI may see. Its provider will see their titles and links. Nothing changes until you review and apply its answer.</p>
-                    <fieldset className="ai-folder-list">
-                        <legend className="field-label">Folders to share</legend>
-                        {rows.length === 0 && <p className="picker-empty">No folders to share.</p>}
-                        {rows.map(r => (
-                            <label key={r.id} className="ai-folder-row" style={{ paddingInlineStart: 8 + r.depth * 16 }}>
-                                <input type="checkbox" checked={chosen.has(r.id)} onChange={() => toggle(r.id)} />
-                                <span className="ai-folder-title">{r.title}</span>
-                                <span className="ai-folder-count">{r.count}</span>
-                            </label>
-                        ))}
-                    </fieldset>
+                    <FolderChecklist roots={roots} hiddenFolderIds={hiddenFolderIds} chosen={chosen} onChange={setChosen} legend="Folders to share" />
                     <p className="ai-dialog-hint" aria-live="polite">{chosen.size ? `${plural(sharedCount, 'bookmark')} in ${plural(chosen.size, 'folder')} will be shared.` : 'Nothing chosen yet. Folders hidden from search are never shared.'}</p>
                     <div>
                         <label className="field-label" htmlFor="ai-goal">What should the AI do? (optional)</label>

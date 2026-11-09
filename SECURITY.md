@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0: feedback relay)._
+_Last updated: 2026-11-09T17:05:16+00:00 (1.7.0: AI change sets and the coding-agent bridge)._
 
 ## Reporting a vulnerability
 
@@ -32,6 +32,8 @@ working exploits or keys publicly.
 | Restore destination | Never chosen across storage scopes (local vs synced) without the user picking it. |
 | Managed bookmarks | Never deleted; a request that includes one is rejected as a whole. |
 | Extension pages | CSP `script-src 'self'; object-src 'self'`; no remote code. |
+| AI change sets (pasted, from a file, or from a coding agent) | Untrusted input: parsed with limits (1 MB, 200 changes, 1,000 items removed), control and bidi characters stripped, rendered as text; validated by simulation against the live tree; ids outside the shared folders or inside hidden ones read as unknown; nothing changes without the user's Apply; Trash contents are frozen at approval; Undo never overwrites a newer change. |
+| Coding-agent bridge (local programs of the same OS user) | Optional `nativeMessaging`, requested from a click. The host listens on a 0600 Unix socket in a 0700 folder it checks with `lstat` (no links, same owner) and keeps no state. Pairing needs a 6-digit code shown only in the extension, bound to the client's random pairing id, 2-minute life, 3 tries, 5 prompts an hour, blockable per name. Tokens are 32 random bytes; only their SHA-256 is stored; they never appear in output, errors or logs. Each agent reads only the folders the user ticks (never hidden ones) and proposes only if allowed. At most 4 connections and 64 KB per request. The regular worker only. |
 | Feedback relay (public, unauthenticated endpoint) | JSON only, 16 KB body, 4,000-character message, plausible-email check, honeypot; accepts only our extension's origins (a web page from any other origin gets 403); per-network burst and hourly limits plus a daily global cap, counted atomically in a Durable Object that refuses when it cannot count (an IPv6 sender counts as its /64); a failed send gives the allowance back; generic errors that never echo the provider's response; stores only rate-limit counters keyed by an HMAC of the network, deleted within 26 hours. |
 
 ## Permissions
@@ -39,4 +41,6 @@ working exploits or keys publicly.
 See PRIVACY_DETAILS.md for the justification of each permission. New permissions must not add an
 install warning (DECISIONS.md D3). The optional `history` permission is requested only from a
 click and checked with `chrome.permissions.contains` before every use; it was verified to add
-no install warning (Chrome 156, 2026-11-08).
+no install warning (Chrome 156, 2026-11-08). The optional `nativeMessaging` permission (1.7.0)
+follows the same rule; `management.getPermissionWarningsByManifest` returned the same warnings with
+and without it (2026-11-09).

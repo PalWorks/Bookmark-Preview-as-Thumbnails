@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown, Bot } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown, Bot, Plug } from 'lucide-react';
 import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
 import type { SortOrder } from '../lib/list_columns';
@@ -68,6 +68,7 @@ interface TopBarProps {
     /** AI changes (D18): share folders with an AI, and review its proposals. */
     onOrganiseAI?: () => void;
     onOpenAIChanges?: () => void;
+    onOpenAgents?: () => void;
     aiPendingCount?: number;
 }
 
@@ -114,6 +115,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     onOpenFeedback,
     onOrganiseAI,
     onOpenAIChanges,
+    onOpenAgents,
     aiPendingCount = 0,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -570,6 +572,18 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <div className="menu-text">
                                     <div className="menu-title">AI changes{aiPendingCount > 0 ? ` (${aiPendingCount} to review)` : ''}</div>
                                     <div className="menu-desc">Review, apply or undo</div>
+                                </div>
+                            </button>
+                        )}
+                        {onOpenAgents && (
+                            <button type="button" role="menuitem" className="menu-item" onClick={() => {
+                                onOpenAgents();
+                                setIsMenuOpen(false);
+                            }}>
+                                <Plug size={16} className="menu-icon" aria-hidden="true" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Coding agents</div>
+                                    <div className="menu-desc">Claude Code, Cursor, VS Code</div>
                                 </div>
                             </button>
                         )}

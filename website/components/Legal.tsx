@@ -5,10 +5,10 @@ export const PrivacyPolicy: React.FC = () => (
   <div className="max-w-4xl mx-auto py-24 px-4">
     <h1 className="text-4xl font-bold text-slate-900 mb-8">Privacy Policy</h1>
     <div className="prose prose-slate max-w-none text-slate-600 space-y-6">
-      <p>Last updated: 9 November 2026 (version 1.6.0)</p>
+      <p>Last updated: 9 November 2026 (version 1.7.0)</p>
 
       <h3 className="text-xl font-bold text-slate-900">1. Overview</h3>
-      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We use no analytics or telemetry and never receive your bookmarks, thumbnails or settings. The only data that can leave your device is described in sections 3 and 4: what you send to a cloud AI provider you turn on yourself, and feedback you choose to send us.</p>
+      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We use no analytics or telemetry and never receive your bookmarks, thumbnails or settings. The only data that can leave your device is described in sections 3 to 5: what you send to a cloud AI provider you turn on yourself, feedback you choose to send us, and folders you choose to share with an AI or a coding agent.</p>
 
       <h3 className="text-xl font-bold text-slate-900">2. What the Extension stores on your device</h3>
       <ul className="list-disc pl-5 space-y-2">
@@ -39,7 +39,14 @@ export const PrivacyPolicy: React.FC = () => (
       </ul>
       <p>The relay stores no message content. To limit abuse it keeps short-lived counters per network, named by a keyed one-way hash of the network address and never the address itself, which expire within 26 hours. We use what you send only to answer you and improve the Extension, and never sell it. To have a message deleted, write to support@palworks.ai.</p>
 
-      <h3 className="text-xl font-bold text-slate-900">5. Permissions</h3>
+      <h3 className="text-xl font-bold text-slate-900">5. AI changes and coding agents (optional, from version 1.7.0)</h3>
+      <ul className="list-disc pl-5 space-y-2">
+        <li><strong>Organise with an AI:</strong> you tick the folders to share (none are ticked at first). The Extension builds a text of their titles, links, tags and ratings that you copy or save, and you choose which AI receives it; that AI's provider handles it under its own policy. You can remove the part of links after "?". Folders hidden from search are never included. The Extension itself sends nothing.</li>
+        <li><strong>Coding agents:</strong> if you turn on Settings, Coding agents, Chrome asks for the optional permission to communicate with a helper program on your computer. Agents you pair with a 6-digit code shown only in the Extension can read just the folders you tick for them, and may pass what they read to the AI service they use. They can only propose changes; nothing changes until you apply them, and you can undo them.</li>
+        <li>Change sets and the record that lets you undo them stay on your device for 30 days and are not included in backups.</li>
+      </ul>
+
+      <h3 className="text-xl font-bold text-slate-900">6. Permissions</h3>
       <ul className="list-disc pl-5 space-y-2">
         <li><strong>bookmarks:</strong> read and organise your bookmarks.</li>
         <li><strong>tabs, activeTab, scripting, webNavigation:</strong> load and capture your bookmarked pages to make thumbnails.</li>
@@ -47,13 +54,14 @@ export const PrivacyPolicy: React.FC = () => (
         <li><strong>favicon:</strong> show a site's icon from Chrome's local cache when a bookmark has no thumbnail yet.</li>
         <li><strong>alarms:</strong> run a daily local clean-up that removes Trash items older than 30 days.</li>
         <li><strong>history (optional):</strong> requested only when you turn on the Visits or Last visited column in list view. It reads the visit count and last visit of the bookmarks on screen, on your device, and stores nothing. Turning the columns off gives the permission back.</li>
+        <li><strong>nativeMessaging (optional):</strong> requested only when you turn on Settings, Coding agents, to talk to the helper program you installed. Turning the switch off gives it back.</li>
         <li><strong>Access to all sites:</strong> capture screenshots of any site you have bookmarked and, only if you turn on cloud AI, reach your chosen provider.</li>
       </ul>
 
-      <h3 className="text-xl font-bold text-slate-900">6. Deleting your data</h3>
+      <h3 className="text-xl font-bold text-slate-900">7. Deleting your data</h3>
       <p>Empty Trash to remove deleted items at once, clear your API key in AI Settings, or uninstall the Extension to remove all of its local data.</p>
 
-      <h3 className="text-xl font-bold text-slate-900">7. Contact</h3>
+      <h3 className="text-xl font-bold text-slate-900">8. Contact</h3>
       <p>Questions: support@palworks.ai, or open an issue at github.com/PalWorks/Bookmark-Preview-as-Thumbnails.</p>
     </div>
   </div>

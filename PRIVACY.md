@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-09T16:00:59+00:00
+**Last Updated:** 2026-11-09T17:03:54+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -61,9 +61,27 @@ engine:
   are sent. Your data is handled by the chosen provider under **their** privacy
   policy and terms. We do not receive, store, or sell any of it.
 
-If you never enable a cloud AI provider and never send feedback, the extension
-makes no third-party network requests (it only loads the pages you bookmark, in
+If you never enable a cloud AI provider, never send feedback and never pair a coding
+agent, the extension makes no third-party network requests (it only loads the pages you bookmark, in
 order to screenshot them).
+
+## AI changes and coding agents (optional, from 1.7.0)
+
+- **Organise with an AI.** You tick the folders to share (none are ticked at first).
+  The extension builds a text of their titles, links, tags and ratings that you copy
+  or save, and you decide which AI to give it to; that AI's provider handles it under
+  its own policy. You can remove the part of links after "?". Folders hidden from
+  search are never included. The extension itself sends nothing anywhere.
+- **Coding agents.** If you turn on Settings > Coding agents, Chrome asks for the
+  optional "communicate with cooperating native applications" permission. A helper
+  program on your computer then relays requests from coding agents you pair (with a
+  6-digit code shown only in the extension). A paired agent can read only the folders
+  you tick for it, and it may pass what it reads to the AI service it uses. Agents can
+  only propose changes; nothing changes until you apply them, and you can undo them.
+  Pairing tokens are stored as one-way hashes. Turning the switch off removes the
+  permission.
+- **Change sets** you import or receive, and the record that lets you undo them, are
+  kept in `chrome.storage.local` for 30 days. They are not included in backups.
 
 ## Feedback you send (optional)
 
@@ -98,6 +116,9 @@ support@palworks.ai.
   of the bookmarks on screen from Chrome's history, on your device, and stores nothing.
   Turning those columns off gives the permission back; you can also remove it in
   `chrome://extensions`.
+- **nativeMessaging (optional, 1.7.0)** — asked for only when you turn on Settings >
+  Coding agents, so the extension can talk to the helper program you installed for coding
+  agents. Turning the switch off gives the permission back.
 - **host permissions (`<all_urls>`)** — capture screenshots of any site you have
   bookmarked, and (only if you enable cloud AI) send requests to your chosen
   provider's API endpoint.

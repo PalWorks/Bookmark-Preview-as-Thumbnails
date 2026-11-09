@@ -1,8 +1,9 @@
 # Data model
 
-_Last updated: 2026-11-09T16:00:59+00:00 (1.6.0 feedback stores nothing locally)._
+_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI change sets and coding-agent keys)._
 
-All data is local to the browser profile. The feedback form (1.6.0) stores nothing: a message
+All data is local to the browser profile. None of the 1.7.0 `cs*` or `bridge_*` keys has the legacy
+metadata shape (`tests/change_sets.test.ts`), and backups never include them. The feedback form (1.6.0) stores nothing: a message
 goes to the relay in `worker/` when the user presses Send, and the relay keeps no message content
 (only hashed per-network rate counters, at most 26 hours; [worker/README.md](worker/README.md)).
 
@@ -25,6 +26,13 @@ goes to the relay in `worker/` when the user presses Send, and the relay keeps n
 | `trash_rev` | worker only | number (ms) | Bumped after every Trash change; `TRASH_CHANGED` carries it. |
 | `trash_purge_pending` | worker only | `{ urls: string[], at }` | Asset sweep journal; a crash resumes it. |
 | `trash_restoring_until` | worker only | number (ms) | Auto-capture skips bookmark creations until then (read by the incognito worker). |
+| `cs_<setId>` | worker only (`src/sw/change_sets.ts`) | `ChangeSetRecord`: the change set as received, a verdict and baseline per change, apply order, `approval {at, selected}`, `state`, `clientId?` | 1.7.0. AI change sets. Pending sets expire after 24 h; decided sets are removed after 30 days. Never in backups. |
+| `csj_<setId>` | worker only | `{ setId, count, startedAt, lastProgressAt }` | Journal header. |
+| `csj_<setId>_<n>` | worker only | `{ k, n, kind, state, before, after, reason?, createdId?, intentAt?, url?, trashOperationId?, trashEntryId?, idMap? }` | One journal item per change, written before the change runs. At most 50 journals are kept; older sets keep their row without Undo. |
+| `cssnap_<snapshotId>` | worker only | `{ folderIds, createdAt }` | Folders an "Organise with an AI" export shared; an answer that names this snapshot may touch only them. Removed after 7 days. |
+| `bridge_settings` | worker only (`src/sw/agent_bridge.ts`) | `{ enabled, profileId }` | 1.7.0. Coding agents switch and a random 8-character profile id. |
+| `bridge_clients` | worker only | `{ [clientId]: { id, name, tokenHash, pairedAt, lastUsedAt?, folderIds, stripQuery, mode: 'read' \| 'propose' } }` | Paired coding agents. Only the SHA-256 of each token is stored. |
+| `bridge_idem` | worker only | `{ ["clientId|key"]: { setId, hash, at } }` | Proposal idempotency keys, 24 h. |
 | `trash_recreated_folders` | worker only | `{ [folderId]: ms }` | Folders a restore recreated; a later restore of the original folder merges into them, never into a folder the user made. Pruned after 30 days. |
 
 ### TrashEntry
@@ -32,7 +40,7 @@ goes to the relay in `worker/` when the user presses Send, and the relay keeps n
 ```ts
 {
   version: 1, entryId, operationId,           // operationId groups the roots of one user action
-  origin: 'manual' | 'duplicate-finder' | 'external',   // external: deleted outside this extension (1.4.0)
+  origin: 'manual' | 'duplicate-finder' | 'external' | 'ai-changes',   // external: deleted outside this extension (1.4.0)
   title, isFolder, bookmarkCount, nodeCount,
   deletedAt, expiresAt,                       // expiresAt = deletedAt + 30 days
   parentId, index,                            // original position

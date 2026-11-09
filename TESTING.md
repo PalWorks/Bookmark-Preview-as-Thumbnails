@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-09T16:00:59+00:00 (coverage rows for 1.6.0 tests and the relay; counts checked: 374 Vitest, 32 relay)._
+_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI changes and bridge tests; 411 Vitest tests, 8 bridge tests, two e2e scripts)._
 
 ## Commands
 
@@ -12,6 +12,8 @@ npm run lint                             # ESLint incl. React Compiler rules (CI
 npm run build && npm run check:bundle    # build, then worker hygiene + secret/source-map scan
 npm run e2e                              # real Chrome, headless, throwaway profile (needs a build)
 cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback relay, 32 tests
+cd bridge && node build.mjs && node --test test/*.test.ts                            # coding-agent helper, 8 tests
+node scripts/e2e/bridge.mjs <build> bridge/dist/cli.js                               # real Chrome + host + CLI
 ```
 
 ## Setup
@@ -63,6 +65,11 @@ storage and bookmarks to test crash recovery.
 | 1.6.0 settings menu (Generate Preview sub-menu, backup icon row, AI Settings, trash-icon Delete) and the feedback dialog (no details when unticked, double submit sends once, text kept after a failed send) | `components/Menu.test.tsx` |
 | Capture page copy without scripts, expected failures logged as warnings | `content_capture.test.ts` |
 | Feedback relay: origins, limits, Durable Object counters, IPv6 /64, body caps, sanitising, provider errors | `worker/test/index.test.ts` (Node test runner, not in the Vitest count) |
+| AI change sets: format parsing, every validation rule, simulation, apply as one step and Undo (tree, tags, ratings, Trash), skipped changes, frozen Trash, move out then trash parent, dependency unticking, interrupted apply and Finish, expiry, retention, scope, storage-key shape | `change_sets.test.ts` |
+| AI changes in the App: import, review, untick, apply, Undo, refused sets, export of ticked folders only with query stripping | `components/AIChanges.test.tsx` |
+| Coding-agent bridge, extension side: error contract, pairing (code never sent, id-bound, 3 tries, 2 min, 5 an hour), grants and hidden folders for every tool, cursors, read-only, idempotency, per-agent caps, ownership, version handshake | `agent_bridge.test.ts` |
+| Package version and docs/bridge.md stay in step with the protocol | `bridge_version.test.ts` |
+| Native host as a real process (framing, per-connection relay, limits, socket and folder modes, link refusal), install/uninstall/doctor on a fake home, CLI exit codes, MCP server end to end | `bridge/test/*.test.ts` (Node test runner) |
 | Whole app 1.4.0 flows: range select and bulk delete, bulk move and Undo, Ctrl+A, colour, hidden from search, rating, Trash switch | `components/Bulk.test.tsx` |
 
 ## What tests cannot cover

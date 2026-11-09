@@ -1,11 +1,31 @@
 # Decisions
 
-_Last updated: 2026-11-09T15:53:05+00:00 (D18: AI change sets first, bridge after demand)._
+_Last updated: 2026-11-09T17:05:49+00:00 (D19: both stages built for 1.7.0)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D19. Build both stages now; how 1.7.0 implements them (owner, 2026-11-09)
+
+The owner chose option C: build Stage 1 (AI changes by paste or file) and Stage 2 (the coding-agent
+bridge) now, with no 90-day demand check. D18's order and its scope rules stand (one format, one
+validator, the review panel, folder-scoped disclosure, Chrome on Linux and macOS first). Choices made
+while building, each tested:
+
+| Topic | Plan | Built | Why |
+|---|---|---|---|
+| Change kinds | 1a (folders, moves, renames), then 1b (tags, ratings, Trash) | All six together | Built and tested in one pass at the owner's request |
+| Apply lease | `chrome.storage.session` lease with `lastProgressAt` | One promise queue; a fresh worker treats any set left `applying` as interrupted and classifies each item | Only the regular worker applies, so a new worker cannot have a job running; simpler and covered by a resume test |
+| Pairing binding | Bound to the starting socket connection | Bound to a random pairing id the client keeps in its 0600 token file | The CLI and the MCP server open one connection per call, so the code arrives on a new connection; the id keeps "only the agent that asked can finish" |
+| MCP server | MCP SDK | A small JSON-RPC stdio server in `bridge/src/mcp.ts` | No runtime dependencies, so `install` can copy the host out of the npx cache; the surface is 7 tools |
+| Restore id map | Kept for all restores | Kept only for `ai-changes` entries, for 30 days | Other restores keep their progress writes small (existing test) |
+| Real-Chrome test of the bridge | Manual | `scripts/e2e/bridge.mjs` loads a temporary copy with `nativeMessaging` required | Headless Chrome cannot click Allow on an optional permission |
+
+**Rule: the release keeps `nativeMessaging` optional and adds no install warning
+(`management.getPermissionWarningsByManifest` returns the same list as 1.6.0); publishing the npm
+package and submitting 1.7.0 need the owner.**
 
 ## D18. AI change sets come first; the agent bridge waits for demand (autoplan gate, 2026-11-09)
 
@@ -19,6 +39,8 @@ all three challenges at the gate:
 | uc1 | Bridge first, then reviewed change sets | Stage 1: export chosen folders, import an AI's change set, review, apply, Undo; Stage 2 bridge only after a 90-day demand check |
 | uc2 | Agents read the whole library minus hidden folders | The user picks the folders an AI may see, none by default, with an option to strip query strings |
 | uc3 | Chrome, Edge and Brave on Linux, Windows and macOS | Bridge first on Chrome for Linux and macOS; the rest in Stage 3 |
+
+_Partly superseded by D19: the owner chose to build Stage 2 now, without the demand check._
 
 **Rule: every AI change, from any source, goes through one change-set format, one validator, the
 Agent changes panel and the worker's journaled apply with Undo. Nothing an AI did not get from a

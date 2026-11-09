@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - not released yet (branch feat/agent-changes, 2026-11-09T17:05:49+00:00)
+
+AI changes and coding agents ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md),
+DECISIONS D18 and D19).
+
+### Added
+
+- **Organise with an AI.** Settings > Organise with an AI shares the folders you tick (none at
+  first, never folders hidden from search; optionally without the part of links after "?") as
+  text you copy or save for any AI, with instructions for its answer. Paste or open the answer
+  to review it.
+- **Review panel and AI changes.** Every proposed change is listed by kind (new folders, moves,
+  renames, tags, ratings, Trash) with before and after and a tick box; unticking a new folder
+  unticks the moves into it. "Apply N changes" runs them as one step; AI changes lists every
+  set with Undo, and Finish for a set that was interrupted. Nothing changes before Apply, an item
+  changed since review is skipped, Undo never overwrites a newer change, and Trash keeps exactly
+  what was approved. A set that cannot be applied is refused whole with a reason per change.
+- **Coding agents.** Settings > Coding agents connects Claude Code, Cursor or VS Code through the
+  new `bookmarks-thumbnails-mcp` npm package (Chrome on Linux and macOS, Node 22): pair with a
+  6-digit code shown in the extension, choose the folders each agent may read, and allow
+  proposals per agent. Agent proposals wait in AI changes; the toolbar icon shows how many.
+- Optional permission `nativeMessaging`, requested only when the switch is turned on; install
+  warnings are unchanged.
+
+### Changed
+
+- Trash labels items removed by applied AI changes, and keeps the restore record of those items
+  for 30 days so their Undo works later.
+
 ## [Unreleased]
 
 ### Documentation

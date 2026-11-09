@@ -1,0 +1,32 @@
+{
+    "name": "bookmarks-thumbnails-mcp",
+    "version": "1.7.0",
+    "description": "Let coding agents (Claude Code, Cursor, VS Code) read the bookmark folders you choose in Chrome and propose changes you review and can undo, through the Visual Bookmark Manager with Thumbnail Previews extension.",
+    "license": "AGPL-3.0-only",
+    "type": "module",
+    "engines": {
+        "node": ">=22"
+    },
+    "bin": {
+        "bookmarks-thumbnails-mcp": "dist/cli.js",
+        "bookmarks-thumbnails": "dist/cli.js",
+        "bookmarks-thumbnails-host": "dist/host.js"
+    },
+    "files": [
+        "dist/cli.js",
+        "dist/host.js",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "node build.mjs",
+        "test": "node build.mjs && node --test test/*.test.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails.git",
+        "directory": "bridge"
+    },
+    "keywords": ["mcp", "bookmarks", "chrome", "claude-code", "native-messaging"]
+}

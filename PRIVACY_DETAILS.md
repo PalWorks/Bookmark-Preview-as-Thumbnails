@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy Details
 
-_Last updated: 2026-11-09T16:01:20+00:00 (1.6.0: PII and personal communications for the feedback form; Location unticked; planned changes)._
+_Last updated: 2026-11-09T17:03:54+00:00 (1.7.0: optional nativeMessaging for coding agents)._
 
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
@@ -26,6 +26,7 @@ These are the permissions actually declared in the manifest:
 | **favicon** | Show a bookmark's site icon from Chrome's local favicon cache when no thumbnail exists yet. No network request. |
 | **alarms** | Run a daily local clean-up that permanently removes Trash items older than 30 days. |
 | **history** (optional) | Requested only when the user turns on the Visits or Last visited column in list view. Reads visit count and last visit time for the bookmarks on screen with `chrome.history.getVisits`; nothing is stored or sent anywhere. Optional permissions add no install warning. |
+| **nativeMessaging** (optional, 1.7.0) | Requested only when the user turns on Settings > Coding agents. Lets the extension exchange messages with a helper program the user installed (`bookmarks-thumbnails-mcp`), which relays requests from coding agents the user pairs. Agents read only folders the user ticks and can only propose changes the user reviews. Optional permissions add no install warning (checked with `management.getPermissionWarningsByManifest`, Chrome, 2026-11-09). |
 | **webNavigation** | Detect when a page finishes loading during batch capture so the screenshot reflects the rendered page. |
 | **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and, only if the user enables a cloud AI provider, send requests to that provider's API endpoint. The feedback form (1.6.0) posts to our own relay; that request needs no extra permission. |
 
@@ -76,11 +77,13 @@ third-party provider. Disclose this accurately:
   purpose" — OK (the transfer is for tagging/search, the stated purpose).
 - "I do not use or transfer user data to determine creditworthiness / lending" — OK.
 
-## 5. Planned changes that will need this page
+## 5. AI changes and coding agents (1.7.0)
 
-The approved Agent changes plan (docs/designs/agent-bridge.md) adds no permission in
-Stage 1. Its Stage 2 would add optional `nativeMessaging` with a justification here and a
-check of the User Data policy first. Nothing to change until that ships.
+- No new data-usage box is ticked for these features [Inference: to be confirmed against
+  the dashboard wording and the User Data policy before submitting 1.7.0]: the extension
+  itself sends nothing; the user copies an export to an AI of their choice, or pairs a
+  local program that reads only the folders they tick.
+- Privacy tab: add the `nativeMessaging` justification above.
 
 ## 6. Privacy Policy
 
