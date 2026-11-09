@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-08T13:24:59+00:00
+**Last Updated:** 2026-11-09T05:15:45+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -60,9 +60,29 @@ engine:
   are sent. Your data is handled by the chosen provider under **their** privacy
   policy and terms. We do not receive, store, or sell any of it.
 
-If you never enable a cloud AI provider, the extension makes no third-party
-network requests (it only loads the pages you bookmark, in order to screenshot
-them).
+If you never enable a cloud AI provider and never send feedback, the extension
+makes no third-party network requests (it only loads the pages you bookmark, in
+order to screenshot them).
+
+## Feedback you send (optional)
+
+**Settings > Submit Feedback** opens a form inside the extension. Nothing is sent
+until you press **Send feedback**. Then the extension sends, to our feedback relay
+(a Cloudflare Worker run by us), which emails it to support@palworks.ai through our
+email provider (Resend):
+
+- the topic you picked and the **message you typed**;
+- the **email address**, only if you typed one, so we can reply;
+- unless you untick "Include technical details": the extension version, the browser
+  build and operating system (for example "Chrome/156 on Linux"), how many bookmarks
+  and folders you have, and whether you use grid or list view. **No bookmark titles,
+  links, folder names or tags.**
+
+The relay stores no message content. To limit abuse it keeps short-lived counters per
+network, named by a keyed one-way hash of the network address and never the address itself;
+they expire within 26 hours. We use what you send only to answer you and improve the
+extension, and we never sell it. To have a message deleted, write to
+support@palworks.ai.
 
 ## Permissions
 

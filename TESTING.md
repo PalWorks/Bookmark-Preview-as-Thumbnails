@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0: rename and paste Undo; 338 tests)._
+_Last updated: 2026-11-09T05:23:51+00:00 (1.6.0: feedback, menu and capture tests, 374 tests; worker 32; CI cut to one job on code pull requests)._
 
 ## Commands
 
@@ -67,8 +67,9 @@ Chrome-only behaviour (the real update path, permission warnings, the favicon ca
 `npm run e2e` (`scripts/e2e/smoke.mjs`) automates the core of it locally: it starts its own
 headless Chrome with a throwaway profile, loads `dist/`, and checks that a delete made outside the
 extension is kept and restores with its colour, that an extension delete is recorded once, the
-360 px and 1280 px layouts, and the console. CI runs it after "Lint · Test · Build" as the
-"Real-Chrome smoke test" job (Node 22 for the built-in WebSocket; `E2E_NO_SANDBOX=1` adds
-`--no-sandbox`, which the runner needs). A full run of the
+360 px and 1280 px layouts, and the console. CI runs it as the last step of its single job
+(Node 22 for the built-in WebSocket; `E2E_NO_SANDBOX=1` adds `--no-sandbox`, which the runner
+needs). CI runs only on pull requests that change code; docs-only pull requests skip it, so run
+the full local set before every push. A full run of the
 suite under heavy machine load has once timed out an App test (one in eleven runs on
 2026-11-08); a re-run passes.

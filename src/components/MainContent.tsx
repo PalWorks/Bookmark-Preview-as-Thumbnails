@@ -109,20 +109,19 @@ export const MainContent: React.FC<MainContentProps> = ({
         }
     };
 
-    const deleteButton = (node: Node, withLabel: boolean) => {
+    const deleteButton = (node: Node) => {
         const title = node.title || node.url || 'Untitled';
         const busy = pendingDeleteIds.has(node.id);
         return (
             <button
                 type="button"
-                className={`tile-action-btn tile-delete-btn ${withLabel ? 'tile-action-btn--label' : ''}`}
+                className="tile-action-btn tile-delete-btn"
                 aria-label={`Delete ${title}`}
                 title={canDelete ? 'Delete (you can undo)' : 'Delete works in regular windows only'}
                 disabled={!canDelete || busy}
                 onClick={(e) => { e.stopPropagation(); onDelete(node); }}
             >
                 {busy ? <span className="btn-spinner" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}
-                {withLabel && <span>Delete</span>}
             </button>
         );
     };
@@ -288,7 +287,7 @@ export const MainContent: React.FC<MainContentProps> = ({
                                     </div>
                                     <div className="row-actions">
                                         {moreButton(node)}
-                                        {deleteButton(node, true)}
+                                        {deleteButton(node)}
                                     </div>
                                 </div>
                             );
@@ -347,7 +346,7 @@ export const MainContent: React.FC<MainContentProps> = ({
                                 )}
                                 <div className="row-actions">
                                     {moreButton(node)}
-                                    {!isPermanent(node) && deleteButton(node, true)}
+                                    {!isPermanent(node) && deleteButton(node)}
                                 </div>
                             </div>
                         );
@@ -374,7 +373,7 @@ export const MainContent: React.FC<MainContentProps> = ({
                             )}
                             <div className="tile-actions">
                                 {moreButton(node)}
-                                {!isPermanent(node) && deleteButton(node, false)}
+                                {!isPermanent(node) && deleteButton(node)}
                             </div>
                         </div>
                     );

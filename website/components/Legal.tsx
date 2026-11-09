@@ -5,10 +5,10 @@ export const PrivacyPolicy: React.FC = () => (
   <div className="max-w-4xl mx-auto py-24 px-4">
     <h1 className="text-4xl font-bold text-slate-900 mb-8">Privacy Policy</h1>
     <div className="prose prose-slate max-w-none text-slate-600 space-y-6">
-      <p>Last updated: 8 November 2026 (version 1.5.0)</p>
+      <p>Last updated: 9 November 2026 (version 1.6.0)</p>
 
       <h3 className="text-xl font-bold text-slate-900">1. Overview</h3>
-      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We run no servers, use no analytics or telemetry, and never receive your bookmarks, thumbnails or settings. The only data that can leave your device is described in section 3, and only if you turn on a cloud AI provider yourself.</p>
+      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We use no analytics or telemetry and never receive your bookmarks, thumbnails or settings. The only data that can leave your device is described in sections 3 and 4: what you send to a cloud AI provider you turn on yourself, and feedback you choose to send us.</p>
 
       <h3 className="text-xl font-bold text-slate-900">2. What the Extension stores on your device</h3>
       <ul className="list-disc pl-5 space-y-2">
@@ -30,7 +30,16 @@ export const PrivacyPolicy: React.FC = () => (
       </ul>
       <p>No page contents, browsing history or cookies are sent. The provider handles that data under its own privacy policy. We never receive, store or sell it.</p>
 
-      <h3 className="text-xl font-bold text-slate-900">4. Permissions</h3>
+      <h3 className="text-xl font-bold text-slate-900">4. Feedback you send (optional, from version 1.6.0)</h3>
+      <p>Settings, Submit Feedback opens a form inside the Extension. Nothing is sent until you press Send feedback. Then it goes to our feedback relay (a Cloudflare Worker we run), which emails it to support@palworks.ai through our email provider, Resend. It contains:</p>
+      <ul className="list-disc pl-5 space-y-2">
+        <li>the topic you picked and the message you typed;</li>
+        <li>your email address, only if you typed one, so we can reply;</li>
+        <li>unless you untick "Include technical details": the Extension version, browser build and operating system, how many bookmarks and folders you have, and whether you use grid or list view. No bookmark titles, links, folder names or tags.</li>
+      </ul>
+      <p>The relay stores no message content. To limit abuse it keeps short-lived counters per network, named by a keyed one-way hash of the network address and never the address itself, which expire within 26 hours. We use what you send only to answer you and improve the Extension, and never sell it. To have a message deleted, write to support@palworks.ai.</p>
+
+      <h3 className="text-xl font-bold text-slate-900">5. Permissions</h3>
       <ul className="list-disc pl-5 space-y-2">
         <li><strong>bookmarks:</strong> read and organise your bookmarks.</li>
         <li><strong>tabs, activeTab, scripting, webNavigation:</strong> load and capture your bookmarked pages to make thumbnails.</li>
@@ -41,10 +50,10 @@ export const PrivacyPolicy: React.FC = () => (
         <li><strong>Access to all sites:</strong> capture screenshots of any site you have bookmarked and, only if you turn on cloud AI, reach your chosen provider.</li>
       </ul>
 
-      <h3 className="text-xl font-bold text-slate-900">5. Deleting your data</h3>
+      <h3 className="text-xl font-bold text-slate-900">6. Deleting your data</h3>
       <p>Empty Trash to remove deleted items at once, clear your API key in AI Settings, or uninstall the Extension to remove all of its local data.</p>
 
-      <h3 className="text-xl font-bold text-slate-900">6. Contact</h3>
+      <h3 className="text-xl font-bold text-slate-900">7. Contact</h3>
       <p>Questions: support@palworks.ai, or open an issue at github.com/PalWorks/Bookmark-Preview-as-Thumbnails.</p>
     </div>
   </div>

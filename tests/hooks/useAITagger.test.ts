@@ -109,21 +109,4 @@ describe('useAITagger', () => {
         act(() => { listener({ type: 'TAG_BATCH_FAILED', error: 'AI error' }); });
         expect(result.current.isTagging).toBe(false);
     });
-
-    it('triggerAutoTag sends AUTO_TAG message to SW', () => {
-        const folder = makeFolder([]);
-        const { result } = renderHook(() => useAITagger(folder));
-        const bookmarks = [{ url: 'https://example.com', title: 'Example' }];
-        act(() => { result.current.triggerAutoTag(bookmarks); });
-        expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ type: 'AUTO_TAG', bookmarks })
-        );
-    });
-
-    it('stopAutoTag sends STOP_TAG message to SW', () => {
-        const folder = makeFolder([]);
-        const { result } = renderHook(() => useAITagger(folder));
-        act(() => { result.current.stopAutoTag(); });
-        expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'STOP_TAG' });
-    });
 });

@@ -1,9 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, PanelLeft, SlidersHorizontal, CheckSquare } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown } from 'lucide-react';
 import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
 import type { SortOrder } from '../lib/list_columns';
+
+// Hover help for the Generate Preview settings, written for non-technical users.
+const TIP_INCOGNITO =
+    'Opens this bookmark manager in a private (Incognito) window, and previews are taken from there. ' +
+    'Private windows do not use your sign-ins or cookies, so pages that need you to be logged in ' +
+    '(for example Gmail or Notion) show their sign-in page instead of your content. ' +
+    'Chrome must also allow this extension in Incognito; you will be taken to that setting if needed.';
+const TIP_ACTIVE_TAB =
+    'Takes each preview by briefly bringing the page to the front of the capture window and ' +
+    'photographing it, like a screenshot. It is slower, but gives better previews of pages that load ' +
+    'their content late, such as Reddit or GitHub. Leave it off unless previews look blank or broken.';
+const TIP_DELAY =
+    'How long to wait after a page opens before its preview is taken, in milliseconds ' +
+    '(1000 = 1 second). Raise it if previews show half-loaded pages; lower it to finish faster. ' +
+    'Allowed: 100 to 30000.';
 
 interface TopBarProps {
     onSearch: (query: string) => void;
@@ -35,14 +50,11 @@ interface TopBarProps {
     onCaptureDelayCommit: (value: number) => void;
     useActiveTabCapture: boolean;
     onToggleActiveTabCapture: (value: boolean) => void;
-    aiAvailability: 'checking' | 'available' | 'after-download' | 'unavailable' | 'unsupported';
     isTagging: boolean;
     taggingProgress: { done: number; total: number };
     availableTags: string[];
     activeTag: string | null;
     onTagChange: (tag: string | null) => void;
-    onAutoTag: () => void;
-    onStopTag: () => void;
     onAISettings: () => void;
     isAISettingsActive: boolean;
     /** Show or hide the folder panel (drawer on phones). */
@@ -51,6 +63,8 @@ interface TopBarProps {
     onOpenTrash: () => void;
     trashCount: number;
     onExportSettings: () => void;
+    /** Opens the in-product feedback form. */
+    onOpenFeedback: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -78,14 +92,11 @@ export const TopBar: React.FC<TopBarProps> = ({
     onCaptureDelayCommit,
     useActiveTabCapture,
     onToggleActiveTabCapture,
-    aiAvailability,
     isTagging,
     taggingProgress,
     availableTags,
     activeTag,
     onTagChange,
-    onAutoTag,
-    onStopTag,
     onAISettings,
     isAISettingsActive,
     onToggleFolders,
@@ -96,8 +107,10 @@ export const TopBar: React.FC<TopBarProps> = ({
     onToggleSelect,
     selecting,
     canSortByVisits,
+    onOpenFeedback,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isCaptureSettingsOpen, setIsCaptureSettingsOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isSortOpen, setIsSortOpen] = useState(false);
 
@@ -172,8 +185,6 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
     );
 
-    const aiDisabled = aiAvailability === 'unsupported' || aiAvailability === 'unavailable';
-
     return (
         <header className="top-bar">
             <button
@@ -182,10 +193,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                 onClick={onToggleFolders}
                 aria-expanded={foldersOpen}
                 aria-controls={SIDEBAR_ID}
+                aria-label="Folders"
                 title={foldersOpen ? 'Hide folders' : 'Show folders'}
             >
-                <PanelLeft size={18} aria-hidden="true" />
-                <span>Folders</span>
+                <Menu size={22} aria-hidden="true" />
             </button>
 
             <div className="logo-section">
@@ -394,142 +405,138 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                         <div className="menu-divider"></div>
 
-                        <button type="button" role="menuitemcheckbox" aria-checked={useIncognito} className="menu-item toggle-item" onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleIncognito(!useIncognito);
-                        }}>
-                            {useIncognito ? <EyeOff size={16} className="menu-icon" aria-hidden="true" /> : <Eye size={16} className="menu-icon" aria-hidden="true" />}
-                            <div className="menu-text">
-                                <div className="menu-title">Open in Incognito Window</div>
-                                <div className="menu-desc">Re-opens extension in Incognito</div>
-                            </div>
-                            <div className={`toggle-switch ${useIncognito ? 'checked' : ''}`} aria-hidden="true"></div>
-                        </button>
-
-                        <div className="menu-info">
-                            <Info size={14} className="info-icon" aria-hidden="true" />
-                            <span>
-                                Note: Incognito mode cannot capture sites that require login (e.g. Gmail, Notion).
-                                You must also allow this extension in Incognito settings.
-                            </span>
-                        </div>
-
-                        <div className="menu-divider"></div>
-
-                        <button type="button" role="menuitemcheckbox" aria-checked={useActiveTabCapture} className="menu-item toggle-item" onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleActiveTabCapture(!useActiveTabCapture);
-                        }}>
-                            <LayoutGrid size={16} className="menu-icon" aria-hidden="true" />
-                            <div className="menu-text">
-                                <div className="menu-title">Use Active Tab Capture</div>
-                            </div>
-                            <div className={`toggle-switch ${useActiveTabCapture ? 'checked' : ''}`} aria-hidden="true"></div>
-                        </button>
-
-                        <div className="menu-info">
-                            <Info size={14} className="info-icon" aria-hidden="true" />
-                            <span>
-                                Experimental: Temporarily activates tabs to capture them.
-                                Fixes issues on sites like Reddit/GitHub.
-                            </span>
-                        </div>
-
-                        <div className="menu-divider"></div>
-
-                        <div className="menu-item menu-item--static" onClick={(e) => e.stopPropagation()}>
-                            <Clock size={16} className="menu-icon" aria-hidden="true" />
-                            <div className="menu-text">
-                                <label className="menu-title" htmlFor="capture-delay-input">Screen Capture Delay</label>
-                                <div className="menu-desc">Wait time (ms)</div>
-                            </div>
-                            <div className="delay-input-wrapper">
-                                <input
-                                    id="capture-delay-input"
-                                    type="number"
-                                    inputMode="numeric"
-                                    className="delay-input"
-                                    value={captureDelay}
-                                    onChange={(e) => {
-                                        const raw = parseInt(e.target.value, 10);
-                                        const value = isNaN(raw) ? 0 : raw;
-                                        onCaptureDelayChange(value);
-                                        onCaptureDelayCommit(value);
-                                    }}
-                                    onBlur={(e) => {
-                                        const raw = parseInt(e.target.value, 10);
-                                        const clamped = isNaN(raw) || raw < 100 ? 500 : Math.min(30000, raw);
-                                        onCaptureDelayChange(clamped);
-                                        onCaptureDelayCommit(clamped);
-                                    }}
-                                    min="100"
-                                    max="30000"
-                                    step="100"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="menu-divider"></div>
-
-                        <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                            onExportBackup();
-                            setIsMenuOpen(false);
-                        }}>
-                            <Download size={16} className="menu-icon" aria-hidden="true" />
-                            <div className="menu-text">
-                                <div className="menu-title">Export Backup</div>
-                                <div className="menu-desc">Settings and preview images</div>
-                            </div>
-                        </button>
-
-                        <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                            onExportSettings();
-                            setIsMenuOpen(false);
-                        }}>
-                            <SlidersHorizontal size={16} className="menu-icon" aria-hidden="true" />
-                            <div className="menu-text">
-                                <div className="menu-title">Export Settings</div>
-                                <div className="menu-desc">Small file, no images or API key</div>
-                            </div>
-                        </button>
-
-                        <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                            onImportBackup();
-                            setIsMenuOpen(false);
-                        }}>
-                            <Upload size={16} className="menu-icon" aria-hidden="true" />
-                            <div className="menu-text">
-                                <div className="menu-title">Import Backup</div>
-                                <div className="menu-desc">Restore a backup or settings file</div>
-                            </div>
-                        </button>
-
-                        <div className="menu-divider"></div>
-
                         <button
                             type="button"
                             role="menuitem"
-                            aria-disabled={aiDisabled}
-                            className={`menu-item ${aiDisabled ? 'menu-item--disabled' : ''}`}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (aiDisabled) return;
-                                if (isTagging) { onStopTag(); } else { onAutoTag(); setIsMenuOpen(false); }
-                            }}
+                            className="menu-item menu-disclosure"
+                            aria-expanded={isCaptureSettingsOpen}
+                            aria-controls="capture-settings"
+                            onClick={(e) => { e.stopPropagation(); setIsCaptureSettingsOpen(v => !v); }}
                         >
+                            <Camera size={16} className="menu-icon" aria-hidden="true" />
+                            <div className="menu-text">
+                                <div className="menu-title">Generate Preview settings</div>
+                                <div className="menu-desc">How previews are captured</div>
+                            </div>
+                            <ChevronDown size={16} className={`menu-chevron ${isCaptureSettingsOpen ? 'menu-chevron--open' : ''}`} aria-hidden="true" />
+                        </button>
+
+                        {isCaptureSettingsOpen && (
+                            <div id="capture-settings" className="menu-submenu" role="group" aria-label="Generate Preview settings">
+                            <button type="button" role="menuitemcheckbox" aria-checked={useIncognito} className="menu-item toggle-item" title={TIP_INCOGNITO} onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleIncognito(!useIncognito);
+                            }}>
+                                {useIncognito ? <EyeOff size={16} className="menu-icon" aria-hidden="true" /> : <Eye size={16} className="menu-icon" aria-hidden="true" />}
+                                <div className="menu-text">
+                                    <div className="menu-title">Use Incognito Window</div>
+                                    <div className="menu-desc">Re-opens extension in Incognito</div>
+                                </div>
+                                <div className={`toggle-switch ${useIncognito ? 'checked' : ''}`} aria-hidden="true"></div>
+                            </button>
+
+                            <div className="menu-info">
+                                <Info size={14} className="info-icon" aria-hidden="true" />
+                                <span>
+                                    Note: Incognito mode cannot capture sites that require login (e.g. Gmail, Notion).
+                                    You must also allow this extension in Incognito settings.
+                                </span>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <button type="button" role="menuitemcheckbox" aria-checked={useActiveTabCapture} className="menu-item toggle-item" title={TIP_ACTIVE_TAB} onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleActiveTabCapture(!useActiveTabCapture);
+                            }}>
+                                <LayoutGrid size={16} className="menu-icon" aria-hidden="true" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Use Active Tab Capture</div>
+                                </div>
+                                <div className={`toggle-switch ${useActiveTabCapture ? 'checked' : ''}`} aria-hidden="true"></div>
+                            </button>
+
+                            <div className="menu-info">
+                                <Info size={14} className="info-icon" aria-hidden="true" />
+                                <span>
+                                    Experimental: Temporarily activates tabs to capture them.
+                                    Fixes issues on sites like Reddit/GitHub.
+                                </span>
+                            </div>
+
+                            <div className="menu-divider"></div>
+
+                            <div className="menu-item menu-item--static" title={TIP_DELAY} onClick={(e) => e.stopPropagation()}>
+                                <Clock size={16} className="menu-icon" aria-hidden="true" />
+                                <div className="menu-text">
+                                    <label className="menu-title" htmlFor="capture-delay-input">Screen Capture Delay</label>
+                                    <div className="menu-desc">Wait time (ms)</div>
+                                </div>
+                                <div className="delay-input-wrapper">
+                                    <input
+                                        id="capture-delay-input"
+                                        type="number"
+                                        inputMode="numeric"
+                                        className="delay-input"
+                                        value={captureDelay}
+                                        onChange={(e) => {
+                                            const raw = parseInt(e.target.value, 10);
+                                            const value = isNaN(raw) ? 0 : raw;
+                                            onCaptureDelayChange(value);
+                                            onCaptureDelayCommit(value);
+                                        }}
+                                        onBlur={(e) => {
+                                            const raw = parseInt(e.target.value, 10);
+                                            const clamped = isNaN(raw) || raw < 100 ? 500 : Math.min(30000, raw);
+                                            onCaptureDelayChange(clamped);
+                                            onCaptureDelayCommit(clamped);
+                                        }}
+                                        min="100"
+                                        max="30000"
+                                        step="100"
+                                    />
+                                </div>
+                            </div>
+                            </div>
+                        )}
+
+                        <div className="menu-divider"></div>
+
+                        <div className="menu-icon-row" role="group" aria-label="Backup">
+                            <span className="menu-icon-row-label" aria-hidden="true">Backup</span>
+                            <button type="button" role="menuitem" className="menu-icon-btn"
+                                aria-label="Export Backup: settings and preview images"
+                                title="Export Backup: settings and preview images"
+                                onClick={() => { onExportBackup(); setIsMenuOpen(false); }}>
+                                <Upload size={18} aria-hidden="true" />
+                            </button>
+                            <button type="button" role="menuitem" className="menu-icon-btn"
+                                aria-label="Export Settings: small file, no images or API key"
+                                title="Export Settings: small file, no images or API key"
+                                onClick={() => { onExportSettings(); setIsMenuOpen(false); }}>
+                                <SlidersHorizontal size={18} aria-hidden="true" />
+                            </button>
+                            <button type="button" role="menuitem" className="menu-icon-btn"
+                                aria-label="Import Backup: restore a backup or settings file"
+                                title="Import Backup: restore a backup or settings file"
+                                onClick={() => { onImportBackup(); setIsMenuOpen(false); }}>
+                                <Download size={18} aria-hidden="true" />
+                            </button>
+                        </div>
+
+                        <div className="menu-divider"></div>
+
+                        <button type="button" role="menuitem" className="menu-item" onClick={() => {
+                            onAISettings();
+                            setIsMenuOpen(false);
+                        }}>
                             <Sparkles size={16} className="menu-icon menu-icon--ai" aria-hidden="true" />
                             <div className="menu-text">
-                                <div className="menu-title">
+                                <div className="menu-title">AI Settings</div>
+                                <div className="menu-desc">
                                     {isTagging
                                         ? `Auto-Tagging… (${taggingProgress.done}/${taggingProgress.total})`
-                                        : 'Auto-Tag Bookmarks'}
-                                </div>
-                                <div className="menu-desc">
-                                    {aiAvailability === 'checking' ? 'Checking AI availability…' :
-                                     aiAvailability === 'unsupported' ? 'Chrome 127+ required' :
-                                     aiAvailability === 'after-download' ? 'AI model downloading…' :
-                                     aiAvailability === 'unavailable' ? 'AI not available' :
-                                     isTagging ? 'Click to stop' : 'AI-powered topic tagging'}
+                                        : 'Auto-Tag and Smart Search'}
                                 </div>
                             </div>
                             {isTagging && <div className="ai-tag-spinner" aria-hidden="true"></div>}
@@ -538,7 +545,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <div className="menu-divider"></div>
 
                         <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                            chrome.tabs.create({ url: 'mailto:support@palworks.ai?subject=Feedback%20-%20Bookmarks%20Preview%20As%20Thumbnails' });
+                            onOpenFeedback();
                             setIsMenuOpen(false);
                         }}>
                             <MessageSquare size={16} className="menu-icon" aria-hidden="true" />

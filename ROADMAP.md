@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-09T03:11:55+00:00 (1.5.0 rejected for description keywords, fixed and resubmitted with new screenshots; row 16 done except the promo video)._
+> _Last updated: 2026-11-09T13:51:14+00:00 (1.5.0 live; 1.6.0 release started)._
 
 ## 0. North star: every open item, one row each
 
@@ -22,10 +22,12 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
-| 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.5.0 (which carries 1.3.0 and 1.4.0, owner decision 2026-11-08) is merged, tagged v1.5.0 and back in review on the Web Store since 2026-11-09T03:11:55+00:00. The first submission was rejected on 2026-11-08 for excessive keywords (AI provider names in the description); the list was removed. The owner added the permission justifications; the description, test instructions and website privacy policy were updated before submission. | When approved: run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1), then row 10, the promo video link (row 16) and the website feature list. |
+| 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.5.0 (which carries 1.3.0 and 1.4.0) is live on the Chrome Web Store (confirmed through the store API on 2026-11-09). The first submission was rejected on 2026-11-08 for excessive keywords; the resubmission passed. | Run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1) once 1.6.0 is live, then row 10, the promo video link (row 16) and the website feature list. |
 | 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.5.0 is live, listing what shipped (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
+| 18 | §3.2 | P2 | **Open** | L | M | 2026-11-09 | Coding agents and IDEs cannot read or organise the user's Chrome bookmarks. Design approved: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) (reviewed change sets with one-step Undo, via an optional nativeMessaging host and an MCP server). | Spike passed on Chrome 156 and Edge 156, Linux (D17). Next: /gstack-autoplan, then milestones 1 and 2; Brave, Windows, macOS and startup reconnect are tested in milestone 1. |
+| 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is released from PR #11 (owner approval 2026-11-09); the relay is deployed and tested end to end. | Tag v1.6.0, upload, update the Privacy tab (feedback data) in the dashboard, submit for review. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
 **Reading the narrow columns.** Bucket is the §3 area: 3.1 Release, 3.2 Features, 3.3 Engineering.
@@ -114,6 +116,8 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: resubmitted, in review | S | H |
+| 18 | Agent bridge (MCP + CLI, reviewed change sets) | §3.2 | **Open**: spike passed, plan review next | L | M |
+| 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **Waiting**: until 1.5.0 is approved | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.5.0 is live | T | M |

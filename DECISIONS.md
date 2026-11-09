@@ -1,11 +1,54 @@
 # Decisions
 
-_Last updated: 2026-11-08T13:54:32+00:00 (1.5.0: D15)._
+_Last updated: 2026-11-09T12:40:08+00:00 (D17: agent bridge spike)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D17. The agent bridge uses an optional nativeMessaging permission (spike, 2026-11-09)
+
+The agent bridge design ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md)) made a spike
+the gate, because one unconfirmed report said optional `nativeMessaging` does not activate on
+Chrome 156. A throwaway extension (optional `nativeMessaging`, `storage`) and a Node host
+(4-byte length framing, a heartbeat every 10 s) were tested on Linux in fresh profiles:
+
+| Check | Chrome 156.0.8078.79 | Edge 156.0.4314.58 |
+|---|---|---|
+| Permission prompt on request | "Communicate with cooperating native applications"; Deny is the default button | Same |
+| `connectNative` after Allow, without reload | Yes | Yes (`permissions.onAdded` connected at once) |
+| Host started at its registered path with `allowed_origins` = our id | Yes (origin `chrome-extension://<id>/`) | Yes (same origin form) |
+| Open port keeps the service worker alive | Yes, 6 min 10 s, 38 heartbeats answered | Yes during the 25 s checked |
+| Host told when the browser closes | Yes (stdin ends) | Not checked |
+| Install warnings of our real manifest with optional `nativeMessaging` added | Unchanged | Not checked (same Chromium code) |
+| Reconnect on `onStartup` after a browser restart | Not tested: an extension loaded through the debugging protocol does not persist across restarts | Not tested |
+
+Not tested: Brave (not installed), Windows and macOS, and reconnect on startup. These move into
+milestone 1's own tests (startup reconnect can be checked on a normal unpacked install).
+Host manifests for a custom profile live in `<user-data-dir>/NativeMessagingHosts/`.
+
+**Rule: the bridge requests `nativeMessaging` as an optional permission from a click on its
+switch, never at install; it reconnects from `permissions.onAdded` and `runtime.onStartup`. The
+report of it failing on Chrome 156 did not reproduce.**
+
+## D16. Feedback goes through our own relay, never straight to the mail provider (2026-11-09)
+
+The owner asked for a feedback form inside the extension, sent with Resend. A published
+extension is a zip anyone can unpack, so a Resend key in the bundle would be a public key that
+anyone could use to send mail as palworks.ai. The form posts instead to a Cloudflare Worker
+(`worker/`, copied from the proven Gmail Labels as Tabs relay) that holds a send-only Resend key
+scoped to the palworks.ai domain. The Worker validates hard (JSON only, 16 KB, 4,000-character
+message, honeypot), accepts only our extension's origins, rate limits per network (burst binding,
+5 an hour, 30 a day for everyone: owner decision 2026-11-09), stores no message content, and names networks by an HMAC of
+the address (an IPv6 /64 counts as one network), never the address. The pre-landing review of
+PR #11 (Claude and Codex agreeing) found the first version's KV counters non-atomic and failing
+open under a flood; this relay shares the Resend account with other palworks.ai senders, so the
+counters moved to a Durable Object (`worker/src/limiter.ts`) that counts exactly and refuses when
+it cannot count, and a failed send gives its allowance back.
+
+**Rule: no provider key ever ships in the extension. New network calls from the extension go to
+a server we run that holds the key, and are listed in PRIVACY.md and SECURITY.md.**
 
 ## D15. Undo for rename and move lives in the toast and never overwrites a newer change (2026-11-08)
 

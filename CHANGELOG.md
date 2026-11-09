@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-11-09
+
+Settings menu rework and an in-built feedback form, from the owner's mark-up of 2026-11-09.
+Released 2026-11-09T13:51:14+00:00, after 1.5.0 went live on the Chrome Web Store.
+
+### Added
+
+- **Feedback form inside the extension.** Settings > Submit Feedback opens a form (topic,
+  message, optional reply address, optional technical details) instead of a mail link. It posts
+  to a new relay, `worker/` (a Cloudflare Worker), which emails support@palworks.ai from
+  feedback.ThumbnailBookmarks@palworks.ai through Resend; the Resend key lives only in the
+  Worker (D16). Technical details are counts only: version, browser build, bookmark and folder
+  counts, view. What the user typed survives any send error.
+
+### Changed
+
+- **Folders button** in the top bar is now a plain menu icon (three lines), no text or frame;
+  its tooltip and accessible name say what it does.
+- **Settings menu:** Open in Incognito Window, Use Active Tab Capture and Screen Capture Delay
+  moved under a collapsed "Generate Preview settings" item. Export Backup, Export Settings and
+  Import Backup are one row of icon buttons with tooltips. The Auto-Tag item is replaced by
+  **AI Settings**, which opens the AI page (Auto-Tag runs from its Auto-Tag tab, as before) and
+  still shows tagging progress.
+- "Open in Incognito Window" is renamed **Use Incognito Window**. Each Generate Preview setting
+  explains itself in plain words on hover.
+- Backup icons: Export Backup shows an arrow out (upload), Import Backup an arrow in (download).
+- List view and folder tiles show **Delete** as a trash icon only (tooltip "Delete (you can
+  undo)"; screen readers still hear "Delete" and the item name).
+- On desktop, a tile's or row's ⋮ and trash buttons appear on hover or keyboard focus, like the
+  selection checkbox; on touch screens they stay visible.
+- The folder panel no longer has an **AI Settings** link; AI Settings is in the top bar and the
+  settings menu.
+- **Fewer failed previews on modern sites.** The background capture library is now
+  html2canvas-pro 2.5.2 (a maintained fork with the same API) instead of html2canvas 1.4.1, which
+  failed on CSS colour functions such as `color()`, `oklch()` and `lab()` (Google Docs and others),
+  forcing a slower fallback. The page copy it makes no longer includes the page's scripts, so
+  Chrome stops logging a blocked-script error for each one.
+- **Feedback relay hardening (pre-landing review).** Rate-limit counters moved from KV to a
+  Durable Object, which counts exactly under concurrency and refuses when it cannot count; only
+  the extension's own origins may post; an IPv6 sender counts as its /64; a failed send gives the
+  allowance back only when the provider failed on its side (never after a timeout, which may have
+  sent, or a 4xx); stale counters are swept hourly; a chunked oversized body is cut off while
+  reading; invisible control and bidi characters are stripped; reply addresses must be plain;
+  multi-line messages keep their line breaks; a non-object JSON body is a 400; the
+  body size is checked in bytes and against Content-Length first. At most 30 messages a day are accepted in total (owner decision). The form ignores a double
+  submit, counts its technical details once when it opens, and reports Edge as Edge.
+- Expected per-site capture failures are logged as warnings, not errors, so the extension's
+  Errors page in `chrome://extensions` shows only real faults.
+- Privacy policy (PRIVACY.md and the website) describes the feedback data flow.
+
 ## [1.5.0] - 2026-11-08T13:54:32+00:00
 
 Undo for rename and move (ROADMAP row 6). Submitted to the Chrome Web Store for review 2026-11-08T18:13:35+00:00; it also carries 1.3.0 and 1.4.0, which were not released on their own (owner decision, 2026-11-08). The store description, reviewer test instructions and the website privacy policy were updated for this release. The first submission was rejected on 2026-11-08 for excessive keywords (the description listed AI provider names); the provider list was removed, the five store screenshots were replaced with images of the current interface, and it was resubmitted 2026-11-09T03:11:55+00:00.
