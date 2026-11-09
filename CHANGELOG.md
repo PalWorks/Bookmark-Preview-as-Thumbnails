@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.5.0] - 2026-11-08T13:54:32+00:00
 
-Undo for rename and move (ROADMAP row 6). Submitted to the Chrome Web Store for review 2026-11-08T18:13:35+00:00; it also carries 1.3.0 and 1.4.0, which were not released on their own (owner decision, 2026-11-08). The store description, reviewer test instructions and the website privacy policy were updated for this release.
+Undo for rename and move (ROADMAP row 6). Submitted to the Chrome Web Store for review 2026-11-08T18:13:35+00:00; it also carries 1.3.0 and 1.4.0, which were not released on their own (owner decision, 2026-11-08). The store description, reviewer test instructions and the website privacy policy were updated for this release. The first submission was rejected on 2026-11-08 for excessive keywords (the description listed AI provider names); the provider list was removed, the five store screenshots were replaced with images of the current interface, and it was resubmitted 2026-11-09T03:11:55+00:00.
 
 ### Added
 
