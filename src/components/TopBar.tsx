@@ -5,6 +5,21 @@ import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
 import type { SortOrder } from '../lib/list_columns';
 
+// Hover help for the Generate Preview settings, written for non-technical users.
+const TIP_INCOGNITO =
+    'Opens this bookmark manager in a private (Incognito) window, and previews are taken from there. ' +
+    'Private windows do not use your sign-ins or cookies, so pages that need you to be logged in ' +
+    '(for example Gmail or Notion) show their sign-in page instead of your content. ' +
+    'Chrome must also allow this extension in Incognito; you will be taken to that setting if needed.';
+const TIP_ACTIVE_TAB =
+    'Takes each preview by briefly bringing the page to the front of the capture window and ' +
+    'photographing it, like a screenshot. It is slower, but gives better previews of pages that load ' +
+    'their content late, such as Reddit or GitHub. Leave it off unless previews look blank or broken.';
+const TIP_DELAY =
+    'How long to wait after a page opens before its preview is taken, in milliseconds ' +
+    '(1000 = 1 second). Raise it if previews show half-loaded pages; lower it to finish faster. ' +
+    'Allowed: 100 to 30000.';
+
 interface TopBarProps {
     onSearch: (query: string) => void;
     searchQuery: string;
@@ -407,13 +422,13 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                         {isCaptureSettingsOpen && (
                             <div id="capture-settings" className="menu-submenu" role="group" aria-label="Generate Preview settings">
-                            <button type="button" role="menuitemcheckbox" aria-checked={useIncognito} className="menu-item toggle-item" onClick={(e) => {
+                            <button type="button" role="menuitemcheckbox" aria-checked={useIncognito} className="menu-item toggle-item" title={TIP_INCOGNITO} onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleIncognito(!useIncognito);
                             }}>
                                 {useIncognito ? <EyeOff size={16} className="menu-icon" aria-hidden="true" /> : <Eye size={16} className="menu-icon" aria-hidden="true" />}
                                 <div className="menu-text">
-                                    <div className="menu-title">Open in Incognito Window</div>
+                                    <div className="menu-title">Use Incognito Window</div>
                                     <div className="menu-desc">Re-opens extension in Incognito</div>
                                 </div>
                                 <div className={`toggle-switch ${useIncognito ? 'checked' : ''}`} aria-hidden="true"></div>
@@ -429,7 +444,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                             <div className="menu-divider"></div>
 
-                            <button type="button" role="menuitemcheckbox" aria-checked={useActiveTabCapture} className="menu-item toggle-item" onClick={(e) => {
+                            <button type="button" role="menuitemcheckbox" aria-checked={useActiveTabCapture} className="menu-item toggle-item" title={TIP_ACTIVE_TAB} onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleActiveTabCapture(!useActiveTabCapture);
                             }}>
@@ -450,7 +465,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                             <div className="menu-divider"></div>
 
-                            <div className="menu-item menu-item--static" onClick={(e) => e.stopPropagation()}>
+                            <div className="menu-item menu-item--static" title={TIP_DELAY} onClick={(e) => e.stopPropagation()}>
                                 <Clock size={16} className="menu-icon" aria-hidden="true" />
                                 <div className="menu-text">
                                     <label className="menu-title" htmlFor="capture-delay-input">Screen Capture Delay</label>
@@ -492,7 +507,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 aria-label="Export Backup: settings and preview images"
                                 title="Export Backup: settings and preview images"
                                 onClick={() => { onExportBackup(); setIsMenuOpen(false); }}>
-                                <Download size={18} aria-hidden="true" />
+                                <Upload size={18} aria-hidden="true" />
                             </button>
                             <button type="button" role="menuitem" className="menu-icon-btn"
                                 aria-label="Export Settings: small file, no images or API key"
@@ -504,7 +519,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 aria-label="Import Backup: restore a backup or settings file"
                                 title="Import Backup: restore a backup or settings file"
                                 onClick={() => { onImportBackup(); setIsMenuOpen(false); }}>
-                                <Upload size={18} aria-hidden="true" />
+                                <Download size={18} aria-hidden="true" />
                             </button>
                         </div>
 

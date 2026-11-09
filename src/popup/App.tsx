@@ -624,8 +624,6 @@ function App() {
         selectedFolderId,
         onSelectFolder: (id: string) => openFolder(id),
         onContextMenu: handleContextMenu,
-        onAISettings: () => openPanel('ai-settings'),
-        isAISettingsActive: activePanel === 'ai-settings',
         onTrash: () => openPanel('trash'),
         isTrashActive: activePanel === 'trash',
         trashCount: trash.badgeCount,

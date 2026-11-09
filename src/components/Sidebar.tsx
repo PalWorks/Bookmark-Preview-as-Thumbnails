@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useEffect, useRef } from 'react';
-import { EyeOff, Sparkles, Trash2, X } from 'lucide-react';
+import { EyeOff, Trash2, X } from 'lucide-react';
 import type { FolderPrefs } from '../lib/folder_prefs';
 import { FolderGlyph } from './BookmarkPreview';
 import { buildDeepCountMap, plural } from '../lib/utils';
@@ -12,8 +12,6 @@ interface SidebarProps {
     selectedFolderId: string;
     onSelectFolder: (id: string) => void;
     onContextMenu: (e: React.MouseEvent, node: Node) => void;
-    onAISettings: () => void;
-    isAISettingsActive: boolean;
     onTrash: () => void;
     isTrashActive: boolean;
     /** Bookmarks currently in Trash. */
@@ -29,7 +27,7 @@ export const SIDEBAR_ID = 'folders-panel';
 
 export const Sidebar: React.FC<SidebarProps> = ({
     folders, selectedFolderId, onSelectFolder, onContextMenu,
-    onAISettings, isAISettingsActive, onTrash, isTrashActive, trashCount,
+    onTrash, isTrashActive, trashCount,
     variant = 'docked', onClose, folderPrefs = {},
 }) => {
     const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(new Set(['1'])); // Default expand Bookmarks Bar
@@ -171,15 +169,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {trashCount > 0 && (
                         <span className="folder-count" aria-label={`${plural(trashCount, 'item')} in Trash`}>{trashCount}</span>
                     )}
-                </button>
-                <button
-                    type="button"
-                    className={`sidebar-ai-btn ${isAISettingsActive ? 'sidebar-ai-btn--active' : ''}`}
-                    onClick={onAISettings}
-                    aria-current={isAISettingsActive ? 'page' : undefined}
-                >
-                    <Sparkles size={15} className="sidebar-ai-icon" aria-hidden="true" />
-                    <span>AI Settings</span>
                 </button>
             </div>
         </nav>

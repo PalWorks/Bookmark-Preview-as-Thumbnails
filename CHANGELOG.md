@@ -29,6 +29,22 @@ in review.
   Import Backup are one row of icon buttons with tooltips. The Auto-Tag item is replaced by
   **AI Settings**, which opens the AI page (Auto-Tag runs from its Auto-Tag tab, as before) and
   still shows tagging progress.
+- "Open in Incognito Window" is renamed **Use Incognito Window**. Each Generate Preview setting
+  explains itself in plain words on hover.
+- Backup icons: Export Backup shows an arrow out (upload), Import Backup an arrow in (download).
+- List view and folder tiles show **Delete** as a trash icon only (tooltip "Delete (you can
+  undo)"; screen readers still hear "Delete" and the item name).
+- On desktop, a tile's or row's ⋮ and trash buttons appear on hover or keyboard focus, like the
+  selection checkbox; on touch screens they stay visible.
+- The folder panel no longer has an **AI Settings** link; AI Settings is in the top bar and the
+  settings menu.
+- **Fewer failed previews on modern sites.** The background capture library is now
+  html2canvas-pro 2.5.2 (a maintained fork with the same API) instead of html2canvas 1.4.1, which
+  failed on CSS colour functions such as `color()`, `oklch()` and `lab()` (Google Docs and others),
+  forcing a slower fallback. The page copy it makes no longer includes the page's scripts, so
+  Chrome stops logging a blocked-script error for each one.
+- Expected per-site capture failures are logged as warnings, not errors, so the extension's
+  Errors page in `chrome://extensions` shows only real faults.
 - Privacy policy (PRIVACY.md and the website) describes the feedback data flow.
 
 ## [1.5.0] - 2026-11-08T13:54:32+00:00

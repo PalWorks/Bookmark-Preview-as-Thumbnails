@@ -379,7 +379,9 @@ async function processBatchCapture(
                 : (typeof rawError === 'object' && rawError !== null && 'message' in rawError)
                     ? String((rawError as { message: unknown }).message)
                     : 'Capture Failed';
-            console.error('Failed to capture', url, rawError);
+            // Expected for some sites (bot walls, blocked frames); recorded as an error
+            // thumbnail below, so a warning rather than an error.
+            console.warn('Failed to capture', url, rawError);
             if (await isNoLongerBookmarked(url)) {
                 chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
                 return;

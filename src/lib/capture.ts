@@ -82,7 +82,9 @@ export class CaptureManager {
                 throw bgError;
             }
         } catch (error) {
-            console.error('Capture failed:', error);
+            // Every fallback failed for this page. The caller records an error thumbnail;
+            // a warning keeps the Errors page for real faults.
+            console.warn('Capture failed:', error);
             throw error;
         }
     }

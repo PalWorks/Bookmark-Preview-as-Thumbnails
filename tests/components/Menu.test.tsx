@@ -36,15 +36,19 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
     it('capture options sit under a collapsed Generate Preview settings item', async () => {
         render(<App />);
         const menu = await openMenu();
-        expect(within(menu).queryByText('Open in Incognito Window')).toBeNull();
+        expect(within(menu).queryByText('Use Incognito Window')).toBeNull();
         const disclosure = within(menu).getByRole('button', { name: /Generate Preview settings/ });
         expect(disclosure.getAttribute('aria-expanded')).toBe('false');
         fireEvent.click(disclosure);
         expect(disclosure.getAttribute('aria-expanded')).toBe('true');
         const group = within(menu).getByRole('group', { name: 'Generate Preview settings' });
-        expect(within(group).getByText('Open in Incognito Window')).toBeTruthy();
+        expect(within(group).getByText('Use Incognito Window')).toBeTruthy();
         expect(within(group).getByText('Use Active Tab Capture')).toBeTruthy();
         expect(within(group).getByLabelText('Screen Capture Delay')).toBeTruthy();
+        // Each option explains itself on hover, in plain words.
+        expect(within(group).getByRole('menuitemcheckbox', { name: /Use Incognito Window/ }).getAttribute('title')).toMatch(/sign-ins or cookies/);
+        expect(within(group).getByRole('menuitemcheckbox', { name: /Use Active Tab Capture/ }).getAttribute('title')).toMatch(/blank or broken/);
+        expect(within(group).getByLabelText('Screen Capture Delay').closest('[title]')?.getAttribute('title')).toMatch(/1000 = 1 second/);
         // The menu stays open after expanding.
         expect(screen.getByRole('menu')).toBeTruthy();
     });
@@ -72,6 +76,22 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         expect(screen.queryByRole('menu')).toBeNull();
     });
 
+    it('the folder panel no longer carries an AI Settings link', async () => {
+        render(<App />);
+        const nav = await screen.findByRole('navigation', { name: 'Folders' });
+        expect(within(nav).queryByText('AI Settings')).toBeNull();
+        expect(within(nav).getByText('Trash')).toBeTruthy();
+    });
+
+    it('export points out of the app and import points in', async () => {
+        render(<App />);
+        const menu = await openMenu();
+        const row = within(menu).getByRole('group', { name: 'Backup' });
+        const [exp, , imp] = within(row).getAllByRole('menuitem');
+        expect(exp.querySelector('svg')?.getAttribute('class')).toMatch(/lucide-upload/);
+        expect(imp.querySelector('svg')?.getAttribute('class')).toMatch(/lucide-download/);
+    });
+
     it('Submit Feedback opens the in-built form instead of an email link', async () => {
         fakeBookmarks.seed('1', 'Alpha', 'https://alpha.example/');
         const create = vi.spyOn(chrome.tabs, 'create');
@@ -82,6 +102,17 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         expect(within(dialog).getByLabelText('Your message')).toBeTruthy();
         expect(within(dialog).getByText(/\d+ bookmarks, \d+ folders, grid view/)).toBeTruthy();
         expect(create).not.toHaveBeenCalled();
+    });
+});
+
+describe('list view (1.6.0)', { timeout: 20000 }, () => {
+    it('row Delete is a trash icon only, named for screen readers and explained on hover', async () => {
+        fakeBookmarks.seed('1', 'Alpha', 'https://alpha.example/');
+        render(<App />);
+        fireEvent.click(await screen.findByRole('button', { name: 'List view' }));
+        const del = await screen.findByRole('button', { name: 'Delete Alpha' });
+        expect(del.textContent).toBe('');
+        expect(del.getAttribute('title')).toBe('Delete (you can undo)');
     });
 });
 

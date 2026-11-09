@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-09T05:23:51+00:00 (1.6.0: feedback tests, 367 tests; CI cut to one job on code pull requests)._
+_Last updated: 2026-11-09T05:23:51+00:00 (1.6.0: feedback and menu tests, 370 tests; CI cut to one job on code pull requests)._
 
 ## Commands
 

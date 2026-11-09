@@ -958,15 +958,6 @@
     font-weight: 500;
 }
 
-.sidebar-ai-icon {
-    flex-shrink: 0;
-    color: #7c3aed;
-}
-
-.sidebar-ai-btn--active .sidebar-ai-icon {
-    color: #1967d2;
-}
-
 /* Dark mode */
 .theme-dark .sidebar-footer {
     border-top-color: #5f6368;
@@ -986,9 +977,6 @@
     color: #8ab4f8;
 }
 
-.theme-dark .sidebar-ai-btn--active .sidebar-ai-icon {
-    color: #8ab4f8;
-}
 /* ── Responsive (phones first: everything below works at 360px) ─────────────── */
 
 @media (max-width: 719px) {

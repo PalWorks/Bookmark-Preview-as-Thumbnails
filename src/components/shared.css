@@ -152,11 +152,6 @@
     background-color: transparent;
 }
 
-.tile-action-btn--label {
-    width: auto;
-    padding: 0 12px 0 10px;
-}
-
 .tile-action-btn:hover:not(:disabled) {
     background-color: var(--color-surface-2);
     color: var(--color-text);
@@ -922,10 +917,6 @@
         gap: 0;
         margin-left: 0;
     }
-
-    .row-actions .tile-action-btn--label {
-        padding: 0 8px 0 6px;
-    }
 }
 
 /* ── 1.4.0: selection, list columns, ratings, folder colours, Trash switch ── */
@@ -1573,4 +1564,36 @@
 
 .theme-dark .feedback-sent-icon {
     color: #81c995;
+}
+
+/* ── 1.6.0: tile and row actions appear on hover or keyboard focus (desktop) ──
+   Like the selection checkbox: hidden until the pointer is over the item or focus
+   is inside it. Touch screens have no hover, so there they stay visible. */
+@media (hover: hover) and (pointer: fine) {
+    .tile-actions,
+    .row-actions .tile-action-btn {
+        opacity: 0;
+        transition: opacity 0.1s;
+    }
+
+    .tile:hover .tile-actions,
+    .folder-tile:hover .tile-actions,
+    .list-item:hover .row-actions .tile-action-btn,
+    .tile:focus-within .tile-actions,
+    .folder-tile:focus-within .tile-actions,
+    .list-item:focus-within .row-actions .tile-action-btn,
+    .tile--busy .tile-actions,
+    .tile--busy .row-actions .tile-action-btn,
+    .tile-actions:has([aria-expanded="true"]),
+    .row-actions:has([aria-expanded="true"]) .tile-action-btn,
+    .tile-action-btn:has(.btn-spinner) {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tile-actions,
+    .row-actions .tile-action-btn {
+        transition: none;
+    }
 }
