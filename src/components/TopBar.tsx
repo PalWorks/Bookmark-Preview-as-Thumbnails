@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown, Bot } from 'lucide-react';
 import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
 import type { SortOrder } from '../lib/list_columns';
@@ -65,6 +65,10 @@ interface TopBarProps {
     onExportSettings: () => void;
     /** Opens the in-product feedback form. */
     onOpenFeedback: () => void;
+    /** AI changes (D18): share folders with an AI, and review its proposals. */
+    onOrganiseAI?: () => void;
+    onOpenAIChanges?: () => void;
+    aiPendingCount?: number;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -108,6 +112,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     selecting,
     canSortByVisits,
     onOpenFeedback,
+    onOrganiseAI,
+    onOpenAIChanges,
+    aiPendingCount = 0,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isCaptureSettingsOpen, setIsCaptureSettingsOpen] = useState(false);
@@ -541,6 +548,31 @@ export const TopBar: React.FC<TopBarProps> = ({
                             </div>
                             {isTagging && <div className="ai-tag-spinner" aria-hidden="true"></div>}
                         </button>
+
+                        {onOrganiseAI && (
+                            <button type="button" role="menuitem" className="menu-item" onClick={() => {
+                                onOrganiseAI();
+                                setIsMenuOpen(false);
+                            }}>
+                                <Bot size={16} className="menu-icon menu-icon--ai" aria-hidden="true" />
+                                <div className="menu-text">
+                                    <div className="menu-title">Organise with an AI</div>
+                                    <div className="menu-desc">Any AI suggests, you review, one-click Undo</div>
+                                </div>
+                            </button>
+                        )}
+                        {onOpenAIChanges && (
+                            <button type="button" role="menuitem" className="menu-item" onClick={() => {
+                                onOpenAIChanges();
+                                setIsMenuOpen(false);
+                            }}>
+                                <Clock size={16} className="menu-icon" aria-hidden="true" />
+                                <div className="menu-text">
+                                    <div className="menu-title">AI changes{aiPendingCount > 0 ? ` (${aiPendingCount} to review)` : ''}</div>
+                                    <div className="menu-desc">Review, apply or undo</div>
+                                </div>
+                            </button>
+                        )}
 
                         <div className="menu-divider"></div>
 

@@ -11,6 +11,7 @@ import { loadAISettings, bindLegacyApiKey } from './lib/ai_settings_storage';
 import { migrateStorageSchema, markFreshInstall, repairMisMigratedKeys } from './lib/storage_migration';
 import { createTrashService, handleTrashMessage, isTrashMessage } from './sw/trash';
 import { createFolderPrefsService, handleFolderPrefsMessage } from './sw/folder_prefs';
+import { createChangeSetsService, handleChangeSetMessage, isChangeSetMessage } from './sw/change_sets';
 import { TRASH_RESTORING_KEY } from './lib/trash_store';
 import { isValidMetaId, sanitizePagePatch, sanitizeBackupMeta, mergeImported } from './lib/metadata_sanitize';
 
@@ -21,6 +22,8 @@ const IS_INCOGNITO_WORKER = chrome.extension?.inIncognitoContext === true;
 const folderPrefs = createFolderPrefsService();
 const trash = createTrashService({ applyFolderPrefs: map => folderPrefs.applySnapshot(map) });
 const TRASH_PURGE_ALARM = 'trash-purge';
+// AI change sets (D18): applied, finished and undone here only, in the regular worker.
+const changeSets = createChangeSetsService({ trash });
 
 // Listen for extension icon click
 chrome.action.onClicked.addListener(() => {
@@ -129,6 +132,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             .then(sendResponse)
             .catch((err: unknown) => {
                 console.error('[Trash] message failed', message.type, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
+    }
+
+    if (isChangeSetMessage(message)) {
+        handleChangeSetMessage(changeSets, message, _sender, IS_INCOGNITO_WORKER)
+            .then(sendResponse)
+            .catch((err: unknown) => {
+                console.error('[AIChanges] message failed', message.type, err);
                 sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
             });
         return true; // async response
@@ -701,6 +714,8 @@ if (!IS_INCOGNITO_WORKER) {
     // Finish anything a previous worker left half-done, then make sure the daily
     // expiry alarm exists (alarms survive worker restarts but not every update).
     trash.reconcile().catch(err => console.error('[Trash] startup reconcile failed', err));
+    // A fresh worker runs no change-set job: anything left mid-apply was interrupted.
+    changeSets.recover().catch(err => console.error('[AIChanges] recovery failed', err));
     chrome.alarms.get(TRASH_PURGE_ALARM)
         .then(alarm => {
             if (!alarm) return chrome.alarms.create(TRASH_PURGE_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 1 });
@@ -711,6 +726,7 @@ if (!IS_INCOGNITO_WORKER) {
         trash.purgeExpired()
             .then(n => { if (n) console.log(`[Trash] purged ${n} expired entr${n === 1 ? 'y' : 'ies'}`); })
             .catch(err => console.error('[Trash] purge failed', err));
+        changeSets.prune().catch(err => console.error('[AIChanges] prune failed', err));
         // Prefs of folders that no longer exist (Trash entries keep their own copy).
         // Buffered outside deletes are written first, so their prefs are saved.
         trash.flushExternal()

@@ -106,6 +106,29 @@ try {
         return Object.values(L).filter(x => x && x.version === 1 && x.title === 'E2E own').map(x => x.origin);`);
     check('an extension delete is recorded once', own.length === 1 && own[0] === 'manual', own);
 
+    // AI changes (D18): a pasted change set applies as one step and one Undo restores it.
+    const ai = await ev(sid, `
+        const f = await chrome.bookmarks.create({ parentId: '1', title: 'E2E AI' });
+        const x = await chrome.bookmarks.create({ parentId: f.id, title: 'Keep', url: 'https://keep.example/' });
+        const old = await chrome.bookmarks.create({ parentId: f.id, title: 'Old', url: 'https://old.example/' });
+        const shape = async () => JSON.stringify((await chrome.bookmarks.getSubTree(f.id))[0].children.map(c => c.title));
+        const before = await shape();
+        const text = JSON.stringify({ ops: [
+            { op: 'create_folder', tempId: 'new:1', parentId: f.id, title: 'Sorted' },
+            { op: 'move', id: x.id, parentId: 'new:1' },
+            { op: 'rename', id: x.id, title: 'Kept' },
+            { op: 'trash', id: old.id },
+        ] });
+        const imp = await chrome.runtime.sendMessage({ type: 'CS_IMPORT', text });
+        if (!imp.ok) return { imp };
+        const app = await chrome.runtime.sendMessage({ type: 'CS_APPLY', id: imp.id, selected: [0, 1, 2, 3] });
+        const applied = await shape();
+        const undo = await chrome.runtime.sendMessage({ type: 'CS_UNDO', id: imp.id });
+        const after = await shape();
+        const kept = (await chrome.bookmarks.get(x.id).catch(() => [{}]))[0].title;
+        return { ok: app.ok && undo.ok, before, applied, after, kept, skipped: undo.skipped };`);
+    check('an AI change set applies as one step and one Undo restores it', ai.ok && ai.applied === '["Sorted"]' && ai.after === ai.before && ai.kept === 'Keep' && ai.skipped === 0, ai);
+
     for (const [w, mobile] of [[360, true], [1280, false]]) {
         await send('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile }, sid);
         await sleep(400);

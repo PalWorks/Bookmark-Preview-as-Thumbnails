@@ -5,6 +5,7 @@
 import { vi } from 'vitest';
 import { createTrashService, handleTrashMessage, isTrashMessage } from '../src/sw/trash';
 import { createFolderPrefsService, handleFolderPrefsMessage } from '../src/sw/folder_prefs';
+import { createChangeSetsService, handleChangeSetMessage, isChangeSetMessage } from '../src/sw/change_sets';
 import { EXTENSION_ORIGIN } from './setup';
 
 type Listener = (message: unknown) => void;
@@ -22,11 +23,15 @@ export function connectTrash(opts: { incognito?: boolean; failFirstSend?: boolea
         broadcast: (m) => listeners.forEach(l => l(m)),
         applyFolderPrefs: (map) => folderPrefs.applySnapshot(map),
     });
+    const changeSets = createChangeSetsService({ trash: service, broadcast: (m) => listeners.forEach(l => l(m)) });
     let failNext = !!opts.failFirstSend;
     const sendMessage = vi.fn(async (msg: unknown) => {
         if (failNext) {
             failNext = false;
             throw new Error('Could not establish connection. Receiving end does not exist.');
+        }
+        if (isChangeSetMessage(msg)) {
+            return handleChangeSetMessage(changeSets, msg, { url: `${EXTENSION_ORIGIN}index.html` }, !!opts.incognito);
         }
         if (isTrashMessage(msg)) {
             return handleTrashMessage(service, msg, { url: `${EXTENSION_ORIGIN}index.html` }, !!opts.incognito);
@@ -39,5 +44,5 @@ export function connectTrash(opts: { incognito?: boolean; failFirstSend?: boolea
     });
     rt.sendMessage = sendMessage;
     const broadcast = (m: unknown) => listeners.forEach(l => l(m));
-    return { service, folderPrefs, sendMessage, listeners, broadcast };
+    return { service, folderPrefs, changeSets, sendMessage, listeners, broadcast };
 }

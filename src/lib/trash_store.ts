@@ -55,7 +55,8 @@ export interface TrashScope {
  * Where a delete came from; drives the Trash row wording. 'external' means it was
  * removed outside this extension (Chrome's bookmark manager, sync, another device).
  */
-export type TrashOrigin = 'manual' | 'duplicate-finder' | 'external';
+/** 'ai-changes': removed by an applied AI change set (Agent changes, D18). */
+export type TrashOrigin = 'manual' | 'duplicate-finder' | 'external' | 'ai-changes';
 
 /** Folder colour and search visibility saved with a deleted folder (see folder_prefs.ts). */
 export interface SavedFolderPref {
@@ -92,6 +93,8 @@ export interface RestoredTo {
     parentId: string;
     rootId: string;
     path: string[];
+    /** Old id to new id for every node the restore created or reused (AI changes Undo needs it). */
+    idMap?: Record<string, string>;
 }
 
 export interface TrashProgress {
@@ -128,7 +131,8 @@ export interface TrashOperation {
 
 // ─── Message contract ─────────────────────────────────────────────────────────
 
-export type TrashRejectReason = 'permanent' | 'managed';
+/** 'changed': the folder's contents differ from what the caller approved (expectedSubtrees). */
+export type TrashRejectReason = 'permanent' | 'managed' | 'changed';
 
 export interface TrashDeleteResult {
     ok: boolean;
