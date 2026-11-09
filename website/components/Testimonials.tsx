@@ -1,118 +1,103 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
-import { motion } from 'framer-motion';
+import { Star, Images, Undo2, FolderTree, Sparkles } from 'lucide-react';
 
-const testimonials = [
+const REVIEWS_URL =
+    'https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj/reviews';
+
+// Real reviews only, copied word for word from the Chrome Web Store listing. Add new ones the same way.
+const reviews = [
     {
-        name: "Elena Torres",
-        role: "Product Designer",
-        content: "Does exactly what it says. Fits right into the UI, doesn't look janky like some other extensions I've tried.",
-        image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces"
+        name: 'Tony Ash',
+        rating: 5,
+        content: 'The Best Bookmark manager. Very clean. I love it.',
+        date: '24 September 2026',
+        version: '1.2.0',
     },
-    {
-        name: "Tom Harris",
-        role: "Startup Founder",
-        content: "Finally found a way to separate newsletter spam from actual work emails without unsubscribing from everything.",
-        image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=faces"
-    },
-    {
-        name: "Robert Fox",
-        role: "Operations Manager",
-        content: "My inbox is usually a disaster zone. This helps me cordon off the mess a bit so I don't miss the important stuff.",
-        image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces"
-    },
-    {
-        name: "David Lin",
-        role: "Agency Owner",
-        content: "I handle 3 different client projects at once. Pinning label views for each client saves me so much clicking around.",
-        image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces"
-    },
-    {
-        name: "Sophie Kim",
-        role: "Content Creator",
-        content: "Installed it last week. Pretty chill extension, doesn't slow down Gmail which was my main worry.",
-        image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=faces"
-    },
-    {
-        name: "Linda Garcia",
-        role: "Consultant",
-        content: "Simple tool. I like that it doesn't track my data or ask for weird permissions.",
-        image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces"
-    },
-    {
-        name: "Sarah Jenkins",
-        role: "Freelance Designer",
-        content: "Actually helps me keep track of invoices. I used to lose them in the main feed or forget to check the sidebar label.",
-        image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces"
-    },
-    {
-        name: "James Peterson",
-        role: "Contractor",
-        content: "I just pinned 'label:receipts' and 'from:amazon'. Makes tax season way less annoying when I can just see everything in one tab.",
-        image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop&crop=faces"
-    },
-    {
-        name: "Chris Baker",
-        role: "Sales Lead",
-        content: "I use the 'has:attachment' search pin constantly. Saves me from digging through threads just to find that one PDF.",
-        image: "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=100&h=100&fit=crop&crop=faces"
-    }
 ];
 
-const TestimonialCard = ({ name, role, content, image }: typeof testimonials[0]) => (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
-        <div className="flex items-center gap-4 mb-4">
-            <img src={image} alt={name} className="w-10 h-10 rounded-full object-cover" />
-            <div>
-                <h4 className="font-bold text-slate-900 text-sm">{name}</h4>
-                <p className="text-slate-500 text-xs">{role}</p>
-            </div>
-        </div>
-        <p className="text-slate-600 text-sm leading-relaxed">"{content}"</p>
+// What the extension is built for. These describe features, not people, so they carry no names.
+const uses = [
+    {
+        icon: Images,
+        title: 'Find a page by how it looks',
+        text: 'Hundreds of bookmarks become a grid of page previews, so you spot the one you want without reading titles.',
+    },
+    {
+        icon: Undo2,
+        title: 'Tidy up without fear',
+        text: 'Deletes go to a 30-day Trash with Undo, and renames and moves can be undone too.',
+    },
+    {
+        icon: FolderTree,
+        title: 'Organise the way you think',
+        text: 'Folder colours, star ratings, multi-select moves, and folders you can hide from search.',
+    },
+    {
+        icon: Sparkles,
+        title: 'Search in plain words',
+        text: 'Optional AI tagging and natural-language search, on your device by default.',
+    },
+];
+
+const Stars = ({ count }: { count: number }) => (
+    <div className="flex gap-0.5" aria-label={`${count} out of 5 stars`}>
+        {Array.from({ length: 5 }, (_, i) => (
+            <Star
+                key={i}
+                size={18}
+                className={i < count ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}
+                aria-hidden="true"
+            />
+        ))}
     </div>
 );
 
-const Column = ({ items, direction = "top" }: { items: typeof testimonials, direction?: "top" | "bottom" }) => {
-    return (
-        <div className="relative h-[600px] overflow-hidden">
-            <motion.div
-                initial={{ y: direction === "top" ? 0 : "-50%" }}
-                animate={{ y: direction === "top" ? "-50%" : 0 }}
-                transition={{
-                    repeat: Infinity,
-                    duration: 20,
-                    ease: "linear"
-                }}
-                className="flex flex-col"
-            >
-                {[...items, ...items].map((item, idx) => (
-                    <TestimonialCard key={`${item.name}-${idx}`} {...item} />
-                ))}
-            </motion.div>
-            <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white via-transparent to-white z-10" />
-        </div>
-    );
-};
-
 export const Testimonials = () => {
-    const col1 = testimonials.slice(0, 3);
-    const col2 = testimonials.slice(3, 6);
-    const col3 = testimonials.slice(6, 9);
-
     return (
         <section className="py-24 bg-white overflow-hidden">
             <div className="container mx-auto px-4">
-                <div className="text-center max-w-3xl mx-auto mb-16">
-                    <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6">Customers love our app</h2>
-                    <p className="text-xl text-slate-600">
-                        Leaders using our extension save 10+ hours every week.
-                    </p>
+                <div className="text-center max-w-3xl mx-auto mb-12">
+                    <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6">What users say</h2>
+                    <p className="text-xl text-slate-600">From the Chrome Web Store.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-                    <Column items={col1} direction="bottom" />
-                    <Column items={col2} direction="top" />
-                    <Column items={col3} direction="bottom" />
+                <div className="max-w-2xl mx-auto grid gap-6 mb-20">
+                    {reviews.map((r) => (
+                        <figure key={r.name} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                            <Stars count={r.rating} />
+                            <blockquote className="mt-4 text-xl text-slate-800 leading-relaxed">
+                                "{r.content}"
+                            </blockquote>
+                            <figcaption className="mt-4 text-sm text-slate-500">
+                                <span className="font-semibold text-slate-900">{r.name}</span>, Chrome Web Store review,{' '}
+                                {r.date} (version {r.version})
+                            </figcaption>
+                        </figure>
+                    ))}
+                    <a
+                        href={REVIEWS_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-center text-brand-600 font-medium hover:underline"
+                    >
+                        Read reviews or write your own on the Chrome Web Store
+                    </a>
+                </div>
+
+                <div className="text-center max-w-3xl mx-auto mb-12">
+                    <h2 className="text-3xl md:text-4xl font-bold text-slate-900">What it is for</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {uses.map(({ icon: Icon, title, text }) => (
+                        <div key={title} className="p-6 rounded-2xl bg-slate-50 border border-slate-100">
+                            <div className="w-10 h-10 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center mb-4">
+                                <Icon size={20} aria-hidden="true" />
+                            </div>
+                            <h3 className="font-bold text-slate-900 mb-2">{title}</h3>
+                            <p className="text-slate-600 text-sm leading-relaxed">{text}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
         </section>
