@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-08T13:42:32+00:00 (CI runs the real-Chrome smoke test)._
+_Last updated: 2026-11-09T03:11:55+00:00 (store description rule after the 1.5.0 rejection)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -38,6 +38,9 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
    permission, data usage), Distribution, Test instructions. The listing links the website
    privacy policy (`website/components/Legal.tsx`); keep it in line with PRIVACY.md. A
    submission locks the listing; "Cancel review" (menu at the top right) unlocks it.
+   Never list brand, provider or site names in the description (for example the supported AI
+   providers): the store rejects this as keyword spam (1.5.0 was rejected for it on 2026-11-08).
+   Describe the capability instead ("the cloud AI provider of your choice").
 8. After approval: install from the store on a clean profile, confirm the version, confirm a
    saved AI key and Trash still work after updating from the previous version. Update the
    website feature list in `website/` (deploys from `main`).

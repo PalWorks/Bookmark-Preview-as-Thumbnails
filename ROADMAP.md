@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-08T18:13:35+00:00 (1.5.0, which carries 1.3.0 and 1.4.0, submitted for review; listing, test instructions and website privacy policy updated; row 16 added)._
+> _Last updated: 2026-11-09T03:11:55+00:00 (1.5.0 rejected for description keywords, fixed and resubmitted with new screenshots; row 16 done except the promo video)._
 
 ## 0. North star: every open item, one row each
 
@@ -22,11 +22,11 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
-| 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.5.0 (which carries 1.3.0 and 1.4.0, owner decision 2026-11-08) is merged, tagged v1.5.0 and in review on the Web Store since 2026-11-08T18:13:35+00:00. The owner added the permission justifications; the description, test instructions and website privacy policy were updated before submission. | When approved: run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1), then row 10, row 16 and the website feature list. |
+| 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.5.0 (which carries 1.3.0 and 1.4.0, owner decision 2026-11-08) is merged, tagged v1.5.0 and back in review on the Web Store since 2026-11-09T03:11:55+00:00. The first submission was rejected on 2026-11-08 for excessive keywords (AI provider names in the description); the list was removed. The owner added the permission justifications; the description, test instructions and website privacy policy were updated before submission. | When approved: run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1), then row 10, the promo video link (row 16) and the website feature list. |
 | 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.5.0 is live, listing what shipped (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
-| 16 | §3.1 | P3 | **Open** | S | M | 2026-11-08 | The five store screenshots show the pre-1.2 interface (old title, no AI, Trash, selection or columns). | New 1280x800 screenshots of the current build on a demo library; can be changed after approval without a new package. |
+| 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
 **Reading the narrow columns.** Bucket is the §3 area: 3.1 Release, 3.2 Features, 3.3 Engineering.
 Size: T trivial, S small, M medium, L large, ? unknown. Impact: H high, M medium, L low.
@@ -90,11 +90,11 @@ Priority, Size and Impact are separate columns because they answer separate ques
 
 ## 2. Next up
 
-### 2.1 Status: 1.5.0 in review on the Chrome Web Store (updated 2026-11-08T18:13:35+00:00)
+### 2.1 Status: 1.5.0 in review on the Chrome Web Store (updated 2026-11-09T03:11:55+00:00)
 
 1.2.1 is live. The owner chose to ship 1.3.0 and 1.4.0 inside 1.5.0 rather than on their own
 (2026-11-08): PRs #2, #3 and #5 are merged, `v1.4.0` and `v1.5.0` are tagged, and 1.5.0 was
-submitted for review on 2026-11-08 with automatic publishing after approval. No permissions
+submitted for review on 2026-11-08 with automatic publishing after approval. That submission was rejected the same day for excessive keywords (AI provider names in the description); the description was fixed, new screenshots added, and it was resubmitted on 2026-11-09. No permissions
 changed between 1.4.0 and 1.5.0; install warnings are identical to 1.2.1. Before submission:
 338 tests, lint, build, bundle check (no keys, no source maps) and `npm run e2e` passed, and the
 update from 1.2.1 to 1.5.0 (AI key, tags, Trash, alarm, Undo, 360px layout, no console errors)
@@ -113,8 +113,8 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 |---|---|---|---|---|---|
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
-| 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: in review | S | H |
-| 16 | Refresh store screenshots | §3.1 | **Open** | S | M |
+| 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: resubmitted, in review | S | H |
+| 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.5.0 is live | T | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
