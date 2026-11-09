@@ -52,12 +52,12 @@ const CTASection: React.FC = () => {
       <div className="container mx-auto px-4 relative z-10">
         <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Ready to upgrade your browser?</h2>
         <p className="text-brand-200 text-xl mb-10 max-w-2xl mx-auto">
-          Join thousands of users who have switched to a visual, private, and faster bookmarking experience.
+          See your bookmarks as pictures, delete without fear, and find anything fast. Free and open source.
         </p>
         <Button size="lg" className="bg-white text-brand-900 hover:bg-brand-50 shadow-none hover:shadow-lg" onClick={() => window.open('https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj?authuser=0&hl=en-GB', '_blank')}>
           Add to Chrome - It's Free
         </Button>
-        <p className="mt-4 text-brand-400 text-sm">Requires Chrome 88+ • No account needed</p>
+        <p className="mt-4 text-brand-400 text-sm">Free • No account needed</p>
       </div>
     </section>
   )
