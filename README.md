@@ -9,7 +9,7 @@ turn on a cloud AI provider or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-09T16:00:17+00:00 (1.6.0 in review; feedback relay; Agent changes plan; CI scope; Node 22)._
+_Last updated: 2026-11-09T16:13:49+00:00 (1.6.0 live)._
 
 ## Contents
 
@@ -67,7 +67,7 @@ thing that talks to a server of ours, and only when you press Send; see [PRIVACY
   server with your own key.
 - **Backup**: export everything (settings and previews) or settings only; import either. Optionally
   save previews to a folder on disk.
-- **Feedback from inside the extension** (1.6.0, in review): Settings > Submit Feedback sends a
+- **Feedback from inside the extension** (1.6.0): Settings > Submit Feedback sends a
   message, with an optional reply address and optional counts-only technical details.
 - **Light, dark and system themes**; works from 360px wide up; keyboard and screen reader support.
 
@@ -191,8 +191,8 @@ website deploys to GitHub Pages from `main`; the feedback relay is deployed by h
 
 ## Roadmap
 
-1.5.0 (which includes 1.3.0 and 1.4.0) is live. 1.6.0 (settings menu rework, feedback form) is in
-review on the Chrome Web Store. Next, **Agent changes** (planned, not built): choose folders to
+1.5.0 (which includes 1.3.0 and 1.4.0) is live. 1.6.0 (settings menu rework, feedback form) is
+live on the Chrome Web Store. Next, **Agent changes** (planned, not built): choose folders to
 share with any AI, paste back the changes it proposes, review them, apply them as one step and
 undo them from Activity; a live bridge for coding agents follows only if people ask for it
 ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md)). Later, a safety net that also
