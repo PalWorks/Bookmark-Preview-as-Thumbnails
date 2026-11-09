@@ -1,23 +1,32 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Website
 
-# Run and deploy your AI Studio app
+_Last updated: 2026-11-09T16:02:00+00:00 (replaced the AI Studio template text with how this site is actually built and deployed)._
 
-This contains everything you need to run your app locally.
+The marketing site for Bookmarks as Thumbnails: https://palworks.github.io/Bookmark-Preview-as-Thumbnails/
 
-View your app in AI Studio: <https://ai.studio/apps/drive/1N_aZqVia6dF4moecHiLuKvcyNzaaVQK9>
+React 19 and Vite, styled with the Tailwind CDN script in `index.html`. It needs no API key and
+no environment variables; do not add one (see "No keys in anything shipped" in the root
+[AGENTS.md](../AGENTS.md)).
 
-## Run Locally
+## Pages
 
-**Prerequisites:**  Node.js
+| Route | Component | Notes |
+|---|---|---|
+| `#` (home) | `HeroSection`, `FeaturesSection`, `PricingSection`, `Testimonials`, `TallyForm` | Features, pricing (AGPL and commercial), contact form (Tally) |
+| `#privacy` | `components/Legal.tsx` | The privacy policy the Chrome Web Store listing links to. Keep it in line with [PRIVACY.md](../PRIVACY.md) in the same change |
+| `#terms` | `components/Legal.tsx` | Terms and licence summary |
+| `#contact` | `TallyForm` | Contact form |
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Run locally
 
-## Deployment
+```bash
+cd website
+npm ci
+npm run dev       # http://localhost:3000
+npm run build     # -> website/dist/
+```
 
-This site is automatically deployed to GitHub Pages via GitHub Actions.
+## Deploy
+
+`.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every push to `main` that
+changes `website/**` (or the workflow itself). There is no other deploy step.

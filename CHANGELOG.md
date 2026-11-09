@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+
+- Agent changes plan approved after /gstack-autoplan and merged into one spec
+  ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md), D18): change sets from a paste
+  or file, reviewed in an Agent changes panel with one-step Undo, come first; a coding-agent
+  bridge only after a demand check. Not built yet.
+- Documentation brought in line with 1.6.0: the feedback relay in README, AGENTS, ARCHITECTURE
+  (with the diagram), DATA_MODEL, PRIVACY, PRIVACY_DETAILS (dashboard data usage), PLAYBOOK
+  (relay deploy and rollback), TESTING (1.6.0 coverage rows), CONTRIBUTING (Node 22, CI scope),
+  ROADMAP status; `website/README.md` rewritten.
+
 ## [1.6.0] - 2026-11-09
 
 Settings menu rework and an in-built feedback form, from the owner's mark-up of 2026-11-09.
@@ -274,7 +287,7 @@ gaps against Chrome's own bookmark manager reported by a daily user are closed.
 - AI Settings save-confirmation timers are guarded against setState-after-unmount.
 - TopBar search input is controlled and clears on folder navigation.
 
-## [Unreleased]
+## [Early, undated]
 
 ### Added
 

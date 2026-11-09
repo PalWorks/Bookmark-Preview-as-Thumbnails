@@ -1,11 +1,28 @@
 # Decisions
 
-_Last updated: 2026-11-09T12:40:08+00:00 (D17: agent bridge spike)._
+_Last updated: 2026-11-09T15:53:05+00:00 (D18: AI change sets first, bridge after demand)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D18. AI change sets come first; the agent bridge waits for demand (autoplan gate, 2026-11-09)
+
+The /gstack-autoplan review of [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) had
+Claude and Codex agree that the review panel with one-step Undo is the part nobody else offers,
+while the native bridge is the expensive part and demand for it is unproven. The owner accepted
+all three challenges at the gate:
+
+| Id | Before | Now |
+|---|---|---|
+| uc1 | Bridge first, then reviewed change sets | Stage 1: export chosen folders, import an AI's change set, review, apply, Undo; Stage 2 bridge only after a 90-day demand check |
+| uc2 | Agents read the whole library minus hidden folders | The user picks the folders an AI may see, none by default, with an option to strip query strings |
+| uc3 | Chrome, Edge and Brave on Linux, Windows and macOS | Bridge first on Chrome for Linux and macOS; the rest in Stage 3 |
+
+**Rule: every AI change, from any source, goes through one change-set format, one validator, the
+Agent changes panel and the worker's journaled apply with Undo. Nothing an AI did not get from a
+folder the user picked is ever disclosed to it.**
 
 ## D17. The agent bridge uses an optional nativeMessaging permission (spike, 2026-11-09)
 

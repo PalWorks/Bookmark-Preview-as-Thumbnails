@@ -1,14 +1,15 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-09T05:15:45+00:00
+**Last Updated:** 2026-11-09T16:00:59+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
 
 ## What the extension stores (locally)
 
-All of the following stays **on your device** — it is never sent to us (we run no
-servers):
+All of the following stays **on your device**; it is never sent to us. The only
+server we run is the feedback relay described under "Feedback you send", and it
+receives only what you type into the feedback form:
 
 1. **Thumbnails & metadata.** Screenshots captured for your bookmarks, plus their
    titles, status and timestamps, are stored locally in `chrome.storage.local`.

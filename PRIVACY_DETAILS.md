@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy Details
 
-_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: optional `history` permission; Chrome 156 shows the same install warnings as 1.3.0)._
+_Last updated: 2026-11-09T16:01:20+00:00 (1.6.0: PII and personal communications for the feedback form; Location unticked; planned changes)._
 
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
@@ -27,7 +27,7 @@ These are the permissions actually declared in the manifest:
 | **alarms** | Run a daily local clean-up that permanently removes Trash items older than 30 days. |
 | **history** (optional) | Requested only when the user turns on the Visits or Last visited column in list view. Reads visit count and last visit time for the bookmarks on screen with `chrome.history.getVisits`; nothing is stored or sent anywhere. Optional permissions add no install warning. |
 | **webNavigation** | Detect when a page finishes loading during batch capture so the screenshot reflects the rendered page. |
-| **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and — only if the user enables a cloud AI provider — send requests to that provider's API endpoint. |
+| **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and, only if the user enables a cloud AI provider, send requests to that provider's API endpoint. The feedback form (1.6.0) posts to our own relay; that request needs no extra permission. |
 
 > The extension does **not** request `downloads` or `management`. (Backup export
 > uses an in-page anchor download; the in-app uninstall uses
@@ -55,6 +55,16 @@ third-party provider. Disclose this accurately:
   chosen provider for authentication; a key is bound to its provider and custom
   endpoint address and is not sent if either changes.
 
+- **Personally identifiable information** (ticked since 1.6.0): the optional reply
+  address a user types into the feedback form, sent to our relay only when they press
+  Send and emailed to support@palworks.ai.
+- **Personal communications** (ticked since 1.6.0): the feedback message itself, same
+  path. The relay stores no message content.
+- **Location** stays unticked: the relay keeps only an HMAC of the sender's network
+  address as a rate-limit counter for at most 26 hours, never the address
+  [Inference: judged on 2026-11-09 when 1.6.0 was submitted; recheck if the dashboard
+  wording changes].
+
 **Certifications — read carefully before checking:**
 - "I do not sell or transfer user data to third parties" — **transferring bookmark
   titles/URLs to the user's chosen AI provider is a transfer.** It is for the
@@ -66,7 +76,13 @@ third-party provider. Disclose this accurately:
   purpose" — OK (the transfer is for tagging/search, the stated purpose).
 - "I do not use or transfer user data to determine creditworthiness / lending" — OK.
 
-## 5. Privacy Policy
+## 5. Planned changes that will need this page
+
+The approved Agent changes plan (docs/designs/agent-bridge.md) adds no permission in
+Stage 1. Its Stage 2 would add optional `nativeMessaging` with a justification here and a
+check of the User Data policy first. Nothing to change until that ships.
+
+## 6. Privacy Policy
 
 > Host PRIVACY.md (this repo) at a public URL and enter it in the dashboard, e.g.
 > `https://palworks.github.io/Bookmark-Preview-as-Thumbnails/#privacy`

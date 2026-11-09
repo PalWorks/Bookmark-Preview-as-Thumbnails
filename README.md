@@ -2,13 +2,14 @@
 
 **See your bookmarks as pictures, delete without fear, and find anything fast.**
 A Chrome extension that turns your bookmarks into a visual grid of page previews, with a
-30-day Trash, optional AI tagging and search, and nothing sent to a server.
+30-day Trash, optional AI tagging and search. Your bookmarks never leave your browser unless you
+turn on a cloud AI provider or send us feedback.
 
 [![Extension CI](https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/actions/workflows/extension-ci.yml/badge.svg)](https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/actions/workflows/extension-ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0 on a branch: settings menu rework, in-built feedback form)._
+_Last updated: 2026-11-09T16:00:17+00:00 (1.6.0 in review; feedback relay; Agent changes plan; CI scope; Node 22)._
 
 ## Contents
 
@@ -35,7 +36,8 @@ grid (or list) of screenshots, captured in the background, with folders, search,
 filters. It is for anyone who keeps many bookmarks and wants to find and tidy them quickly.
 
 Everything stays in your browser profile. The optional AI features run on Chrome's built-in
-on-device model by default, or with your own API key; see [PRIVACY.md](PRIVACY.md).
+on-device model by default, or with your own API key. The in-built feedback form is the only
+thing that talks to a server of ours, and only when you press Send; see [PRIVACY.md](PRIVACY.md).
 
 ## Features
 
@@ -50,7 +52,7 @@ on-device model by default, or with your own API key; see [PRIVACY.md](PRIVACY.m
   turns this off).
 - **Select many at once** (1.4.0): a Select button, Shift+click ranges, Ctrl/Cmd+A; delete (one
   Undo), move to a folder (with Undo) or open them.
-- **Undo for rename and Cut and Paste** (1.5.0, in review): the toast offers Undo, or
+- **Undo for rename and Cut and Paste** (1.5.0): the toast offers Undo, or
   press Ctrl/Cmd+Z; it never overwrites a change made since.
 - **Organise** (1.4.0): folder colours, hide utility folders from search (with "Show them" when
   matches are hidden), list view columns for date added, last opened, your 1 to 5 star rating,
@@ -65,17 +67,20 @@ on-device model by default, or with your own API key; see [PRIVACY.md](PRIVACY.m
   server with your own key.
 - **Backup**: export everything (settings and previews) or settings only; import either. Optionally
   save previews to a folder on disk.
+- **Feedback from inside the extension** (1.6.0, in review): Settings > Submit Feedback sends a
+  message, with an optional reply address and optional counts-only technical details.
 - **Light, dark and system themes**; works from 360px wide up; keyboard and screen reader support.
 
 ## Architecture
 
-Three browser contexts and no server:
+Three browser contexts, plus one small relay used only by the feedback form:
 
 | Context | File | Role |
 |---|---|---|
 | Service worker | `src/sw.ts`, `src/sw/trash.ts`, `src/sw/folder_prefs.ts` | Message router, capture pool, AI batches, update migration, Trash coordinator and folder prefs (single writers) |
 | Extension page | `index.html` → `src/popup/` | React UI; behaviour in hooks, `App.tsx` only composes |
 | Content script | `src/content/capture.ts` | Page-side capture helper |
+| Feedback relay (server) | `worker/` | Cloudflare Worker that emails a sent feedback form to support through Resend; holds the only key (D16) |
 
 Data lives in `chrome.storage.local` (previews `thumb_<url>`, metadata `meta_<url>`, Trash
 `trash_*`, folder prefs `fpref_*`), `chrome.storage.sync` (settings) and IndexedDB (legacy previews, folder handle).
@@ -87,13 +92,15 @@ Details: [ARCHITECTURE.md](ARCHITECTURE.md), [DATA_MODEL.md](DATA_MODEL.md),
 React 19, TypeScript 5.9, Vite 7, lucide-react icons, plain CSS with design tokens, Chrome
 Manifest V3 APIs (bookmarks, storage, tabs, scripting, webNavigation, favicon, alarms; history
 as an optional permission).
-Tests: Vitest, jsdom, React Testing Library, fake-indexeddb.
+Capture uses html2canvas-pro 2.5.2. The feedback relay is a Cloudflare Worker (TypeScript, a
+Durable Object for rate limits).
+Tests: Vitest, jsdom, React Testing Library, fake-indexeddb; the relay uses Node's test runner.
 
 ## Installation
 
 **From the Chrome Web Store**: [Bookmarks as Thumbnails](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj).
 
-**From source** (Node 20 or newer):
+**From source** (Node 22 or newer, as CI uses):
 
 ```bash
 git clone https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails.git
@@ -133,7 +140,7 @@ There are no environment variables. Everything is set in the extension:
 6. A folder's **More actions** menu has **Colour...** and **Hide from search**.
 7. In list view, **Columns** chooses Added, Opened, Rating, Visits and Last visited; click
    **Rate** to give a link 1 to 5 stars.
-8. **AI Settings** (top bar, sidebar or settings menu) turns on Auto-Tag, Smart Search and Duplicate Finder.
+8. **AI Settings** (top bar or settings menu) turns on Auto-Tag, Smart Search and Duplicate Finder.
 9. **Settings → Submit Feedback** sends a message to the team from inside the extension; the
    backup buttons (export backup, export settings, import) are the icon row in the same menu.
 
@@ -169,20 +176,27 @@ npm run e2e        # real Chrome, headless, throwaway profile
 374 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, the reactive bookmark tree, backups, and the
-whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome. See
+whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome. The feedback relay has
+32 tests of its own (`cd worker && npx --yes node@22.18 --test test/index.test.ts`). See
 [TESTING.md](TESTING.md).
 
 ## Deployment
 
-CI (`.github/workflows/extension-ci.yml`) runs lint, tests, build and the bundle check on every
-push and pull request. Releases are uploaded to the Chrome Web Store by the maintainer; the
-website deploys to GitHub Pages from `main`. Steps, the permission gate and rollback:
+CI (`.github/workflows/extension-ci.yml`) is one job that runs lint, tests, build, the bundle
+check and the real-Chrome smoke test on pull requests that change code; docs-only pull requests
+skip it. Releases are uploaded to the Chrome Web Store by the maintainer; the
+website deploys to GitHub Pages from `main`; the feedback relay is deployed by hand with Wrangler
+([worker/README.md](worker/README.md)). Steps, the permission gate and rollback:
 [PLAYBOOK.md](PLAYBOOK.md).
 
 ## Roadmap
 
-Next: 1.5.0 (which includes 1.3.0 and 1.4.0) is in review on the Chrome Web Store. After it, a
-safety net that also recovers changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
+1.5.0 (which includes 1.3.0 and 1.4.0) is live. 1.6.0 (settings menu rework, feedback form) is in
+review on the Chrome Web Store. Next, **Agent changes** (planned, not built): choose folders to
+share with any AI, paste back the changes it proposes, review them, apply them as one step and
+undo them from Activity; a live bridge for coding agents follows only if people ask for it
+([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md)). Later, a safety net that also
+recovers changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

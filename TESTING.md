@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-09T05:23:51+00:00 (1.6.0: feedback, menu and capture tests, 374 tests; worker 32; CI cut to one job on code pull requests)._
+_Last updated: 2026-11-09T16:00:59+00:00 (coverage rows for 1.6.0 tests and the relay; counts checked: 374 Vitest, 32 relay)._
 
 ## Commands
 
@@ -11,6 +11,7 @@ npx tsc -p tsconfig.test.json --noEmit    # type-check the tests
 npm run lint                             # ESLint incl. React Compiler rules (CI gate)
 npm run build && npm run check:bundle    # build, then worker hygiene + secret/source-map scan
 npm run e2e                              # real Chrome, headless, throwaway profile (needs a build)
+cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback relay, 32 tests
 ```
 
 ## Setup
@@ -58,6 +59,10 @@ storage and bookmarks to test crash recovery.
 | Whole app 1.5.0 flows: rename Undo (button, Ctrl+Z, newer name), Cut and Paste Undo, a folder into itself | `components/Edits.test.tsx` |
 | Selection, history permission, link metadata refresh | `hooks/useSelection.test.ts`, `hooks/useHistoryStats.test.tsx`, `hooks/useLinkMeta.test.ts` |
 | List column values and sorting | `list_columns.test.ts` |
+| Feedback client: validation, payload, counts-only details, Edge detection, rate-limit, relay, network and timeout errors | `feedback.test.ts` |
+| 1.6.0 settings menu (Generate Preview sub-menu, backup icon row, AI Settings, trash-icon Delete) and the feedback dialog (no details when unticked, double submit sends once, text kept after a failed send) | `components/Menu.test.tsx` |
+| Capture page copy without scripts, expected failures logged as warnings | `content_capture.test.ts` |
+| Feedback relay: origins, limits, Durable Object counters, IPv6 /64, body caps, sanitising, provider errors | `worker/test/index.test.ts` (Node test runner, not in the Vitest count) |
 | Whole app 1.4.0 flows: range select and bulk delete, bulk move and Undo, Ctrl+A, colour, hidden from search, rating, Trash switch | `components/Bulk.test.tsx` |
 
 ## What tests cannot cover
