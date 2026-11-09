@@ -5,11 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.6.0] - Unreleased
+## [1.6.0] - 2026-11-09
 
-Settings menu rework and an in-built feedback form, from the owner's mark-up of 2026-11-09. Not
-uploaded: it waits until 1.5.0 is approved, because uploading now would replace the submission
-in review.
+Settings menu rework and an in-built feedback form, from the owner's mark-up of 2026-11-09.
+Released 2026-11-09T13:51:14+00:00, after 1.5.0 went live on the Chrome Web Store.
 
 ### Added
 
