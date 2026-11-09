@@ -105,7 +105,20 @@ Browser: {
   }
 }
 
+FeedbackRelay: {
+  label: "Feedback relay (worker/, Cloudflare Worker)"
+  shape: cloud
+  tooltip: "Holds the Resend key (D16); rate limits in a Durable Object; stores no message content"
+}
+
+Resend: {
+  shape: cloud
+  tooltip: "Email provider; sends to support@palworks.ai"
+}
+
 User -> Browser.Extension.Popup: Interacts
+Browser.Extension.Popup -> FeedbackRelay: "POST /feedback (only when the user presses Send)"
+FeedbackRelay -> Resend: "One email per message"
 User -> Browser.Website: Visits
 Browser.Extension.Popup -> Browser.Website: Links to (Help/Support)
 
@@ -165,7 +178,7 @@ Deployment: {
   GitHub.Actions -> BuildEnv.BuildWebsite: Triggers
   BuildEnv.BuildWebsite -> Hosting.GitHubPages: Deploys
   
-  GitHub.Actions -> BuildEnv.BuildExtension: "CI: lint, test, build, bundle check"
+  GitHub.Actions -> BuildEnv.BuildExtension: "CI on code PRs: lint, test, build, bundle check, e2e"
   User -> BuildEnv.BuildExtension: "Release: npm run zip"
   BuildEnv.BuildExtension -> Hosting.ChromeWebStore: Upload Zip
 }

@@ -1,10 +1,10 @@
 # AGENTS.md
 
-_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: folder prefs writer, metadata allowlist, external deletes, e2e)._
+_Last updated: 2026-11-09T16:00:17+00:00 (1.6.0: worker/, feedback form, rules 18 and 19, Agent changes plan)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,
-plus a marketing website in `website/`.
+plus a marketing website in `website/` and a small feedback relay in `worker/` (Cloudflare Worker).
 
 Read next, as needed: [ARCHITECTURE.md](ARCHITECTURE.md) (contexts, Trash, data flow),
 [DATA_MODEL.md](DATA_MODEL.md) (every storage key), [DECISIONS.md](DECISIONS.md) (rules with
@@ -21,7 +21,9 @@ npm run lint           # ESLint flat config, React Compiler rules; CI gate
 npm test -- --run      # Vitest once, as CI runs it
 npm run check:bundle   # worker hygiene, secret and source-map scan of dist/
 npm run e2e            # real-Chrome smoke test of dist/ in a throwaway headless profile
-npm run zip            # build + check + extension.zip for the Web Store
+npm run zip            # build + check + extension.zip for the Web Store (delete an old extension.zip first: zip appends)
+
+cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback relay
 ```
 
 ## Layout
@@ -36,11 +38,13 @@ npm run zip            # build + check + extension.zip for the Web Store
 | `src/popup/hooks/` | All page behaviour (`useTrash`, `useBookmarkTree`, `useThumbnails`, `useToast`, ...) |
 | `src/components/`, `src/popup/components/` | UI components; new styles in `src/components/shared.css` on tokens from `src/popup/index.css` |
 | `src/content/capture.ts` | Content script used during capture |
+| `src/lib/feedback.ts`, `src/components/FeedbackDialog.tsx` | In-built feedback form and its client for the relay |
 | `tests/` | Vitest; `tests/fakes/chrome_bookmarks.ts`, `tests/sw_bridge.ts` |
 | `scripts/check-bundle.mjs` | Post-build checks (CI) |
 | `scripts/e2e/smoke.mjs` | `npm run e2e`: real Chrome, headless, throwaway profile |
-| `website/` | Marketing site, deployed to GitHub Pages from `main` |
-| `docs/designs/` | Design documents with review history |
+| `worker/` | Feedback relay (Cloudflare Worker, Resend, Durable Object rate limits); deployed by hand, see `worker/README.md` |
+| `website/` | Marketing site, deployed to GitHub Pages from `main`; its privacy page is `website/components/Legal.tsx` |
+| `docs/designs/` | Design documents with review history; `agent-bridge.md` is the approved, not yet built, Agent changes plan |
 
 ## Rules (do not break)
 
@@ -81,6 +85,11 @@ npm run zip            # build + check + extension.zip for the Web Store
 17. **Optional permissions** (`history`) are requested only from a click handler, as the first
     call, and every use checks `chrome.permissions.contains` first; the feature must work
     without them.
+18. **No key of ours in the extension.** Anything that needs our own key (feedback email) goes
+    through our relay; the Resend key and `IP_HASH_SECRET` live as Worker secrets (D16). Scan `dist/` before every
+    upload (`npm run check:bundle`).
+19. **Docs-only changes go in their own pull request** (no CI run) or ride with the next code
+    pull request; CI runs only on pull requests that change code.
 
 ## Allowed without asking
 

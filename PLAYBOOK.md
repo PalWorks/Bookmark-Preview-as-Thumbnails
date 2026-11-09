@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-09T05:23:51+00:00 (GitHub Actions kept to the minimum)._
+_Last updated: 2026-11-09T16:01:20+00:00 (feedback relay deploy and rollback section)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -93,6 +93,20 @@ targets only and expect slower timers there.
 Owner-profile QA (a real profile with real bookmarks) puts its test data in its own folder,
 snapshots bookmark and folder counts first, and removes the data and its Trash entries
 afterwards.
+
+## Feedback relay (`worker/`)
+
+Deployed by hand, separately from extension releases; the owner approves each deploy.
+
+1. `cd worker && npm ci`, then `npx --yes node@22.18 --test test/index.test.ts && npm run typecheck`.
+2. `npx wrangler deploy`. Secrets (`RESEND_API_KEY`, `IP_HASH_SECRET`) are set once with
+   `npx wrangler secret put`; never in the repository or on a command line.
+3. Check `GET /health` returns `{ "ok": true }`, then send one message from an unpacked build.
+4. Roll back with `npx wrangler rollback` to the previous version [Unverified: not yet exercised
+   on this Worker]. Live logs: `npx wrangler tail`.
+
+The extension's endpoint is fixed in `src/lib/feedback.ts`; moving the relay needs an extension
+release. Details and limits: [worker/README.md](worker/README.md).
 
 ## Roll back
 

@@ -1,6 +1,6 @@
 # Contributing to Bookmarks Thumbnails
 
-_Last updated: 2026-11-08T13:42:32+00:00 (CI also runs npm run e2e)._
+_Last updated: 2026-11-09T16:00:59+00:00 (Node 22, relay tests, CI scope)._
 
 Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome contributions from everyone.
 
@@ -14,7 +14,7 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
     cd Bookmark-Preview-as-Thumbnails
     ```
 
-3. **Install dependencies**:
+3. **Install dependencies** (Node 22 or newer, as CI uses):
 
     ```bash
     npm install
@@ -40,6 +40,10 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
     npm run e2e   # real Chrome, headless, throwaway profile (CI runs it too)
     ```
 
+    If you change the feedback relay in `worker/`, also run
+    `cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck`.
+    Never add a key of ours to the extension; see rule 18 in [AGENTS.md](AGENTS.md).
+
     Read [AGENTS.md](AGENTS.md) first: it lists the rules that must not be broken (for
     example, deletes always go through Trash, and new files carry an SPDX header).
 
@@ -54,7 +58,8 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
 ## Pull Request Process
 
 1. Push your branch to your fork.
-2. Open a Pull Request (PR) against the `main` branch of the original repository.
+2. Open a Pull Request (PR) against the `main` branch of the original repository. CI runs only
+   on pull requests that change code; keep documentation-only changes in their own pull request.
 3. Fill out the PR template with details about your changes.
 4. Wait for review. We will do our best to review your PR as soon as possible.
 

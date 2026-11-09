@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-09T15:52:53+00:00 (agent changes plan approved and merged into one spec)._
+> _Last updated: 2026-11-09T16:02:02+00:00 (status: 1.5.0 live, 1.6.0 in review; Agent changes next)._
 
 ## 0. North star: every open item, one row each
 
@@ -23,7 +23,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
 | 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.5.0 (which carries 1.3.0 and 1.4.0) is live on the Chrome Web Store (confirmed through the store API on 2026-11-09). The first submission was rejected on 2026-11-08 for excessive keywords; the resubmission passed. | Run PLAYBOOK release step 8 (store install on a clean profile, update from 1.2.1) once 1.6.0 is live, then row 10, the promo video link (row 16) and the website feature list. |
-| 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | Reply once 1.5.0 is live, listing what shipped (their requests and rows 1 to 5). |
+| 10 | §3.1 | P2 | **Waiting** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | 1.5.0 is live; the reply waits for 1.6.0 (in review) so it can list everything at once (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 | 18 | §3.2 | P2 | **Open** | L | M | 2026-11-09 | Coding agents and other AIs cannot organise the user's Chrome bookmarks safely. Plan approved after /gstack-autoplan (owner gate 2026-11-09): [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md). Stage 1: export chosen folders for any AI, import its change set, review it in an Agent changes panel, apply as one step, Undo from Activity; no new permission. Stage 2 (coding-agent bridge over optional nativeMessaging, Chrome on Linux and macOS) only if a 90-day demand check passes; Stage 3 adds Edge, Brave and Windows. | Next: owner confirms the demand-check numbers; /plan-design-review on the Stage 1 screens; then build 1a (folders, moves, renames) and 1b (tags, ratings, Trash). |
@@ -88,11 +88,22 @@ Priority, Size and Impact are separate columns because they answer separate ques
 | Safe updates (schema-gated migration), tags kept on recapture, API key bound to its provider | 1.2.1 (live 2026-11-08) |
 | Trash with Undo, favicon previews, deep counts, folder panel toggle, 360px layout, settings export | 1.3.0 (not released on its own; ships in 1.5.0) |
 | Deletes made outside the extension in Trash, folder colours, hidden from search, multi-select with bulk delete/move/open, list columns and ratings | 1.4.0 (not released on its own; ships in 1.5.0) |
-| Undo for rename and Cut and Paste | 1.5.0 (in review since 2026-11-08) |
+| Undo for rename and Cut and Paste | 1.5.0 (live; confirmed through the store API 2026-11-09) |
+| Settings menu rework, in-built feedback form (relay in `worker/`), html2canvas-pro capture | 1.6.0 (in review since 2026-11-09T13:56:04+00:00) |
 
 ## 2. Next up
 
-### 2.1 Status: 1.5.0 in review on the Chrome Web Store (updated 2026-11-09T03:11:55+00:00)
+### 2.1 Status: 1.6.0 in review on the Chrome Web Store (updated 2026-11-09T16:02:02+00:00)
+
+1.5.0 is live (confirmed through the store API on 2026-11-09). 1.6.0 was merged (PR #11),
+tagged `v1.6.0`, uploaded and submitted on 2026-11-09T13:56:04+00:00 with automatic publishing;
+the Privacy tab now declares personally identifiable information and personal communications
+for the feedback form (row 17). After approval: PLAYBOOK release step 8, the reply to the user
+who asked for these features (row 10), the promo video link (row 16) and the website feature
+list. The next feature is Agent changes, Stage 1 (row 18), whose plan was approved on
+2026-11-09.
+
+The 1.5.0 history, kept for reference:
 
 1.2.1 is live. The owner chose to ship 1.3.0 and 1.4.0 inside 1.5.0 rather than on their own
 (2026-11-08): PRs #2, #3 and #5 are merged, `v1.4.0` and `v1.5.0` are tagged, and 1.5.0 was
@@ -115,12 +126,12 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 |---|---|---|---|---|---|
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
-| 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: resubmitted, in review | S | H |
+| 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks after 1.6.0 is live | S | H |
 | 18 | Agent changes (import, review, Undo; bridge later) | §3.2 | **Open**: plan approved, design review next | L | M |
-| 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **Waiting**: until 1.5.0 is approved | S | M |
+| 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **Waiting**: in review since 2026-11-09 | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
-| 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.5.0 is live | T | M |
+| 10 | Reply to the user who requested parity | §3.1 | **Waiting**: until 1.6.0 is live | T | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
 | 15 | Undo history beyond the toast | §3.2 | **Deferred** | M | L |
 | 1 | Record deletions made outside the extension | §3.2 | **Done** 2026-11-08 (built in 1.4.0, ships with row 12) | Was M | M |

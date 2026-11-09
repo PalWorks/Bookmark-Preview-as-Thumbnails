@@ -1,8 +1,10 @@
 # Data model
 
-_Last updated: 2026-11-08T13:24:59+00:00 (1.4.0: folder prefs, rating and opened time, external Trash entries, new settings and backup sections)._
+_Last updated: 2026-11-09T16:00:59+00:00 (1.6.0 feedback stores nothing locally)._
 
-All data is local to the browser profile. There is no server.
+All data is local to the browser profile. The feedback form (1.6.0) stores nothing: a message
+goes to the relay in `worker/` when the user presses Send, and the relay keeps no message content
+(only hashed per-network rate counters, at most 26 hours; [worker/README.md](worker/README.md)).
 
 ## chrome.storage.local
 

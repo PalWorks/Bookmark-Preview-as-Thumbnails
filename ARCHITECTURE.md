@@ -1,8 +1,9 @@
 # Architecture
 
-_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0: feedback relay)._
+_Last updated: 2026-11-09T16:00:59+00:00 (feedback relay in the context diagram and d2, html2canvas-pro, planned Agent changes)._
 
-Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has no server. Everything
+Bookmarks as Thumbnails is a Chrome Manifest V3 extension. Its only server is the feedback
+relay in `worker/`, used when someone sends the feedback form (1.6.0). Everything else
 runs in three browser contexts and stores data in `chrome.storage`. Storage keys and
 record shapes are in [DATA_MODEL.md](DATA_MODEL.md); the reasons behind the main choices
 are in [DECISIONS.md](DECISIONS.md).
@@ -35,6 +36,8 @@ are in [DECISIONS.md](DECISIONS.md).
                      chrome.storage.sync: settings          IndexedDB: legacy previews, folder handle
 
  Content script (content-script.js): page-side capture helper injected into capture tabs.
+
+ Feedback form (page, src/lib/feedback.ts) ── POST /feedback, only on Send ──▶ worker/ relay ──▶ Resend ──▶ support@
 ```
 
 - **Service worker** (`src/sw.ts`): message router, capture orchestration, AI batch
@@ -195,11 +198,20 @@ bottom-aligned dialogs. Colours for new components come from tokens in
 
 ## External dependencies
 
-React 19, lucide-react, html2canvas (content script). One network service of our own: the
+React 19, lucide-react, html2canvas-pro 2.5.2 (capture; replaced html2canvas 1.4.1 in 1.6.0). One network service of our own: the
 feedback relay in `worker/` (Cloudflare Worker, `https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev`),
 called only when the user sends the feedback form (`src/lib/feedback.ts`, D16). It emails
 support@palworks.ai through Resend. Optional AI calls go only to the provider the user
 configures (see PRIVACY.md).
+
+## Planned: Agent changes (approved, not built)
+
+The approved plan ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md), D18) adds one
+change-set format with a validator in `src/lib/change_set/`, an apply coordinator with a
+per-item journal and Undo in the regular service worker (never the incognito one), an Agent
+changes panel and an Activity view. Stage 1 takes change sets from a paste or a file; a native
+messaging bridge for coding agents (Stage 2) only follows a demand check. Nothing of it is in the
+code yet; this section changes when Stage 1 lands.
 
 ## Diagram
 
