@@ -36,7 +36,6 @@ function shell(title: string, inner: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="referrer" content="no-referrer">
 <title>${h(title)}</title>
 <link rel="stylesheet" href="${CSS_PATH}">
 </head>

@@ -119,6 +119,9 @@ test('full flow: register, authorize page, code, token, MCP tool call', async ()
     assert.match(html, /claude\.ai/);
     assert.match(html, /inputmode="numeric" autocomplete="one-time-code"/);
     assert.match(html, /No code showing\? Ask the extension for one/);
+    // A no-referrer policy makes Chrome send Origin: null on the form post, which the origin check refuses.
+    assert.doesNotMatch(html, /no-referrer/);
+    assert.equal(page.headers.get('Referrer-Policy'), 'same-origin');
     const p = hiddenP(html);
 
     const started = await post(env, `/mcp/${LINK_ID}/authorize`, { p, action: 'start' });
