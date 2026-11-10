@@ -1,11 +1,36 @@
 # Decisions
 
-_Last updated: 2026-11-10T19:20:55+00:00 (D25: helper asks before allowing an unpacked copy; D26: Ask AI knows the open folder)._
+_Last updated: 2026-11-10T21:11:02+00:00 (D27: usage statistics on by default, off in Settings)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D27. Usage statistics, on by default (owner, 2026-11-11)
+
+The owner wants to see how people use the extension, through Google Analytics and PostHog,
+on until the user turns them off. I recommended asking first (EU and UK rules expect consent
+before storing an id on the device for statistics); the owner chose on by default with an off
+switch, and the privacy texts say so plainly.
+
+- **Path:** the extension posts small batches to our relay (`/events` on the feedback
+  Worker); the relay holds the GA4 Measurement Protocol secret and the PostHog key and
+  forwards. The extension holds no analytics key and needs no new permission.
+- **Content:** a random install id, a session number, the version, event names, and values
+  that are numbers, booleans or short words without spaces or slashes. The extension and the
+  relay both drop anything else, so no link, title, folder name, search or chat text can
+  pass. Counts go as ranges. The relay sends the country, never the IP address. PostHog gets
+  no person profiles.
+- **Off switch:** Settings > Share usage statistics (synced). Off means nothing is sent;
+  Incognito windows never send. Development copies are marked and kept out of GA4 reports
+  (debug mode) and tagged `dev` in PostHog.
+- **Events:** feature messages the service worker already receives (previews, Auto-Tag, Smart
+  Search, connector and coding agents on or off, AI change undo, redo, approve and discard,
+  Trash, Ask AI tool calls) plus page events (opened, panel, view mode, search started, Ask AI
+  sent, backup, feedback) and install or update.
+
+**Rule:** a usage event carries no user content; new events use the same safe value types.
 
 ## D26. Ask AI knows the open folder (owner, 2026-11-11)
 

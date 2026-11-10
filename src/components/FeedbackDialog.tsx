@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { track } from '../lib/analytics';
 import React, { useRef, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Modal } from './Modal';
@@ -65,6 +66,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ onClose, diagnos
             setBusy(false);
         }
         if (result.ok) {
+            track('feedback_sent');
             setSent(true);
             setTimeout(() => doneRef.current?.focus(), 0);
         } else {

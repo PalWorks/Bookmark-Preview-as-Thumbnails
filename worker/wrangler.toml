@@ -17,6 +17,11 @@ routes = [{ pattern = "bookmarks-feedback.palworks.ai", custom_domain = true }]
 [vars]
 FEEDBACK_FROM = "Visual Bookmark Manager feedback <feedback.ThumbnailBookmarks@palworks.ai>"
 FEEDBACK_TO = "support@palworks.ai"
+# Usage statistics (D27): the GA4 web stream "Chrome extension" in the property that also
+# measures the website. Its API secret, and the PostHog project key, are Worker secrets
+# (GA4_API_SECRET, POSTHOG_KEY); without them /events accepts and drops.
+GA4_MEASUREMENT_ID = "G-Y7EQS9EYQB"
+POSTHOG_HOST = "https://eu.i.posthog.com"
 # Only these pages may post: the Web Store build, then the maintainer's unpacked build.
 # Add your own unpacked extension id here to test the form from a development build.
 ALLOWED_ORIGINS = "chrome-extension://eedekafhclngkhhkcocblnllkbodgnhj,chrome-extension://pinepbhghhkcpnjmkohlfnipldbgcogm"
@@ -40,3 +45,10 @@ new_sqlite_classes = ["FeedbackLimiter"]
 name = "BURST"
 namespace_id = "2003"
 simple = { limit = 3, period = 60 }
+
+# Usage statistics: at most 60 batches a minute per network, per data centre. 2310 keeps
+# clear of the namespace ids listed above.
+[[ratelimits]]
+name = "EVENTS_BURST"
+namespace_id = "2310"
+simple = { limit = 60, period = 60 }

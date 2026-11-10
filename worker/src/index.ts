@@ -18,10 +18,11 @@
  */
 
 import { FeedbackLimiter, type TakeResult } from './limiter.ts';
+import { MAX_EVENTS_BODY, cleanBatch, forward, type EventsEnv } from './events.ts';
 
 export { FeedbackLimiter };
 
-export interface Env {
+export interface Env extends EventsEnv {
     RESEND_API_KEY: string;
     /** Keys the HMAC that names a network in its counter, so no IP is ever stored. */
     IP_HASH_SECRET: string;
@@ -334,8 +335,32 @@ async function handleFeedback(request: Request, env: Env, origin: string | null)
     return reply({ ok: true });
 }
 
+/** Usage statistics (D27): our extension's pages only; answered at once, forwarded after. */
+async function handleEvents(request: Request, env: Env, origin: string | null, ctx?: { waitUntil(p: Promise<unknown>): void }): Promise<Response> {
+    if (!origin) return json({ error: 'Not allowed' }, 403);
+    if (!(request.headers.get('content-type') || '').includes('application/json')) return json({ error: 'Expected application/json' }, 415, origin);
+    const raw = await readCapped(request, MAX_EVENTS_BODY);
+    if (raw === null) return json({ error: 'Payload too large' }, 413, origin);
+    let batch;
+    try { batch = cleanBatch(JSON.parse(raw)); } catch { batch = null; }
+    if (!batch) return json({ error: 'Malformed batch' }, 400, origin);
+    if (env.EVENTS_BURST && env.IP_HASH_SECRET) {
+        try {
+            const who = await ipKey(env.IP_HASH_SECRET, networkOf(request.headers.get('cf-connecting-ip') || 'unknown'));
+            if (!(await env.EVENTS_BURST.limit({ key: who })).success) return new Response(null, { status: 429, headers: corsHeaders(origin) });
+        } catch {
+            /* statistics are best effort; a limiter failure does not block them */
+        }
+    }
+    const cf = (request as Request & { cf?: { country?: string } }).cf;
+    const country = typeof cf?.country === 'string' && /^[A-Z]{2}$/.test(cf.country) ? cf.country : null;
+    const job = forward(batch, env, country);
+    if (ctx) ctx.waitUntil(job); else await job;
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+}
+
 export default {
-    async fetch(request: Request, env: Env): Promise<Response> {
+    async fetch(request: Request, env: Env, ctx?: { waitUntil(p: Promise<unknown>): void }): Promise<Response> {
         const url = new URL(request.url);
         const origin = allowedOrigin(request, env);
         // A browser page we do not know: refuse before any work or counting.
@@ -348,6 +373,13 @@ export default {
         }
         if (url.pathname === '/health') {
             return json({ ok: true });
+        }
+        if (url.pathname === '/events' && request.method === 'POST') {
+            try {
+                return await handleEvents(request, env, origin, ctx);
+            } catch {
+                return json({ error: 'Unexpected error' }, 500, origin);
+            }
         }
         if (url.pathname !== '/feedback') {
             return json({ error: 'Not found' }, 404, origin);

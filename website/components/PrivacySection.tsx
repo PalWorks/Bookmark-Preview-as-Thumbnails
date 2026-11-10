@@ -29,7 +29,7 @@ export const PrivacySection: React.FC = () => {
               {[
                 { icon: Database, title: "IndexedDB Storage", desc: "Fast, persistent storage directly in Chrome." },
                 { icon: WifiOff, title: "Offline Capable", desc: "Works perfectly without an internet connection." },
-                { icon: Lock, title: "No Tracking", desc: "We have zero analytics. Your browsing is your business." }
+                { icon: Lock, title: "Your bookmarks stay yours", desc: "We never see your bookmarks, links or searches. Anonymous feature counts help us improve, and you can turn them off. This website uses Google Analytics." }
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-4">
                   <div className="mt-1 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">

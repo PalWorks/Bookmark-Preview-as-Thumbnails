@@ -17,6 +17,7 @@ goes to the relay in `worker/` when the user presses Send, and the relay keeps n
 |---|---|---|---|
 | `thumb_<url>` | worker (capture), page (backup import) | `{ id, url, mime, base64 (data: URL), updatedAt, width, height, sizeBytes, filename? }` | Preview image. `<url>` is the original bookmark URL. |
 | `meta_<url>` | worker via `storageIndex.patch` (pages send `META_PATCH`) | `{ id, url, title, status, lastCaptureAt?, error?, tags?, rating?, lastOpenedAt? }` | Always merged, never replaced, so tags survive recaptures. `rating` 1 to 5 (1.4.0), `lastOpenedAt` ms when opened from this extension (1.4.0). Page writes pass an allowlist (`metadata_sanitize.ts`). |
+| `analytics_cid` | page or worker (`src/lib/analytics.ts`) | random UUID | D27. The install id for usage statistics. Not synced, not in backups. |
 | `fpref_<folderId>` | worker only (`src/sw/folder_prefs.ts`) | `{ color?: 'orange' \| 'red' \| 'pink' \| 'purple' \| 'blue' \| 'teal' \| 'green' \| 'grey', hideFromSearch?: true }` | 1.4.0. Absent means yellow and searchable. Folder ids are local to this device. |
 | `fprefs_prune_pending` | worker only | `{ [folderId]: ms }` | Folders seen missing at a daily prune; their prefs go at a later prune 10 minutes or more after. |
 | `storage_schema_version` | worker | `2` | Gates the one-time legacy migration. |
@@ -76,6 +77,7 @@ Trash.
 
 | Key | Owner (writer) | Shape | Notes |
 |---|---|---|---|
+| `analytics_sid` | page or worker | number (seconds) | D27. Session number for usage statistics. |
 | `ask_ai_current` | page | chat id | D24. The chat that is open, so a reload continues it. |
 | `ask_ai_chat` | page | `{ items, history }` | 1.7.0 only. Moved into `ask_ai_chats` the first time the next version opens, then removed. |
 
@@ -90,6 +92,7 @@ Trash.
 
 | Key | Type | Valid values |
 |---|---|---|
+| `usage_stats` | boolean | `false` only: usage statistics off (D27). Absent means on. |
 | `useIncognito` | boolean | |
 | `theme` | string | `light`, `dark`, `system` |
 | `captureDelay` | number | 100 to 30000 (ms) |

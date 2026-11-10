@@ -44,12 +44,25 @@ A network's counter is named by an HMAC-SHA256 of its address under `IP_HASH_SEC
 address; an hourly alarm deletes stale counters, so none outlives 26 hours. The Resend call times out after 8 seconds (`504`),
 inside the extension's 12-second timeout.
 
+## Usage statistics (`POST /events`, D27)
+
+The extension's pages post batches of feature events here. Only our extension origins are
+answered. Every value is checked again (event names and keys are short identifiers; values
+are numbers, booleans or short words without spaces or slashes; at most 20 events), then the
+batch goes to Google Analytics (Measurement Protocol, stream `G-Y7EQS9EYQB`) and PostHog
+(`POSTHOG_HOST`) after the reply (`204`). Only the country goes on, never the IP. Development
+copies are sent with GA4 debug mode and `dev: true` in PostHog. Nothing is stored. Without
+`GA4_API_SECRET` or `POSTHOG_KEY` that service is skipped. A rate-limit binding
+(`EVENTS_BURST`) allows 60 batches a minute per network.
+
 ## Setup
 
 ```bash
 npm install
 npx wrangler secret put RESEND_API_KEY                 # send-only key scoped to palworks.ai
 openssl rand -base64 48 | npx wrangler secret put IP_HASH_SECRET
+npx wrangler secret put GA4_API_SECRET                 # GA4 stream G-Y7EQS9EYQB, Measurement Protocol secret
+npx wrangler secret put POSTHOG_KEY                    # PostHog project API key (phc_...)
 npx --yes node@22.18 --test test/index.test.ts && npm run typecheck
 npx wrangler deploy
 ```

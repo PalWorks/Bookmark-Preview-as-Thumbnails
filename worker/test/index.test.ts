@@ -338,3 +338,48 @@ test('display-name and list addresses are refused as reply addresses', async () 
         assert.equal((await worker.fetch(post({ ...good, replyTo }), env())).status, 400, replyTo);
     }
 });
+
+// ── Usage statistics (D27) ───────────────────────────────────────────────────
+
+const CID = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+function postEvents(body: unknown, origin: string | null = ORIGIN) {
+    return new Request('https://relay.example/events', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.7', ...(origin ? { origin } : {}) },
+        body: JSON.stringify(body),
+    });
+}
+const statsEnv = () => env({ GA4_MEASUREMENT_ID: 'G-TEST', GA4_API_SECRET: 'ga-secret', POSTHOG_KEY: 'phc_test', POSTHOG_HOST: 'https://ph.example' });
+
+test('events go to GA4 and PostHog with only safe values; links, titles and spaces are dropped', async () => {
+    const res = await worker.fetch(postEvents({
+        cid: CID, sid: 1700000000, v: '1.8.0',
+        events: [
+            { n: 'ask_ai_send', p: { provider: 'groq', folder: true, turn: 2, title: 'My secret folder', url: 'https://bank.example/x?y=1' }, ago: 50 },
+            { n: 'Bad Name', p: {} },
+        ],
+    }), statsEnv());
+    assert.equal(res.status, 204);
+    assert.equal(sent.length, 2);
+    const ga = sent.find((s) => s.url.startsWith('https://www.google-analytics.com/mp/collect'))!;
+    assert.match(ga.url, /measurement_id=G-TEST&api_secret=ga-secret/);
+    assert.equal(ga.body.client_id, CID);
+    assert.deepEqual(ga.body.events.map((e: any) => e.name), ['ask_ai_send']);
+    assert.deepEqual(ga.body.events[0].params, { provider: 'groq', folder: true, turn: 2, engagement_time_msec: 1, session_id: 1700000000, ext_version: '1.8.0' });
+    const ph = sent.find((s) => s.url === 'https://ph.example/batch/')!;
+    assert.equal(ph.body.api_key, 'phc_test');
+    assert.equal(ph.body.batch[0].distinct_id, CID);
+    assert.equal(ph.body.batch[0].properties.$process_person_profile, false);
+    assert.equal(ph.body.batch[0].properties.title, undefined);
+    assert.doesNotMatch(JSON.stringify(sent), /203\.0\.113\.7|secret folder|bank\.example/);
+});
+
+test('events: development copies are marked, unknown origins and bad batches are refused, no keys means nothing is sent', async () => {
+    await worker.fetch(postEvents({ cid: CID, v: '1.8.0', dev: true, events: [{ n: 'app_open' }] }), statsEnv());
+    assert.equal(sent.find((s) => s.url.includes('google-analytics'))!.body.events[0].params.debug_mode, 1);
+    assert.equal((await worker.fetch(postEvents({ cid: CID, v: '1.8.0', events: [{ n: 'app_open' }] }, null), statsEnv())).status, 403);
+    assert.equal((await worker.fetch(postEvents({ cid: 'not-an-id', v: '1.8.0', events: [{ n: 'app_open' }] }), statsEnv())).status, 400);
+    sent = [];
+    assert.equal((await worker.fetch(postEvents({ cid: CID, v: '1.8.0', events: [{ n: 'app_open' }] }), env())).status, 204);
+    assert.equal(sent.length, 0);
+});
