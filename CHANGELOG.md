@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser); provider fixes
 and addresses 2026-11-10T11:23:53+00:00.
 
+### Added
+
+- **Ask AI knows the open folder** (D26, 2026-11-10T19:20:55+00:00). In the side panel, a chip above the message box
+  names the open folder, and each message tells the AI which folder that is, so "how many
+  bookmarks are in this folder?" just works. Click the chip to leave the folder out. Day
+  dividers stay at the top while the chat scrolls and read Today, Yesterday, the weekday, then
+  the date.
+
 ### Changed
 
 - **One AI Tools page.** The menu's four AI items (AI Settings, Ask AI, AI changes, Connect
@@ -48,6 +56,11 @@ and addresses 2026-11-10T11:23:53+00:00.
   an Apply card (Apply or Don't). This also limits what a hostile bookmark title can make the AI do.
 
 ### Security
+
+- **Helper (next npm release, 1.7.2): asks before allowing an unpacked copy** (D25, review F7,
+  2026-11-10T19:20:55+00:00). `install` shows each unpacked copy it finds and allows it only after you answer yes in a
+  terminal; the answer is remembered. A copy in a folder another user owns or can change is never
+  allowed. `--extension-id` takes a comma-separated list. `uninstall` forgets the answers.
 
 From a review of every AI surface on 2026-11-10 (findings in SECURITY.md):
 

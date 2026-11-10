@@ -4,8 +4,8 @@
 // bookmarks; it looks, then changes them at once, and every change card has Undo.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, CircleAlert, History, Images, Plus, Redo2, RotateCcw, Send, Settings, Smartphone, Sparkles, Square, Trash2, Undo2, X } from 'lucide-react';
-import type { AskAIApi, ChatItem } from '../popup/hooks/useAskAI';
+import { ArrowLeft, Check, ChevronDown, CircleAlert, Folder, History, Images, Plus, Redo2, RotateCcw, Send, Settings, Smartphone, Sparkles, Square, Trash2, Undo2, X } from 'lucide-react';
+import type { AskAIApi, AskContext, ChatItem } from '../popup/hooks/useAskAI';
 import { dayLabel, timeLabel, type ChatSummary } from '../lib/agent/chat_store';
 import { AskAIPreviews } from './AskAIPreviews';
 
@@ -22,6 +22,8 @@ interface Props {
     onCopyPaste: () => void;
     readOnly: boolean;
     toast: (message: string, tone?: 'error') => void;
+    /** The folder open beside the dock; sent with each message while its chip is on. */
+    context?: AskContext | null;
 }
 
 const SUGGESTIONS = [
@@ -45,7 +47,13 @@ interface RowActions {
 const Row: React.FC<{ item: ChatItem; act: RowActions }> = ({ item, act }) => {
     switch (item.kind) {
         case 'user':
-            return <div className="ask-row ask-row--user"><div className="ask-bubble ask-bubble--user">{item.text}</div><Stamp at={item.at} /></div>;
+            return (
+                <div className="ask-row ask-row--user">
+                    <div className="ask-bubble ask-bubble--user">{item.text}</div>
+                    {item.folder && <span className="ask-row-context"><Folder size={12} aria-hidden="true" /> {item.folder}</span>}
+                    <Stamp at={item.at} />
+                </div>
+            );
         case 'assistant':
             return <div className="ask-row ask-row--ai"><div className="ask-bubble ask-bubble--ai">{item.text}</div><Stamp at={item.at} /></div>;
         case 'tool':
@@ -225,8 +233,12 @@ const ModelPicker: React.FC<{ api: AskAIApi; disabled: boolean }> = ({ api, disa
     );
 };
 
-export const AskAIView: React.FC<Props> = ({ api, variant = 'page', onBack, tabBar, onOpenSettings, onOpenConnect, onOpenActivity, onCopyPaste, readOnly, toast }) => {
+export const AskAIView: React.FC<Props> = ({ api, variant = 'page', onBack, tabBar, onOpenSettings, onOpenConnect, onOpenActivity, onCopyPaste, readOnly, toast, context }) => {
     const [text, setText] = useState('');
+    // On by default; turning it off holds until another folder is opened.
+    const [contextOffFor, setContextOffFor] = useState<string | null>(null);
+    const useFolder = !!context && contextOffFor !== context.folderId;
+    const folderName = context?.path.split(' > ').pop() ?? '';
     const [busy, setBusy] = useState<string | null>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const p = api.provider;
@@ -240,7 +252,7 @@ export const AskAIView: React.FC<Props> = ({ api, variant = 'page', onBack, tabB
 
     const submit = (value = text) => {
         if (!value.trim() || api.running) return;
-        api.send(value);
+        api.send(value, useFolder ? context : null);
         setText('');
     };
 
@@ -323,6 +335,20 @@ export const AskAIView: React.FC<Props> = ({ api, variant = 'page', onBack, tabB
 
     const composer = !readOnly && !notReady && (
         <form className="ask-composer" onSubmit={e => { e.preventDefault(); submit(); }}>
+            {context && (
+                <button
+                    type="button"
+                    className={`ask-context${useFolder ? '' : ' ask-context--off'}`}
+                    aria-pressed={useFolder}
+                    aria-label={`Open folder ${folderName} ${useFolder ? 'included' : 'not included'}`}
+                    title={useFolder ? 'The AI knows which folder is open. Click to leave it out.' : 'Click to tell the AI which folder is open.'}
+                    onClick={() => setContextOffFor(useFolder ? context.folderId : null)}
+                >
+                    <Folder size={14} aria-hidden="true" />
+                    <span className="ask-context-name">{folderName}</span>
+                    <span className="ask-context-state">{useFolder ? 'included' : 'not included'}</span>
+                </button>
+            )}
             <label className="visually-hidden" htmlFor={dock ? 'ask-input-dock' : 'ask-input'}>Message</label>
             <textarea
                 id={dock ? 'ask-input-dock' : 'ask-input'}

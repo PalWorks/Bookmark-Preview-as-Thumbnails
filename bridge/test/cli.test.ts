@@ -76,11 +76,22 @@ test('install finds unpacked copies and Chrome data folders by itself', () => {
     prefs(unrelated, {});
     const e = { ...env, BOOKMARKS_THUMBNAILS_CHROME_DIRS: [testProfile, unrelated].join(path.delimiter) };
 
+    // Review F7: a copy found by name is shown but not allowed until the user says so.
     const r = run(['install'], e);
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, new RegExp(`Found an unpacked copy \\(${unpacked}\\)`));
+    assert.match(r.stdout, new RegExp(`Found an unpacked copy ${unpacked} \\(${src}\\) but did not allow it`));
     const main = path.join(root, '.config', 'google-chrome', 'NativeMessagingHosts', `${HOST_NAME}.json`);
     const extra = path.join(testProfile, 'NativeMessagingHosts', `${HOST_NAME}.json`);
+    for (const m of [main, extra]) assert.deepEqual(JSON.parse(fs.readFileSync(m, 'utf8')).allowed_origins, [`chrome-extension://${STORE_EXTENSION_ID}/`]);
+    const before = JSON.parse(run(['doctor', '--json'], e).stdout) as { checks: Array<{ name: string; ok: boolean }> };
+    assert.equal(before.checks.find(c => c.name === `unpacked copy ${unpacked}`)?.ok, false);
+
+    // Allowed by id, the choice is kept: a plain install later keeps it.
+    assert.equal(run(['install', '--extension-id', unpacked], e).status, 0);
+    const trustFile = path.join(env.BOOKMARKS_THUMBNAILS_DATA_DIR, 'trusted-extensions.json');
+    assert.equal(fs.statSync(trustFile).mode & 0o777, 0o600);
+    const again = run(['install'], e);
+    assert.match(again.stdout, new RegExp(`Allowed the unpacked copy ${unpacked}`));
     for (const m of [main, extra]) {
         assert.deepEqual(JSON.parse(fs.readFileSync(m, 'utf8')).allowed_origins, [`chrome-extension://${STORE_EXTENSION_ID}/`, `chrome-extension://${unpacked}/`]);
     }
@@ -92,6 +103,25 @@ test('install finds unpacked copies and Chrome data folders by itself', () => {
 
     assert.equal(run(['uninstall'], e).status, 0);
     assert.equal(fs.existsSync(main) || fs.existsSync(extra), false);
+    assert.equal(fs.existsSync(trustFile), false, 'uninstall forgets the allowed copies');
+    fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('review F7: a copy in a folder other users can change is never allowed, not even by id', () => {
+    const { root, env } = home();
+    const src = path.join(root, 'shared-build');
+    fs.mkdirSync(src);
+    fs.writeFileSync(path.join(src, 'manifest.json'), JSON.stringify({ name: 'Visual Bookmark Manager with Thumbnail Previews' }));
+    fs.chmodSync(src, 0o777);
+    const id = 'cccccccccccccccccccccccccccccccc';
+    const dir = path.join(root, '.config', 'google-chrome', 'Default');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'Preferences'), JSON.stringify({ extensions: { settings: { [id]: { path: src, location: 4 } } } }));
+    const r = run(['install'], env);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Did not allow the unpacked copy c+ .*other users can change the folder/);
+    const d = JSON.parse(run(['doctor', '--json'], env).stdout) as { checks: Array<{ name: string; ok: boolean; fix?: string }> };
+    assert.match(d.checks.find(c => c.name === `unpacked copy ${id}`)?.fix ?? '', /folder only you own/);
     fs.rmSync(root, { recursive: true, force: true });
 });
 

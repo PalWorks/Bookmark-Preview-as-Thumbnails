@@ -1,11 +1,45 @@
 # Decisions
 
-_Last updated: 2026-11-10T17:21:42+00:00 (D24: Ask AI beside the bookmarks, chats kept on the device, Trash needs the user's OK, Undo and Redo)._
+_Last updated: 2026-11-10T19:20:55+00:00 (D25: helper asks before allowing an unpacked copy; D26: Ask AI knows the open folder)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D26. Ask AI knows the open folder (owner, 2026-11-11)
+
+In the side panel, "how many bookmarks are in this folder?" got "which folder?". The panel now
+sends the open folder with each message: its path from the root, its id and how many items it
+holds directly. A chip above the message box shows the folder and turns it off for that folder;
+each sent message shows the folder it went with. The line is marked as context, not an
+instruction; the folder names in it are quoted, cut to 200 characters and stripped of line
+breaks, because names can come from imports and sync. Nothing is sent during a search or on the
+full AI Tools page, where no folder is open. Day dividers stay at the top of the chat while it
+scrolls and read Today, Yesterday, the weekday within a week, then the date.
+
+**Rule:** the app adds context to a message only as quoted data the user can see and turn off.
+
+## D25. The helper asks before allowing an unpacked copy (owner, 2026-11-11)
+
+Security review F7: install trusted every unpacked extension whose manifest carried our name.
+The owner chose to keep detection automatic but to ask once. Install now lists each copy it
+finds (id, folder, Chrome data folder) and allows it only after a yes in a terminal; the answer
+is kept in `trusted-extensions.json` in the helper's folder (mode 600) and asked again if the copy
+moves. Without a terminal (the MCP server's first run, scripts) nothing is allowed and the output
+says how: run install in a terminal, or pass `--extension-id`. A copy in a folder another user
+owns or can change is never allowed. Other ways to trust a copy were weighed:
+
+- **The Web Store id** is the only proof: Google signs that package and no one else can use its
+  id. It stays trusted without asking.
+- **A fixed `key` in a development manifest** gives a stable id, but the key is public, so anyone
+  can copy it and get the same id. Rejected as proof.
+- **A hash of the build** changes with every development build, and a copy of our code has the
+  same hash. Rejected.
+- **A secret shared between helper and extension** would sit in readable files of the unpacked
+  folder. Rejected.
+
+**Rule:** only the Web Store copy is trusted by default; any other copy needs the user's yes.
 
 ## D24. Ask AI beside the bookmarks; Trash needs the user's OK (owner, 2026-11-10)
 

@@ -11,7 +11,8 @@ import {
     BROWSERS, checkRuntimeDir, dataDir, hostCopyPath, hostLog, launcherPath, manifestPath, runtimeDir,
     supportedPlatform, versionFile, type Browser,
 } from './paths.ts';
-import { findChromeFolders, type ChromeFolder } from './detect.ts';
+import { findChromeFolders, type ChromeFolder, type UnpackedCopy } from './detect.ts';
+import { addTrusted, isTrusted, readTrusted, trustFile } from './trust.ts';
 import { liveTargets, readTokens } from './client.ts';
 
 export interface InstallOptions {
@@ -25,6 +26,25 @@ export interface InstallOptions {
     onlyIfMissing?: boolean;
     /** Look for unpacked copies and other Chrome data folders (default on; off with --manifest-dir). */
     detect?: boolean;
+    /** Unpacked copies the user just confirmed (the CLI asks before calling install). */
+    confirmed?: UnpackedCopy[];
+    /** Detection already done by the caller, so it is not repeated. */
+    folders?: ChromeFolder[];
+}
+
+/** Unpacked copies found but not yet allowed: the CLI asks about these. */
+export function untrustedCopies(folders: ChromeFolder[]): Array<UnpackedCopy & { dataDir: string }> {
+    const trusted = readTrusted();
+    const seen = new Set<string>();
+    const out: Array<UnpackedCopy & { dataDir: string }> = [];
+    for (const f of folders) {
+        for (const u of f.unpacked) {
+            if (isTrusted(trusted, u.id, u.path) || seen.has(`${u.id} ${u.path}`)) continue;
+            seen.add(`${u.id} ${u.path}`);
+            out.push({ ...u, dataDir: f.dataDir });
+        }
+    }
+    return out;
 }
 
 export interface StepResult { browser: string; ok: boolean; line: string }
@@ -44,8 +64,12 @@ export function install(o: InstallOptions): { ok: boolean; results: StepResult[]
         return { ok: false, paths: [], results: [{ browser: 'all', ok: false, line: `FAIL ${process.platform} is not supported yet (Linux and macOS for now).` }] };
     }
     const node = o.nodePath ?? process.execPath;
-    const folders: ChromeFolder[] = o.manifestDir || o.detect === false ? [] : findChromeFolders();
-    const ids = [...new Set([STORE_EXTENSION_ID, ...(o.extensionIds ?? []).filter(isExtId), ...folders.flatMap(f => f.unpackedIds)])];
+    const folders: ChromeFolder[] = o.manifestDir || o.detect === false ? [] : (o.folders ?? findChromeFolders());
+    const given = (o.extensionIds ?? []).filter(isExtId);
+    if (!o.dryRun) addTrusted([...given.map(id => ({ id, path: '' })), ...(o.confirmed ?? [])]);
+    const trusted = o.dryRun ? [...readTrusted(), ...given.map(id => ({ id, path: '', at: '' })), ...(o.confirmed ?? []).map(c => ({ ...c, at: '' }))] : readTrusted();
+    const allowed = (u: UnpackedCopy) => isTrusted(trusted, u.id, u.path);
+    const ids = [...new Set([STORE_EXTENSION_ID, ...given, ...folders.flatMap(f => f.unpacked.filter(allowed).map(u => u.id))])];
     const results: StepResult[] = [];
     const paths: string[] = [];
     const browsers = o.browsers?.length ? o.browsers : BROWSERS;
@@ -54,7 +78,15 @@ export function install(o: InstallOptions): { ok: boolean; results: StepResult[]
         return { ok: true, paths: [], results: browsers.map(b => ({ browser: b, ok: true, line: `OK ${b}: already installed` })) };
     }
     for (const f of folders) {
-        for (const id of f.unpackedIds) results.push({ browser: 'chrome', ok: true, line: `Found an unpacked copy (${id}) in ${f.dataDir}` });
+        for (const u of f.unpacked) {
+            results.push({
+                browser: 'chrome', ok: true,
+                line: allowed(u)
+                    ? `Allowed the unpacked copy ${u.id} (${u.path})`
+                    : `Found an unpacked copy ${u.id} (${u.path}) but did not allow it. Allow it by running install in a terminal and answering yes, or with --extension-id ${u.id}`,
+            });
+        }
+        for (const r of f.refused) results.push({ browser: 'chrome', ok: true, line: `Did not allow the unpacked copy ${r.id} (${r.path}): ${r.reason}` });
         if (!f.isDefault) results.push({ browser: 'chrome', ok: true, line: `Found a Chrome running with its own data folder: ${f.dataDir}` });
     }
     const host = hostCopyPath();
@@ -110,6 +142,7 @@ export function uninstall(o: { manifestDir?: string; dryRun?: boolean }): StepRe
     for (const b of BROWSERS) { rm(manifestPath(b, o.manifestDir), b); for (const m of extra) rm(m, b); rm(launcherPath(b), b); }
     rm(hostCopyPath(), 'all');
     rm(versionFile(), 'all');
+    rm(trustFile(), 'all');
     try {
         for (const n of fs.readdirSync(runtimeDir())) if (n.endsWith('.sock')) rm(path.join(runtimeDir(), n), 'all');
     } catch { /* no runtime folder */ }
@@ -148,7 +181,8 @@ export async function doctor(o: { manifestDir?: string; version: string }): Prom
             let origins: string[] = [];
             try { origins = JSON.parse(fs.readFileSync(mp, 'utf8')).allowed_origins ?? []; } catch { /* missing */ }
             if (!f.isDefault) add(`chrome (${f.dataDir}): host manifest`, origins.length > 0, origins.length ? mp : `missing: ${mp}`, `Run: npx ${PACKAGE_NAME} install`);
-            for (const id of f.unpackedIds) add(`unpacked copy ${id}`, origins.includes(ORIGIN(id)), f.dataDir, `Run: npx ${PACKAGE_NAME} install`);
+            for (const u of f.unpacked) add(`unpacked copy ${u.id}`, origins.includes(ORIGIN(u.id)), `${u.path} in ${f.dataDir}`, `Run in a terminal and answer yes: npx ${PACKAGE_NAME} install`);
+            for (const r of f.refused) add(`unpacked copy ${r.id}`, false, `${r.path}: ${r.reason}`, 'Move the extension to a folder only you own and can change, then load it again.');
         }
     }
     let installed = '';

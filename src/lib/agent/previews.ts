@@ -45,3 +45,21 @@ export function previewEntries(items: ChatItem[]): { changed: PreviewEntry[]; fo
     return { changed: changed.slice(0, MAX_SHOWN), found: found.slice(0, MAX_SHOWN), titles };
 }
 
+
+interface TitledNode { id: string; title: string; url?: string; children?: TitledNode[] }
+
+/** "Bookmarks bar > eComm Tools" for a folder id, or null when it is not in the tree. */
+export function folderTitlePath(roots: TitledNode[], id: string): string | null {
+    const walk = (nodes: TitledNode[], trail: string[]): string[] | null => {
+        for (const n of nodes) {
+            if (n.url) continue;
+            const here = n.title ? [...trail, n.title] : trail;
+            if (n.id === id) return here;
+            const hit = n.children ? walk(n.children, here) : null;
+            if (hit) return hit;
+        }
+        return null;
+    };
+    const found = walk(roots, []);
+    return found && found.length ? found.join(' > ') : null;
+}
