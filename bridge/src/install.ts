@@ -11,6 +11,7 @@ import {
     BROWSERS, checkRuntimeDir, dataDir, hostCopyPath, hostLog, launcherPath, manifestPath, runtimeDir,
     supportedPlatform, versionFile, type Browser,
 } from './paths.ts';
+import { findChromeFolders, type ChromeFolder } from './detect.ts';
 import { liveTargets, readTokens } from './client.ts';
 
 export interface InstallOptions {
@@ -22,6 +23,8 @@ export interface InstallOptions {
     version: string;
     /** First run of the MCP server: install only when nothing is installed; never replace. */
     onlyIfMissing?: boolean;
+    /** Look for unpacked copies and other Chrome data folders (default on; off with --manifest-dir). */
+    detect?: boolean;
 }
 
 export interface StepResult { browser: string; ok: boolean; line: string }
@@ -41,12 +44,18 @@ export function install(o: InstallOptions): { ok: boolean; results: StepResult[]
         return { ok: false, paths: [], results: [{ browser: 'all', ok: false, line: `FAIL ${process.platform} is not supported yet (Linux and macOS for now).` }] };
     }
     const node = o.nodePath ?? process.execPath;
-    const ids = [STORE_EXTENSION_ID, ...(o.extensionIds ?? []).filter(isExtId)];
+    const folders: ChromeFolder[] = o.manifestDir || o.detect === false ? [] : findChromeFolders();
+    const ids = [...new Set([STORE_EXTENSION_ID, ...(o.extensionIds ?? []).filter(isExtId), ...folders.flatMap(f => f.unpackedIds)])];
     const results: StepResult[] = [];
     const paths: string[] = [];
     const browsers = o.browsers?.length ? o.browsers : BROWSERS;
-    if (o.onlyIfMissing && browsers.every(b => fs.existsSync(manifestPath(b, o.manifestDir)))) {
+    const targets = (b: Browser) => (o.manifestDir || !folders.length ? [manifestPath(b, o.manifestDir)] : folders.map(f => path.join(f.manifestDir, `${HOST_NAME}.json`)));
+    if (o.onlyIfMissing && browsers.every(b => targets(b).every(m => fs.existsSync(m)))) {
         return { ok: true, paths: [], results: browsers.map(b => ({ browser: b, ok: true, line: `OK ${b}: already installed` })) };
+    }
+    for (const f of folders) {
+        for (const id of f.unpackedIds) results.push({ browser: 'chrome', ok: true, line: `Found an unpacked copy (${id}) in ${f.dataDir}` });
+        if (!f.isDefault) results.push({ browser: 'chrome', ok: true, line: `Found a Chrome running with its own data folder: ${f.dataDir}` });
     }
     const host = hostCopyPath();
     paths.push(host, versionFile());
@@ -57,25 +66,34 @@ export function install(o: InstallOptions): { ok: boolean; results: StepResult[]
         fs.writeFileSync(versionFile(), `${o.version}\n`);
     }
     for (const b of browsers) {
+        const launcher = launcherPath(b);
+        paths.push(launcher);
         try {
-            const launcher = launcherPath(b);
-            const manifest = manifestPath(b, o.manifestDir);
-            paths.push(launcher, manifest);
             if (!o.dryRun) {
                 fs.writeFileSync(launcher, `#!/bin/sh\n# ${PACKAGE_NAME} ${o.version}: Chrome starts this when the extension's switch is on.\nexec ${shq(node)} ${shq(host)} --browser ${b} "$@"\n`, { mode: 0o755 });
                 fs.chmodSync(launcher, 0o755);
-                fs.mkdirSync(path.dirname(manifest), { recursive: true });
-                fs.writeFileSync(manifest, JSON.stringify({
-                    name: HOST_NAME,
-                    description: 'Visual Bookmark Manager with Thumbnail Previews: coding-agent helper',
-                    path: launcher,
-                    type: 'stdio',
-                    allowed_origins: ids.map(ORIGIN),
-                }, null, 2) + '\n');
             }
-            results.push({ browser: b, ok: true, line: `OK ${b}: ${o.dryRun ? 'would write' : 'wrote'} ${manifest}` });
         } catch (err) {
             results.push({ browser: b, ok: false, line: `FAIL ${b}: ${err instanceof Error ? err.message : err}. Rerun install, it is safe.` });
+            continue;
+        }
+        for (const manifest of targets(b)) {
+            paths.push(manifest);
+            try {
+                if (!o.dryRun) {
+                    fs.mkdirSync(path.dirname(manifest), { recursive: true });
+                    fs.writeFileSync(manifest, JSON.stringify({
+                        name: HOST_NAME,
+                        description: 'Visual Bookmark Manager with Thumbnail Previews: coding-agent helper',
+                        path: launcher,
+                        type: 'stdio',
+                        allowed_origins: ids.map(ORIGIN),
+                    }, null, 2) + '\n');
+                }
+                results.push({ browser: b, ok: true, line: `OK ${b}: ${o.dryRun ? 'would write' : 'wrote'} ${manifest}` });
+            } catch (err) {
+                results.push({ browser: b, ok: false, line: `FAIL ${b}: ${err instanceof Error ? err.message : err}. Rerun install, it is safe.` });
+            }
         }
     }
     return { ok: results.every(r => r.ok), results, paths };
@@ -88,7 +106,8 @@ export function uninstall(o: { manifestDir?: string; dryRun?: boolean }): StepRe
         if (!o.dryRun) fs.rmSync(p, { force: true });
         out.push({ browser: label, ok: true, line: `${o.dryRun ? 'would remove' : 'removed'} ${p}` });
     };
-    for (const b of BROWSERS) { rm(manifestPath(b, o.manifestDir), b); rm(launcherPath(b), b); }
+    const extra = o.manifestDir ? [] : findChromeFolders().filter(f => !f.isDefault).map(f => path.join(f.manifestDir, `${HOST_NAME}.json`));
+    for (const b of BROWSERS) { rm(manifestPath(b, o.manifestDir), b); for (const m of extra) rm(m, b); rm(launcherPath(b), b); }
     rm(hostCopyPath(), 'all');
     rm(versionFile(), 'all');
     try {
@@ -121,6 +140,15 @@ export async function doctor(o: { manifestDir?: string; version: string }): Prom
                 const nodeInLauncher = /exec '((?:[^']|'\\'')+)'/.exec(fs.readFileSync(launcher, 'utf8'))?.[1]?.replace(/'\\''/g, "'");
                 add(`${b}: Node in launcher`, !!nodeInLauncher && fs.existsSync(nodeInLauncher), nodeInLauncher ?? 'not found', `Node moved. Run: npx ${PACKAGE_NAME} install`);
             }
+        }
+    }
+    if (!o.manifestDir) {
+        for (const f of findChromeFolders()) {
+            const mp = path.join(f.manifestDir, `${HOST_NAME}.json`);
+            let origins: string[] = [];
+            try { origins = JSON.parse(fs.readFileSync(mp, 'utf8')).allowed_origins ?? []; } catch { /* missing */ }
+            if (!f.isDefault) add(`chrome (${f.dataDir}): host manifest`, origins.length > 0, origins.length ? mp : `missing: ${mp}`, `Run: npx ${PACKAGE_NAME} install`);
+            for (const id of f.unpackedIds) add(`unpacked copy ${id}`, origins.includes(ORIGIN(id)), f.dataDir, `Run: npx ${PACKAGE_NAME} install`);
         }
     }
     let installed = '';
