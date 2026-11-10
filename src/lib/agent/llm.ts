@@ -9,6 +9,7 @@
 import type { AICloudConfig } from '../ai_settings_storage';
 import { PROVIDERS } from '../ai_settings_storage';
 import { TOOL_DEFS, AGENT_INSTRUCTIONS } from '../bridge/tools';
+import { fetchWithRetry, providerError, openAIBody, replyBudget, geminiThinkingConfig, wasCutAtBudget, EmptyReplyError } from '../ai_provider_rules';
 
 export interface ToolCall { id: string; name: string; args: Record<string, unknown> }
 
@@ -37,18 +38,18 @@ export function systemPrompt(): string {
     return `${AGENT_INSTRUCTIONS} Today is ${new Date().toISOString().slice(0, 10)}. Answer in the user's language. Keep replies short.`;
 }
 
-function timeout(signal: AbortSignal | undefined): AbortSignal {
-    const t = AbortSignal.timeout(CALL_TIMEOUT_MS);
-    return signal ? AbortSignal.any([signal, t]) : t;
+async function postJson(provider: AICloudConfig['provider'], url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<unknown> {
+    const resp = await fetchWithRetry(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
+    }, { signal, timeoutMs: CALL_TIMEOUT_MS });
+    if (!resp.ok) throw providerError(provider, resp.status, await resp.text().catch(() => ''));
+    return resp.json();
 }
 
-async function postJson(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<unknown> {
-    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: timeout(signal) });
-    if (!resp.ok) {
-        const text = (await resp.text()).slice(0, 400);
-        throw new Error(`The AI provider answered ${resp.status}: ${text}`);
-    }
-    return resp.json();
+/** A 200 with no answer and no tool call, cut at the budget, is a failure (kit rule 2). */
+function checked(reply: ModelReply, data: unknown): ModelReply {
+    if (!reply.text && !reply.calls.length && wasCutAtBudget(data)) throw new EmptyReplyError();
+    return reply;
 }
 
 let idSeq = 0;
@@ -173,30 +174,35 @@ export async function callModel(cloud: AICloudConfig, apiKey: string, msgs: Msg[
     const system = systemPrompt();
     if (NO_TOOLS.has(cloud.provider)) throw new Error('This provider cannot use tools. Choose another provider in AI settings to use Ask AI.');
     if (cloud.provider === 'anthropic') {
-        const data = await postJson('https://api.anthropic.com/v1/messages', {
+        const data = await postJson('anthropic', 'https://api.anthropic.com/v1/messages', {
             'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
         }, {
-            model: cloud.model, system, max_tokens: MAX_OUTPUT_TOKENS, messages: toAnthropic(msgs),
+            model: cloud.model, system, max_tokens: replyBudget('anthropic', cloud.model, MAX_OUTPUT_TOKENS), messages: toAnthropic(msgs),
             tools: TOOL_DEFS.map(t => ({ name: t.name, description: t.description, input_schema: t.inputSchema })),
         }, signal);
-        return fromAnthropic(data);
+        return checked(fromAnthropic(data), data);
     }
     if (cloud.provider === 'gemini') {
         // Key in a header, never the URL.
-        const data = await postJson(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cloud.model)}:generateContent`, { 'x-goog-api-key': apiKey }, {
+        // Thinking on (dynamic) helps tool use; the headroom keeps it from eating the answer.
+        const thinking = geminiThinkingConfig(cloud.model, true);
+        const data = await postJson('gemini', `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cloud.model)}:generateContent`, { 'x-goog-api-key': apiKey }, {
             system_instruction: { parts: [{ text: system }] },
             contents: toGemini(msgs),
             tools: [{ functionDeclarations: TOOL_DEFS.map(t => ({ name: t.name, description: t.description, parameters: geminiSchema(t.inputSchema) })) }],
-            generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS, temperature: 0.2 },
+            generationConfig: {
+                maxOutputTokens: replyBudget('gemini', cloud.model, MAX_OUTPUT_TOKENS, true), temperature: 0.2,
+                ...(thinking ? { thinkingConfig: thinking } : {}),
+            },
         }, signal);
-        return fromGemini(data);
+        return checked(fromGemini(data), data);
     }
     const headers: Record<string, string> = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
-    const data = await postJson(openAIEndpoint(cloud), headers, {
-        model: cloud.model, messages: toOpenAI(system, msgs), temperature: 0.2, max_tokens: MAX_OUTPUT_TOKENS,
-        tools: TOOL_DEFS.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } })),
-    }, signal);
-    return fromOpenAI(data);
+    const data = await postJson(cloud.provider, openAIEndpoint(cloud), headers, openAIBody(
+        cloud.provider, cloud.model, toOpenAI(system, msgs), replyBudget(cloud.provider, cloud.model, MAX_OUTPUT_TOKENS),
+        { tools: TOOL_DEFS.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } })) },
+    ), signal);
+    return checked(fromOpenAI(data), data);
 }
 
 // ── The loop ────────────────────────────────────────────────────────────────

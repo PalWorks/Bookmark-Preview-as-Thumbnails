@@ -16,7 +16,7 @@
  */
 
 /** Deployed relay. Overridden in tests; see /worker/README.md to redeploy. */
-export const FEEDBACK_ENDPOINT = 'https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev/feedback';
+export const FEEDBACK_ENDPOINT = 'https://bookmarks-feedback.palworks.ai/feedback';
 
 /** Request timeout: a feedback form must never hang the page. */
 const REQUEST_TIMEOUT_MS = 12000;

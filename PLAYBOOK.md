@@ -129,8 +129,10 @@ release. Details and limits: [worker/README.md](worker/README.md).
 The Worker behind "Connect Claude or ChatGPT" (D20). The owner deploys it, sets its secret and
 approves each deploy. It must be live before a release with the connector reaches users: the
 extension's address is fixed in `CONNECTOR_ORIGIN` (`src/lib/bridge/connector.ts`,
-`https://bookmarks-thumbnails-connector.sunmooncal.workers.dev`), so moving it needs an
-extension release. Not deployed yet (ROADMAP row 19).
+`https://bookmarks-connector.palworks.ai`, a custom domain since 2026-11-10; 1.7.0 uses the
+workers.dev address, which stays on), so moving it needs an extension release. The Cloudflare
+account is shared with the owner's other projects: change only this Worker's own settings, never
+the account's workers.dev name or another Worker's routes.
 
 1. `cd connector && npm install`.
 2. Set the secret once, never on a command line or in the repository:
@@ -140,7 +142,8 @@ extension release. Not deployed yet (ROADMAP row 19).
    and needs `connector/.dev.vars` with a local `CLIENT_ID_SECRET`). Then, from the repository
    root, the real-Chrome run: `npx vite build --outDir <scratch>/build && node
    scripts/e2e/connector.mjs <scratch>/build`.
-4. `npx wrangler deploy`. `wrangler.toml` serves it on workers.dev with preview URLs off.
+4. `npx wrangler deploy`. `wrangler.toml` serves it on its custom domain and on workers.dev,
+   with preview URLs off.
 5. Check: `GET /.well-known/oauth-authorization-server` answers JSON (a 503 means
    `CLIENT_ID_SECRET` is missing); with an unpacked build,
    turn the switch on, add the address in Claude (Settings > Connectors > Add custom connector)

@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { upgradeRetiredModel } from './ai_provider_rules';
+
 export type AIMode = 'builtin' | 'cloud';
 export type AIProvider =
     | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'mistral'
@@ -50,16 +52,16 @@ export interface ProviderMeta {
 
 export const PROVIDERS: ProviderMeta[] = [
     { id: 'openai',      label: 'OpenAI',                   defaultModel: 'gpt-4o-mini',                              keyPlaceholder: 'sk-...',     requiresKey: true,  endpoint: 'https://api.openai.com/v1/chat/completions' },
-    { id: 'anthropic',   label: 'Anthropic (Claude)',        defaultModel: 'claude-haiku-4-5-20251001',                keyPlaceholder: 'sk-ant-...', requiresKey: true },
-    { id: 'gemini',      label: 'Google Gemini',             defaultModel: 'gemini-2.5-flash',                        keyPlaceholder: 'AIza...',    requiresKey: true },
-    { id: 'groq',        label: 'Groq',                      defaultModel: 'llama-3.3-70b-versatile',                  keyPlaceholder: 'gsk_...',    requiresKey: true,  endpoint: 'https://api.groq.com/openai/v1/chat/completions' },
+    { id: 'anthropic',   label: 'Anthropic (Claude)',        defaultModel: 'claude-haiku-4-5',                         keyPlaceholder: 'sk-ant-...', requiresKey: true },
+    { id: 'gemini',      label: 'Google Gemini',             defaultModel: 'gemini-3.1-flash-lite',                   keyPlaceholder: 'AIza...',    requiresKey: true },
+    { id: 'groq',        label: 'Groq',                      defaultModel: 'openai/gpt-oss-120b',                      keyPlaceholder: 'gsk_...',    requiresKey: true,  endpoint: 'https://api.groq.com/openai/v1/chat/completions' },
     { id: 'mistral',     label: 'Mistral AI',                defaultModel: 'mistral-small-latest',                     keyPlaceholder: 'API key',    requiresKey: true,  endpoint: 'https://api.mistral.ai/v1/chat/completions' },
-    { id: 'deepseek',    label: 'DeepSeek',                  defaultModel: 'deepseek-chat',                            keyPlaceholder: 'sk-...',     requiresKey: true,  endpoint: 'https://api.deepseek.com/v1/chat/completions' },
-    { id: 'xai',         label: 'xAI (Grok)',                defaultModel: 'grok-3-mini-fast',                         keyPlaceholder: 'xai-...',    requiresKey: true,  endpoint: 'https://api.x.ai/v1/chat/completions' },
+    { id: 'deepseek',    label: 'DeepSeek',                  defaultModel: 'deepseek-v4-flash',                        keyPlaceholder: 'sk-...',     requiresKey: true,  endpoint: 'https://api.deepseek.com/v1/chat/completions' },
+    { id: 'xai',         label: 'xAI (Grok)',                defaultModel: 'grok-4.6',                                 keyPlaceholder: 'xai-...',    requiresKey: true,  endpoint: 'https://api.x.ai/v1/chat/completions' },
     { id: 'together',    label: 'Together AI',               defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',  keyPlaceholder: 'API key',    requiresKey: true,  endpoint: 'https://api.together.xyz/v1/chat/completions' },
-    { id: 'cerebras',    label: 'Cerebras',                  defaultModel: 'llama3.3-70b',                             keyPlaceholder: 'csk-...',    requiresKey: true,  endpoint: 'https://api.cerebras.ai/v1/chat/completions' },
+    { id: 'cerebras',    label: 'Cerebras',                  defaultModel: 'gpt-oss-120b',                             keyPlaceholder: 'csk-...',    requiresKey: true,  endpoint: 'https://api.cerebras.ai/v1/chat/completions' },
     { id: 'perplexity',  label: 'Perplexity AI',             defaultModel: 'sonar',                                    keyPlaceholder: 'pplx-...',   requiresKey: true,  endpoint: 'https://api.perplexity.ai/chat/completions' },
-    { id: 'openrouter',  label: 'OpenRouter',                defaultModel: 'meta-llama/llama-3.1-8b-instruct:free',    keyPlaceholder: 'sk-or-...',  requiresKey: true,  endpoint: 'https://openrouter.ai/api/v1/chat/completions' },
+    { id: 'openrouter',  label: 'OpenRouter',                defaultModel: 'openai/gpt-4o-mini',                       keyPlaceholder: 'sk-or-...',  requiresKey: true,  endpoint: 'https://openrouter.ai/api/v1/chat/completions' },
     { id: 'ollama',      label: 'Ollama (local)',             defaultModel: 'llama3.2',                                 keyPlaceholder: 'none needed',requiresKey: false },
     { id: 'custom',      label: 'Custom (OpenAI-compatible)', defaultModel: '',                                         keyPlaceholder: 'API key',    requiresKey: false },
 ];
@@ -194,14 +196,6 @@ export async function bindLegacyApiKey(): Promise<boolean> {
     return true;
 }
 
-// Retired model names that were once our defaults — silently upgraded on read so
-// existing users don't keep hitting "model no longer available" errors.
-const RETIRED_MODELS: Record<string, string> = {
-    'gemini-2.0-flash': 'gemini-2.5-flash',
-    'gemini-1.5-flash': 'gemini-2.5-flash',
-    'gemini-pro': 'gemini-2.5-flash',
-};
-
 export async function loadAISettings(): Promise<{ settings: AISettings; hasApiKey: boolean }> {
     const [sync, local] = await Promise.all([
         chrome.storage.sync.get(['ai_mode', 'ai_provider', 'ai_model', 'ai_custom_url', 'ai_custom_tags']),
@@ -209,7 +203,8 @@ export async function loadAISettings(): Promise<{ settings: AISettings; hasApiKe
     ]);
     const provider = (sync.ai_provider as AIProvider) ?? 'openai';
     let model = ((sync.ai_model as string) ?? PROVIDERS[0].defaultModel).trim();
-    if (provider === 'gemini' && RETIRED_MODELS[model]) model = RETIRED_MODELS[model];
+    // Retired defaults are upgraded on read, so people never keep hitting "model not found".
+    model = upgradeRetiredModel(provider, model);
     const customUrl = ((sync.ai_custom_url as string) ?? '').trim();
     return {
         settings: {
