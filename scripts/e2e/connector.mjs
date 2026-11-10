@@ -17,7 +17,7 @@ const check = (n, ok, info) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${n}${ok ?
 
 // ── Worker ──────────────────────────────────────────────────────────────────
 const wport = 8700 + Math.floor(Math.random() * 200);
-const worker = spawn('npx', ['wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(wport), '--persist-to', path.join(root, 'do'), '--show-interactive-dev-session=false'], {
+const worker = spawn('npx', ['wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(wport), '--local-upstream', `127.0.0.1:${wport}`, '--persist-to', path.join(root, 'do'), '--show-interactive-dev-session=false'], {
     cwd: path.resolve('connector'), detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' },
 });
 let wout = ''; worker.stdout.on('data', d => (wout += d)); worker.stderr.on('data', d => (wout += d));

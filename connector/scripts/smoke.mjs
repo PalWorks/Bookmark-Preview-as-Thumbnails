@@ -30,7 +30,7 @@ async function start() {
     // Fresh Durable Object state each run: the per-network limiter (4 a minute)
     // would otherwise count the previous run's attempts from 127.0.0.1.
     persistDir = mkdtempSync(join(tmpdir(), 'connector-smoke-'));
-    server = spawn('npx', ['wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', persistDir, '--show-interactive-dev-session=false'], {
+    server = spawn('npx', ['wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--local-upstream', `127.0.0.1:${port}`, '--persist-to', persistDir, '--show-interactive-dev-session=false'], {
         cwd: here, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' },
     });
     let out = '';
