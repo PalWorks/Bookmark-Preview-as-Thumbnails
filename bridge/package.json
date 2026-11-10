@@ -1,6 +1,6 @@
 {
     "name": "bookmarks-thumbnails-mcp",
-    "version": "1.7.1",
+    "version": "1.7.2",
     "description": "Let coding agents (Claude Code, Cursor, VS Code) read the bookmark folders you choose in Chrome and propose changes you review and can undo, through the Visual Bookmark Manager with Thumbnail Previews extension.",
     "license": "AGPL-3.0-only",
     "type": "module",
