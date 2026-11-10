@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-10T03:45:49+00:00 (row 18 now D20: Ask AI and the online connector; rows 19 and 20 added for the owner's connector deploy and the Web Store privacy update)._
+> _Last updated: 2026-11-10T06:33:36+00:00 (1.7.0 merged, on npm and submitted to the Web Store; rows 19 and 20 done, row 18 waiting on review)._
 
 ## 0. North star: every open item, one row each
 
@@ -19,8 +19,6 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 
 | # | Bucket | Priority | State | Size | Impact | Raised | Problem | Solution or next step |
 |---|---|---|---|---|---|---|---|---|
-| 19 | §3.1 | P1 | **Open** | S | H | 2026-11-10 | The online connector Worker (`connector/`) is built and tested but not deployed; the extension points at `https://bookmarks-thumbnails-connector.sunmooncal.workers.dev`, so "Connect Claude or ChatGPT" cannot work for users until it is live. | Owner: `cd connector && npm install`, set `CLIENT_ID_SECRET` with `wrangler secret put`, run the tests and smoke, then `npx wrangler deploy` (PLAYBOOK "Online connector"). Must be live before 1.7.0 reaches users. |
-| 20 | §3.1 | P1 | **Open** | S | H | 2026-11-10 | 1.7.0 can send bookmark titles, links and tags to the user's chosen AI provider (Ask AI) and through our relay (connector), so the Web Store Privacy tab and the hosted privacy policy must say so. | Owner, at submission: walk the Privacy tab with PRIVACY_DETAILS.md §5 (data usage boxes, certifications, `nativeMessaging` justification); confirm the website privacy page is live with the 1.7.0 text. |
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
@@ -28,7 +26,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 10 | §3.1 | P2 | **Open** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | 1.5.0 and 1.6.0 are live; reply now, listing everything at once (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
-| 18 | §3.2 | P2 | **In progress** | L | M | 2026-11-09 | AIs could not organise the user's bookmarks without effort. 1.7.0 is built on branch `feat/agent-changes` ([docs/designs/ai-assistant.md](docs/designs/ai-assistant.md), D18 to D20): Ask AI (chat panel with the user's own provider and key; changes apply at once with Undo), Connect Claude or ChatGPT (online connector `connector/`, OAuth sign-in with a 6-digit code), coding agents through the `bookmarks-thumbnails-mcp` package, one shared tool list, modes read / review first / change, AI changes with Undo; copy and paste kept as "Other ways". 446 Vitest tests, 9 package tests, 36 connector tests; smoke, bridge (18 checks) and connector (15 checks) e2e pass (2026-11-10); install warnings unchanged. | Owner: review the PR; deploy the connector (row 19); then merge, tag v1.7.0, publish the npm package, upload and submit with the privacy update (row 20). Stage 3 (Edge, Brave, Windows for the local helper) after. |
+| 18 | §3.2 | P2 | **Waiting** | L | M | 2026-11-10 | 1.7.0 ships Ask AI, Connect Claude or ChatGPT (live connector Worker) and coding agents (`bookmarks-thumbnails-mcp@1.7.0` on npm), D18 to D20. Merged (PR #16), tagged, submitted to the Web Store 2026-11-10T06:33:36+00:00; live tests with real Claude and ChatGPT accounts passed. | After approval: PLAYBOOK release step 8 on a clean profile, then the website feature list. Stage 3 (Edge, Brave, Windows for the local helper) after. |
 | 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is live on the Web Store at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00); submitted 2026-11-09T13:56:04+00:00. The Privacy tab now declares personally identifiable information (the optional reply address) and personal communications (the feedback message). | PLAYBOOK release step 8 (store install on a clean profile, update from 1.5.0), then rows 10 and 16 and the website feature list. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
@@ -95,7 +93,16 @@ Priority, Size and Impact are separate columns because they answer separate ques
 
 ## 2. Next up
 
-### 2.1 Status: 1.6.0 live on the Chrome Web Store (updated 2026-11-09T16:13:49+00:00)
+### 2.1 Status: 1.7.0 in Web Store review (updated 2026-11-10T06:33:36+00:00)
+
+1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents; row 18) was merged (PR #16), tagged
+`v1.7.0`, published to npm as `bookmarks-thumbnails-mcp@1.7.0` and submitted to the Web Store at
+2026-11-10T06:33:36+00:00 with automatic publishing. The connector Worker is live (row 19) and the Privacy tab,
+listing and test instructions were updated (row 20). Real Claude and ChatGPT accounts passed
+connect, read, change and Undo on 2026-11-10. Left: PLAYBOOK release step 8 after approval.
+
+The 1.6.0 status, kept for reference:
+
 
 1.6.0 is live at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00). It was merged (PR #11),
 tagged `v1.6.0`, uploaded and submitted on 2026-11-09T13:56:04+00:00 with automatic publishing;
@@ -129,15 +136,15 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
-| 19 | Deploy the online connector Worker | §3.1 | **Open**: owner step | S | H |
-| 20 | Web Store privacy update for 1.7.0 | §3.1 | **Open**: owner step at submission | S | H |
-| 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **In progress**: built, PR for review | L | M |
+| 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Waiting**: in Web Store review | L | M |
 | 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **In progress**: live; release step 8 left | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Open**: 1.6.0 is live, reply can go | T | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
 | 15 | Undo history beyond the toast | §3.2 | **Deferred** | M | L |
+| 20 | Web Store privacy update for 1.7.0 | §3.1 | **Done** 2026-11-10 | Was S | H |
+| 19 | Deploy the online connector Worker | §3.1 | **Done** 2026-11-10 | Was S | H |
 | 1 | Record deletions made outside the extension | §3.2 | **Done** 2026-11-08 (built in 1.4.0, ships with row 12) | Was M | M |
 | 2 | Exclude chosen folders from search | §3.2 | **Done** 2026-11-08 (1.4.0) | Was S | M |
 | 3 | List view columns | §3.2 | **Done** 2026-11-08 (1.4.0) | Was M | M |

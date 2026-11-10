@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy Details
 
-_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: Ask AI and the Claude and ChatGPT connector)._
+_Last updated: 2026-11-10T06:33:36+00:00 (1.7.0 submitted; data usage wording matches the dashboard)._
 
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
@@ -49,7 +49,7 @@ third-party provider. Disclose this accurately:
 - **Website content** — screenshots of bookmarked pages (stored locally only).
 - **Deleted bookmarks** — titles, URLs and folder locations of bookmarks deleted in the
   extension, kept locally for 30 days for Restore (never transmitted).
-- **Web history / website data** — bookmark **titles and URLs** are sent to a
+- **Website content (hyperlinks)** — bookmark **titles and URLs** are sent to a
   third-party AI provider **only when the user enables a cloud AI provider** for
   Auto-Tag or Smart Search. With the default on-device engine (Chrome Built-in AI)
   nothing is transmitted. API keys are stored locally and sent only to the user's
@@ -94,10 +94,11 @@ What changes from 1.6.0:
 
 Dashboard steps before submitting 1.7.0:
 
-- **Web history / website data** stays ticked, and its description should now also name Ask AI
-  and the Claude and ChatGPT connector [Inference: bookmark titles and URLs in transit through
-  our relay are data the extension transfers, even though we store none of it; confirm against
-  the dashboard wording and the User Data policy].
+- **Website content** stays ticked (it covers text and hyperlinks, so bookmark titles and URLs
+  sent by Ask AI and the connector). **Web history** stays unticked, as approved for 1.5.0 and
+  1.6.0: the dashboard defines it as pages the user visited, and the features send saved
+  bookmarks, not browsing history. (Done for 1.7.0 at 2026-11-10T06:33:36+00:00: data usage unchanged,
+  `nativeMessaging` justification added.)
 - **Website content**: ticked already for local screenshots; no screenshots are sent by these
   features (the tools return text only) [Inference: no change needed].
 - **Personally identifiable information** and **Personal communications** stay ticked for the

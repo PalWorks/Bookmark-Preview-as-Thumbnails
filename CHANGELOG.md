@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.0] - not released yet (branch feat/agent-changes, 2026-11-10T03:45:49+00:00)
+## [1.7.0] - 2026-11-10 (submitted to the Web Store 2026-11-10T06:33:36+00:00, in review)
+
+Merged in PR #16 and tagged `v1.7.0`. The connector Worker is live, `bookmarks-thumbnails-mcp@1.7.0`
+is on npm, and real Claude and ChatGPT accounts passed connect, read, change and Undo. First live
+sign-in found one bug, fixed before release: the sign-in page asked Chrome to send no referrer, so
+the code form posted `Origin: null` and was refused.
 
 AI that organises your bookmarks for you, with one-click Undo
 ([docs/designs/ai-assistant.md](docs/designs/ai-assistant.md), DECISIONS D18, D19 and D20).
