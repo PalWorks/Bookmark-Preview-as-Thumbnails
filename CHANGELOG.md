@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Usage statistics** (D27, 2026-11-10T21:11:02+00:00). Anonymous counts of which features are used, sent through
+  our relay to Google Analytics and PostHog. On by default; turn them off in **Settings >
+  Share usage statistics**. Never links, titles, folder names, searches, chat text or keys.
+
 ## [1.7.1] - 2026-11-10 (with helper 1.7.2 on npm; release prepared 2026-11-10T20:02:43+00:00)
 
 Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser); provider fixes

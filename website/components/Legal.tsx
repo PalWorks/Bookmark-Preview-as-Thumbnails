@@ -8,7 +8,7 @@ export const PrivacyPolicy: React.FC = () => (
       <p>Last updated: 10 November 2026 (version 1.7.0)</p>
 
       <h3 className="text-xl font-bold text-slate-900">1. Overview</h3>
-      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We use no analytics or telemetry and never receive your bookmarks, thumbnails or settings. The only data that can leave your device is described in sections 3 to 5: what you send to a cloud AI provider you turn on yourself (including Ask AI), feedback you choose to send us, and bookmarks you choose to share with Claude, ChatGPT, another AI or a coding agent. If you turn on the Claude and ChatGPT connector, that data passes through a relay we run, which stores none of it.</p>
+      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We never receive your bookmarks, thumbnails or settings. From version 1.8.0 the Extension sends anonymous usage statistics, which you can turn off (section 4a). The other data that can leave your device is described in sections 3 to 5: what you send to a cloud AI provider you turn on yourself (including Ask AI), feedback you choose to send us, and bookmarks you choose to share with Claude, ChatGPT, another AI or a coding agent. If you turn on the Claude and ChatGPT connector, that data passes through a relay we run, which stores none of it.</p>
 
       <h3 className="text-xl font-bold text-slate-900">2. What the Extension stores on your device</h3>
       <ul className="list-disc pl-5 space-y-2">
@@ -38,6 +38,14 @@ export const PrivacyPolicy: React.FC = () => (
         <li>unless you untick "Include technical details": the Extension version, browser build and operating system, how many bookmarks and folders you have, and whether you use grid or list view. No bookmark titles, links, folder names or tags.</li>
       </ul>
       <p>The relay stores no message content. To limit abuse it keeps short-lived counters per network, named by a keyed one-way hash of the network address and never the address itself, which expire within 26 hours. We use what you send only to answer you and improve the Extension, and never sell it. To have a message deleted, write to support@palworks.ai.</p>
+
+      <h3 className="text-xl font-bold text-slate-900">4a. Usage statistics (on by default from version 1.8.0; you can turn them off)</h3>
+      <p>To learn which features people use, the Extension sends anonymous usage statistics to our relay at bookmarks-feedback.palworks.ai, which passes them to Google Analytics and PostHog. Turn them off at any time in Settings, Share usage statistics; nothing more is sent after that, and nothing is ever sent from an Incognito window.</p>
+      <ul className="list-disc pl-5 space-y-2">
+        <li><strong>Sent:</strong> a random install id made by the Extension (not linked to your Google account or email), a session number, the Extension version, which features you use (for example previews generated, with the number in a range; a message sent to Ask AI, with the provider type; a change undone; the connector turned on), and your country. Your IP address is not passed on.</li>
+        <li><strong>Never sent:</strong> links, page or bookmark titles, folder names, tags, search text, Ask AI messages or replies, API keys, or anything from the pages you visit. The relay drops anything other than numbers, on/off values and short words.</li>
+        <li>The relay stores nothing. Google Analytics and PostHog keep the statistics under their own policies. We use them only to improve the Extension and never sell them. To have the statistics for your install id deleted, write to support@palworks.ai.</li>
+      </ul>
 
       <h3 className="text-xl font-bold text-slate-900">5. Ask AI, Claude and ChatGPT, and coding agents (optional, from version 1.7.0)</h3>
       <ul className="list-disc pl-5 space-y-2">

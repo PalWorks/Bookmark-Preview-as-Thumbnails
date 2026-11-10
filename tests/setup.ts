@@ -4,6 +4,13 @@ import 'fake-indexeddb/auto';
 import { vi, beforeEach } from 'vitest';
 import { fakeBookmarks } from './fakes/chrome_bookmarks';
 
+// Usage statistics never leave a test run; tests/analytics.test.ts loads the real module.
+vi.mock('../src/lib/analytics', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../src/lib/analytics')>()),
+    track: vi.fn(),
+    flush: vi.fn(async () => undefined),
+}));
+
 // ─── In-memory storage backing ────────────────────────────────────────────────
 
 export const localStore: Record<string, unknown> = {};
@@ -59,6 +66,7 @@ const alarms = {
         onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
         sendMessage: vi.fn().mockResolvedValue(undefined),
         getURL: (p: string) => `${EXTENSION_ORIGIN}${p.replace(/^\//, '')}`,
+        getManifest: () => ({ version: '1.7.1' }),
     },
     extension: { inIncognitoContext: false },
     bookmarks: fakeBookmarks.api(),

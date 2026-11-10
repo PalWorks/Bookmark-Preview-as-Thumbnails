@@ -45,6 +45,7 @@ import { useBridge } from './hooks/useBridge';
 import { useConnector } from './hooks/useConnector';
 import { useAskAI } from './hooks/useAskAI';
 import { AskAIView } from '../components/AskAIView';
+import { track } from '../lib/analytics';
 import { folderTitlePath } from '../lib/agent/previews';
 import type { AskContext } from './hooks/useAskAI';
 import { AIToolsTabs, type AIToolsTab, type SettingsTab } from '../components/AIToolsTabs';
@@ -142,6 +143,7 @@ function App() {
     // Connect Claude or ChatGPT and AI changes. The settings tabs share one panel.
     const [settingsTab, setSettingsTab] = useState<SettingsTab>('settings');
     const openPanel = (panel: Panel) => {
+        if (panel !== activePanel) track('panel_open', { panel });
         if (panel === 'ai-settings') setSettingsTab('settings');
         setActivePanel(panel);
         setDrawerOpen(false);
@@ -190,6 +192,7 @@ function App() {
     // The Ask AI side panel beside the bookmarks (owner, 2026-11-10), remembered for this session.
     const [askDock, setAskDock] = useState(() => { try { return sessionStorage.getItem('ask_dock') === '1'; } catch { return false; } });
     const toggleAskDock = (open = !askDock) => {
+        if (open !== askDock) track('ask_ai_dock', { open });
         setAskDock(open);
         try { sessionStorage.setItem('ask_dock', open ? '1' : '0'); } catch { /* storage blocked */ }
     };
@@ -304,6 +307,11 @@ function App() {
 
     // ── Selection (multi-select) ──────────────────────────────────────────────
     const displayedIds = useMemo(() => displayedNodes.map(n => n.id), [displayedNodes]);
+    // One event per opened page, and one per search started (never the search text).
+    useEffect(() => { track('app_open', { surface: IS_INCOGNITO_PAGE ? 'incognito' : 'page' }); }, []);
+    const searching = searchQuery.length > 2;
+    useEffect(() => { if (searching) track('search'); }, [searching]);
+
     // Ask AI beside the bookmarks knows which folder is open (owner, 2026-11-11); not during a search.
     const askContext = useMemo<AskContext | null>(() => {
         if (activePanel !== 'bookmarks' || searchQuery.length > 2 || !currentFolder?.id) return null;
@@ -576,6 +584,7 @@ function App() {
 
     // ── Backup ────────────────────────────────────────────────────────────────
     const handleExportBackup = async () => {
+        track('backup_export', { kind: 'full' });
         try {
             downloadBlob(await backupManager.createBackup(), `bookmarks_thumbnails_backup_${Date.now()}.json`);
         } catch (err) {
@@ -585,6 +594,7 @@ function App() {
     };
 
     const handleExportSettings = async () => {
+        track('backup_export', { kind: 'settings' });
         try {
             downloadBlob(await backupManager.createSettingsBackup(), `bookmarks_thumbnails_settings_${Date.now()}.json`);
             toast.show({ message: 'Settings exported. The file has no previews and no API key.', tone: 'success' });
@@ -595,6 +605,7 @@ function App() {
     };
 
     const handleImportBackup = () => {
+        track('backup_import');
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json,application/json';
@@ -687,7 +698,7 @@ function App() {
                 useIncognito={useIncognito}
                 onToggleIncognito={handleToggleIncognito}
                 viewMode={viewMode}
-                onViewModeChange={setViewMode}
+                onViewModeChange={(mode) => { track('view_mode', { mode }); setViewMode(mode); }}
                 filterType={filterType}
                 onFilterChange={setFilterType}
                 sortOrder={sortOrder}

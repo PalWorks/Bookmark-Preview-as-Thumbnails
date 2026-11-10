@@ -77,6 +77,16 @@ third-party provider. Disclose this accurately:
   purpose" — OK (the transfer is for tagging/search, the stated purpose).
 - "I do not use or transfer user data to determine creditworthiness / lending" — OK.
 
+## 4a. Usage statistics (1.8.0, D27)
+
+From 1.8.0 the extension sends anonymous usage statistics (on by default, off in Settings >
+Share usage statistics) to our relay, which passes them to Google Analytics and PostHog. In
+the dashboard's Privacy practices tick **User activity** (feature use events) and keep the
+certifications true: the data is not sold, is used only to improve the extension, and is not
+used for credit or lending. What is sent: a random install id, a session number, the
+version, feature event names with numbers, on/off values or short words, and the country.
+Never links, titles, folder names, searches, chat text or keys. The relay drops anything else.
+
 ## 5. Ask AI, Claude and ChatGPT, and coding agents (1.7.0, D20)
 
 What changes from 1.6.0:

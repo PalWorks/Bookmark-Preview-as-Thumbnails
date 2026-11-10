@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-10T17:21:42+00:00
+**Last Updated:** 2026-11-10T21:11:02+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -9,7 +9,8 @@ exactly what data the extension handles and where it goes.
 
 All of the following stays **on your device**; it is never stored by us. We run two
 small servers: the feedback relay described under "Feedback you send", which receives
-only what you type into the feedback form, and, only if you turn it on, the connector
+what you type into the feedback form and the usage statistics described under "Usage
+statistics", and, only if you turn it on, the connector
 for Claude and ChatGPT described under "Ask AI, Claude and ChatGPT", which passes
 requests through without storing them:
 
@@ -115,6 +116,34 @@ order to screenshot them).
 - **Change sets** you import or receive, and the record that lets you undo them, are
   kept in `chrome.storage.local` for 30 days. They are not included in backups, and
   neither are your connections or the connector address.
+
+## Usage statistics (on by default from 1.8.0; you can turn them off)
+
+To learn which features people use, the extension sends anonymous usage statistics to our
+relay (the same Cloudflare Worker as the feedback form, at bookmarks-feedback.palworks.ai),
+which passes them to **Google Analytics** and **PostHog**. They are on when you install or
+update. Turn them off at any time in **Settings > Share usage statistics**; from then on
+nothing more is sent. They are never sent from an Incognito window.
+
+What is sent:
+
+- a **random install id** made by the extension (not linked to your Google account, email
+  or any other id), a number for the browser session, and the extension version;
+- **which features you use**: for example that a page was opened, previews were generated
+  (with the number in a range such as "11-100"), Ask AI was sent a message (with the
+  provider type, such as "groq", and whether a folder was attached), a change was undone,
+  the connector or coding agents were turned on or off, a backup was exported or imported,
+  feedback was sent, a search was started;
+- your **country**, which the relay reads from the connection. Your IP address is not
+  passed on to Google Analytics or PostHog.
+
+What is never sent: links, page or bookmark titles, folder names, tags, search text, Ask AI
+messages or replies, API keys, or anything from the pages you visit. The extension only
+sends numbers, on/off values and short words, and the relay drops anything else before it
+passes the data on. The relay stores nothing; Google Analytics and PostHog keep the
+statistics under their own policies (Google Analytics keeps event data for up to 14 months).
+We use them only to improve the extension and never sell them. To have the statistics for
+your install id deleted, write to support@palworks.ai.
 
 ## Feedback you send (optional)
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown, BarChart3 } from 'lucide-react';
+import { setUsageStats, usageStatsEnabled } from '../lib/analytics';
 import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
 import type { SortOrder } from '../lib/list_columns';
@@ -72,6 +73,24 @@ interface TopBarProps {
     onAITools?: () => void;
     aiPendingCount?: number;
 }
+
+/** Usage statistics (D27): on unless the user turns them off here. */
+const UsageStatsToggle: React.FC = () => {
+    const [on, setOn] = useState(true);
+    useEffect(() => { void usageStatsEnabled().then(setOn); }, []);
+    return (
+        <button type="button" role="menuitemcheckbox" aria-checked={on} className="menu-item toggle-item"
+            title="Counts which features are used. Never your bookmarks, links, titles, searches or chats."
+            onClick={(e) => { e.stopPropagation(); const next = !on; setOn(next); void setUsageStats(next); }}>
+            <BarChart3 size={16} className="menu-icon" aria-hidden="true" />
+            <div className="menu-text">
+                <div className="menu-title">Share usage statistics</div>
+                <div className="menu-desc">Which features are used; never your bookmarks</div>
+            </div>
+            <div className={`toggle-switch ${on ? 'checked' : ''}`} aria-hidden="true"></div>
+        </button>
+    );
+};
 
 export const TopBar: React.FC<TopBarProps> = ({
     onSearch,
@@ -552,6 +571,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                         </button>
 
                         <div className="menu-divider"></div>
+
+                        <UsageStatsToggle />
 
                         <button type="button" role="menuitem" className="menu-item" onClick={() => {
                             onOpenFeedback();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /// <reference types="chrome" />
 
+import { eventForMessage, track } from './lib/analytics';
 import { captureManager } from './lib/capture';
 import { thumbnailStorage } from './lib/thumbnail_storage';
 import { storageIndex } from './lib/storage_index';
@@ -92,6 +93,8 @@ try { void (chrome.storage.local as unknown as { setAccessLevel?: (o: { accessLe
 // Messages from the extension's own pages (popup tab, options).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || typeof message !== 'object' || !isOwnPage(_sender)) return false;
+    const usage = eventForMessage(message);
+    if (usage) track(usage.name, usage.params);
     if (message.type === 'CAPTURE_THUMBNAIL') {
         captureActiveTab()
             .then(sendResponse)
@@ -842,6 +845,8 @@ if (!IS_INCOGNITO_WORKER) {
 }
 
 chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') track('extension_install');
+    if (details.reason === 'update') track('extension_update', { previous: details.previousVersion ?? '' });
     if (details.reason === 'install') {
         chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
         markFreshInstall().catch(err => console.error('[StorageMigration] Marker write failed:', err));

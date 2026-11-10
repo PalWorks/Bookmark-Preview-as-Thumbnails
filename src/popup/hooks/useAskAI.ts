@@ -4,6 +4,7 @@
 // keeps going while the user looks at other panels. Conversations are kept on this
 // device (src/lib/agent/chat_store.ts, D24): never synced and never in backups.
 
+import { track } from '../../lib/analytics';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadAISettings, getBoundApiKey, PROVIDERS, type AICloudConfig } from '../../lib/ai_settings_storage';
 import { callModel, runAgent, NO_TOOLS, type Msg, type ToolCall } from '../../lib/agent/llm';
@@ -306,6 +307,7 @@ export function useAskAI(enabled = true): AskAIApi {
         const folder = context ? context.path.split(' > ').pop()?.slice(0, 80) : undefined;
         add([{ kind: 'user', text, ...(folder ? { folder } : {}) }]);
         const modelText = withContext(text, context);
+        const turn = items.filter(i => i.kind === 'user').length + 1;
         setRunning(true);
         const ctl = new AbortController();
         abort.current = ctl;
@@ -315,6 +317,7 @@ export function useAskAI(enabled = true): AskAIApi {
                 setProvider(p);
                 if (!p.ready || !p.cloud) { add([{ kind: 'error', text: p.problem ?? 'Ask AI is not set up.' }]); return; }
                 const cloud = p.cloud;
+                track('ask_ai_send', { provider: cloud.provider, folder: !!context, turn });
                 const { key } = await getBoundApiKey(cloud.provider, cloud.customUrl);
                 const added = await runAgent(history.current, modelText, {
                     signal: ctl.signal,
@@ -345,7 +348,7 @@ export function useAskAI(enabled = true): AskAIApi {
                 setItems(prev => { persist(prev); return prev; });
             }
         })();
-    }, [running, add, persist]);
+    }, [running, add, persist, items]);
 
     const switchTo = (id: string | null) => {
         if (running) return;
