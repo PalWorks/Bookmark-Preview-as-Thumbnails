@@ -94,7 +94,7 @@ export async function chooseTarget(opts: { browser?: string; profile?: string } 
     if (paired.length === 1 && !opts.browser && !opts.profile) {
         const t = live.find(x => keyOf(x) === paired[0]);
         if (t) return t;
-        throw new BridgeFailure(bridgeError('NOT_CONNECTED', `The browser profile this agent paired with (${paired[0]}) is not connected. Open that Chrome profile with Settings > Coding agents turned on.`, { context: { paired: paired[0], live: live.map(keyOf) } }));
+        throw new BridgeFailure(bridgeError('NOT_CONNECTED', `The browser profile this agent paired with (${paired[0]}) is not connected. Open that Chrome profile with Connect coding agents turned on (extension menu > Connect Claude or ChatGPT).`, { context: { paired: paired[0], live: live.map(keyOf) } }));
     }
     const pool = filtered.length ? filtered : live;
     if (pool.length === 1) return pool[0];

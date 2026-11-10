@@ -1,9 +1,13 @@
 # Data model
 
-_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI change sets and coding-agent keys)._
+_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: connector_link, ask_ai_chat, client mode and transport, the invite)._
 
-All data is local to the browser profile. None of the 1.7.0 `cs*` or `bridge_*` keys has the legacy
-metadata shape (`tests/change_sets.test.ts`), and backups never include them. The feedback form (1.6.0) stores nothing: a message
+All data is local to the browser profile. None of the 1.7.0 `cs*`, `bridge_*` or `connector_link`
+keys has the legacy metadata shape (`tests/change_sets.test.ts`), and backups never include them
+(backups pick `thumb_` and `meta_` keys and an allowlist of settings). The online connector
+Worker (`connector/`, D20) stores no bookmark data: per link the SHA-256 of the link secret, a
+per-minute request counter and unused authorization codes for at most 2 minutes; per network one
+counter for one minute, named by an HMAC ([connector/README.md](connector/README.md)). The feedback form (1.6.0) stores nothing: a message
 goes to the relay in `worker/` when the user presses Send, and the relay keeps no message content
 (only hashed per-network rate counters, at most 26 hours; [worker/README.md](worker/README.md)).
 
@@ -31,8 +35,9 @@ goes to the relay in `worker/` when the user presses Send, and the relay keeps n
 | `csj_<setId>_<n>` | worker only | `{ k, n, kind, state, before, after, reason?, createdId?, intentAt?, url?, trashOperationId?, trashEntryId?, idMap? }` | One journal item per change, written before the change runs. At most 50 journals are kept; older sets keep their row without Undo. |
 | `cssnap_<snapshotId>` | worker only | `{ folderIds, createdAt }` | Folders an "Organise with an AI" export shared; an answer that names this snapshot may touch only them. Removed after 7 days. |
 | `bridge_settings` | worker only (`src/sw/agent_bridge.ts`) | `{ enabled, profileId }` | 1.7.0. Coding agents switch and a random 8-character profile id. |
-| `bridge_clients` | worker only | `{ [clientId]: { id, name, tokenHash, pairedAt, lastUsedAt?, folderIds, stripQuery, mode: 'read' \| 'propose' } }` | Paired coding agents. Only the SHA-256 of each token is stored. |
-| `bridge_idem` | worker only | `{ ["clientId|key"]: { setId, hash, at } }` | Proposal idempotency keys, 24 h. |
+| `bridge_clients` | worker only | `{ [clientId]: { id, name, tokenHash, pairedAt, lastUsedAt?, folderIds, stripQuery, mode: 'read' \| 'propose' \| 'change', transport?: 'local' \| 'remote' } }` | Paired coding agents (`local`) and Claude or ChatGPT connections (`remote`, D20). Only the SHA-256 of each token is stored. `mode`: `read` looks only, `propose` makes changes wait in AI changes, `change` applies at once with Undo (the default for new pairings, D20). A missing `transport` means `local`. "Make a new address" removes every `remote` client. |
+| `bridge_idem` | worker only | `{ ["clientId|key"]: { setId, hash, at } }` | Idempotency keys for `apply_changes` and `propose_changes`, 24 h. |
+| `connector_link` | worker only (`src/sw/remote_link.ts`) | `{ enabled, linkId, secret, origin? }` | 1.7.0, D20. The Claude and ChatGPT switch. `linkId` 16 random bytes and `secret` 32 bytes, base64url. `origin` overrides the production Worker address and is accepted only for `http://localhost` or `http://127.0.0.1` (development). "Make a new address" replaces `linkId` and `secret`. Never in backups. |
 | `trash_recreated_folders` | worker only | `{ [folderId]: ms }` | Folders a restore recreated; a later restore of the original folder merges into them, never into a folder the user made. Pruned after 30 days. |
 
 ### TrashEntry
@@ -62,6 +67,21 @@ Trash.
   updatedAt, restoreStartedAt?, created?, error?, needsDestination?,
   restoredTo?: { parentId, rootId, path }, partialRootId?, keepUntil? }
 ```
+
+## chrome.storage.session
+
+**Table S1: chrome.storage.session keys**
+
+| Key | Owner (writer) | Shape | Notes |
+|---|---|---|---|
+| `ask_ai_chat` | page (`src/popup/hooks/useAskAI.ts`) | `{ items, history }` | 1.7.0, D20. The Ask AI conversation (what the panel shows, and the messages sent to the provider), last 200 of each. Lives only for this browser session. |
+
+## Memory only (service worker)
+
+- **Pairing prompt** (local helper): code, pairing id, tries, folders, mode; 2 minutes, 3 tries.
+- **Invite** (online connector, D20): the standing 6-digit code the Connect page shows, with the
+  folders, query stripping and mode it grants; replaced every 10 minutes, ended by 5 wrong
+  tries. Never written to storage, so a restarted worker shows a new code.
 
 ## chrome.storage.sync (settings)
 

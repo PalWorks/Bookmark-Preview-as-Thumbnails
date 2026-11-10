@@ -1,10 +1,11 @@
 # AGENTS.md
 
-_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0: AI changes, coding-agent bridge, rules 20 and 21)._
+_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: Ask AI, the online connector in `connector/`, rules 22 and 23)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,
-plus a marketing website in `website/` and a small feedback relay in `worker/` (Cloudflare Worker).
+plus a marketing website in `website/`, a small feedback relay in `worker/` and the online connector
+for Claude and ChatGPT in `connector/` (both Cloudflare Workers).
 
 Read next, as needed: [ARCHITECTURE.md](ARCHITECTURE.md) (contexts, Trash, data flow),
 [DATA_MODEL.md](DATA_MODEL.md) (every storage key), [DECISIONS.md](DECISIONS.md) (rules with
@@ -26,6 +27,8 @@ npm run zip            # build + check + extension.zip for the Web Store (delete
 cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback relay
 cd bridge && node build.mjs && node --test test/*.test.ts                              # coding-agent helper
 npx vite build --outDir <scratch>/build && node scripts/e2e/bridge.mjs <scratch>/build bridge/dist/cli.js
+cd connector && npm test && npm run typecheck                                          # online connector (Worker)
+node scripts/e2e/connector.mjs <scratch>/build                                         # needs connector/.dev.vars
 ```
 
 ## Layout
@@ -36,7 +39,11 @@ npx vite build --outDir <scratch>/build && node scripts/e2e/bridge.mjs <scratch>
 | `src/sw/trash.ts` | Trash coordinator (single writer of `trash_*`), also records deletes made outside the extension; no import side effects |
 | `src/sw/folder_prefs.ts` | Folder colour and hidden-from-search writer (single writer of `fpref_*`) |
 | `src/sw/change_sets.ts` | AI change sets: import, apply, Finish, Undo, recovery, retention (single writer of `cs*` keys) |
-| `src/sw/agent_bridge.ts` | Coding-agent bridge, extension side: native port, pairing, grants, reads, proposals (single writer of `bridge_*`) |
+| `src/sw/agent_bridge.ts` | One request handler for Ask AI, the online connector and coding agents: native port, pairing, the connector invite, grants, modes, reads, apply and undo (single writer of `bridge_*`) |
+| `src/sw/remote_link.ts` | Online connector, browser side: the WebSocket to the Worker (single writer of `connector_link`) |
+| `src/lib/bridge/tools.ts` | The tool list shared by Ask AI, the connector and the local MCP server; the single source of tool names, descriptions and schemas |
+| `src/lib/bridge/connector.ts` | Connector wire contract and production address; shared with `connector/` |
+| `src/lib/agent/llm.ts` | Ask AI's tool-calling loop (OpenAI-compatible, Anthropic, Gemini) |
 | `src/lib/change_set/` | Change-set format, validator (simulation), export snapshot; DOM-free |
 | `src/lib/bridge/protocol.ts` | Bridge messages, errors and limits; shared with `bridge/` |
 | `src/lib/` | Shared modules; keep DOM and React out of anything the worker imports |
@@ -48,11 +55,13 @@ npx vite build --outDir <scratch>/build && node scripts/e2e/bridge.mjs <scratch>
 | `tests/` | Vitest; `tests/fakes/chrome_bookmarks.ts`, `tests/sw_bridge.ts` |
 | `scripts/check-bundle.mjs` | Post-build checks (CI) |
 | `scripts/e2e/smoke.mjs` | `npm run e2e`: real Chrome, headless, throwaway profile |
-| `scripts/e2e/bridge.mjs` | Real Chrome + real host + real CLI end to end (pairing, grants, propose, apply) |
+| `scripts/e2e/bridge.mjs` | Real Chrome + real host + real CLI end to end (pairing, grants, propose, apply, undo) |
+| `scripts/e2e/connector.mjs` | Real Chrome + the Worker under `wrangler dev` + an MCP client (registration, code sign-in, PKCE, tools, undo, revocation, offline) |
 | `bridge/` | npm package `bookmarks-thumbnails-mcp`: native host, MCP server, CLI (Node 22, no runtime dependencies); publishing needs the owner |
 | `worker/` | Feedback relay (Cloudflare Worker, Resend, Durable Object rate limits); deployed by hand, see `worker/README.md` |
+| `connector/` | Online connector for Claude and ChatGPT (Cloudflare Worker: MCP, OAuth 2.1, one Durable Object per link); deployed by the owner, see `connector/README.md` |
 | `website/` | Marketing site, deployed to GitHub Pages from `main`; its privacy page is `website/components/Legal.tsx` |
-| `docs/designs/` | Design documents with review history; `agent-bridge.md` is the approved, not yet built, Agent changes plan |
+| `docs/designs/` | Design documents with review history; `agent-bridge.md` (change sets and the local bridge, built) and `ai-assistant.md` (Ask AI and the online connector, D20) |
 
 ## Rules (do not break)
 
@@ -99,10 +108,17 @@ npx vite build --outDir <scratch>/build && node scripts/e2e/bridge.mjs <scratch>
 19. **Docs-only changes go in their own pull request** (no CI run) or ride with the next code
     pull request; CI runs only on pull requests that change code.
 20. **AI changes go through the coordinator.** Pages and the bridge never apply a change set
-    themselves: they send `CS_*` messages or `propose_changes`; only `src/sw/change_sets.ts`
-    applies, journals and undoes, and it removes bookmarks only through Trash.
+    themselves: they send `CS_*` messages, or the bridge calls `importText` / `importAndApply`;
+    only `src/sw/change_sets.ts` applies, journals and undoes, and it removes bookmarks only
+    through Trash.
 21. **The native host holds no state.** Pairing, tokens, grants and decisions live in the
     extension; tokens are stored only as SHA-256 hashes and never logged or printed.
+22. **One tool list.** Every AI surface (Ask AI, the connector, the local MCP server) takes its
+    tools from `src/lib/bridge/tools.ts` and runs them through `agent_bridge.ts`'s request
+    handler. Never copy a tool definition into `connector/`, `bridge/` or a page.
+23. **The connector Worker stores nothing it reads** (D20): no bookmark data, no request or
+    response bodies in logs, no tokens beyond the 2-minute authorization codes. Deploying it,
+    setting or rotating `CLIENT_ID_SECRET`, and changing `CONNECTOR_ORIGIN` need the owner.
 
 ## Allowed without asking
 
@@ -111,8 +127,8 @@ and docs on a feature or release branch, local commits.
 
 ## Ask the owner first
 
-Merging to `main`, pushing tags, uploading to the Chrome Web Store, changing permissions or the
-licence, sending email or replying to users, deleting branches or data, anything that spends
+Merging to `main`, pushing tags, uploading to the Chrome Web Store, deploying a Worker
+(`worker/` or `connector/`) or setting its secrets, changing permissions or the licence, sending email or replying to users, deleting branches or data, anything that spends
 money.
 
 ## Review

@@ -20,6 +20,7 @@ interface Props {
     onSelect: (id: string | null) => void;
     onBack: () => void;
     onOrganise: () => void;
+    onAskAI?: () => void;
     onImport: () => void;
     readOnly: boolean;
     toast: (message: string, tone?: 'error') => void;
@@ -84,7 +85,7 @@ function summaryLine(s: ChangeSetSummary): string {
     return parts.join(', ');
 }
 
-export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelect, onBack, onOrganise, onImport, readOnly, toast }) => {
+export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelect, onBack, onOrganise, onAskAI, onImport, readOnly, toast }) => {
     const [detail, setDetail] = useState<{ set: ChangeSetRecord; items: JournalItem[] } | null>(null);
     const [ticked, setTicked] = useState<Set<number>>(new Set());
     const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -268,8 +269,9 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
             <div className="empty-state trash-empty">
                 <Sparkles size={40} aria-hidden="true" className="trash-empty-icon" />
                 <p>No AI changes yet.</p>
-                <p className="sub-text">Share some folders with any AI, paste back what it suggests, and review every change before it happens. One click undoes it.</p>
-                {!readOnly && <button type="button" className="btn btn--primary" onClick={onOrganise}>Organise with an AI</button>}
+                <p className="sub-text">Changes made by Ask AI, Claude or ChatGPT show here, each with one-click Undo.</p>
+                {!readOnly && onAskAI && <button type="button" className="btn btn--primary" onClick={onAskAI}>Ask AI</button>}
+                {!readOnly && <button type="button" className="btn btn--text" onClick={onOrganise}>Other ways: copy and paste</button>}
             </div>
         );
     } else {

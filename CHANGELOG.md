@@ -5,34 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.0] - not released yet (branch feat/agent-changes, 2026-11-09T17:05:49+00:00)
+## [1.7.0] - not released yet (branch feat/agent-changes, 2026-11-10T03:45:49+00:00)
 
-AI changes and coding agents ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md),
-DECISIONS D18 and D19).
+AI that organises your bookmarks for you, with one-click Undo
+([docs/designs/ai-assistant.md](docs/designs/ai-assistant.md), DECISIONS D18, D19 and D20).
 
 ### Added
 
-- **Organise with an AI.** Settings > Organise with an AI shares the folders you tick (none at
-  first, never folders hidden from search; optionally without the part of links after "?") as
-  text you copy or save for any AI, with instructions for its answer. Paste or open the answer
-  to review it.
-- **Review panel and AI changes.** Every proposed change is listed by kind (new folders, moves,
-  renames, tags, ratings, Trash) with before and after and a tick box; unticking a new folder
-  unticks the moves into it. "Apply N changes" runs them as one step; AI changes lists every
-  set with Undo, and Finish for a set that was interrupted. Nothing changes before Apply, an item
-  changed since review is skipped, Undo never overwrites a newer change, and Trash keeps exactly
-  what was approved. A set that cannot be applied is refused whole with a reason per change.
-- **Coding agents.** Settings > Coding agents connects Claude Code, Cursor or VS Code through the
-  new `bookmarks-thumbnails-mcp` npm package (Chrome on Linux and macOS, Node 22): pair with a
-  6-digit code shown in the extension, choose the folders each agent may read, and allow
-  proposals per agent. Agent proposals wait in AI changes; the toolbar icon shows how many.
-- Optional permission `nativeMessaging`, requested only when the switch is turned on; install
-  warnings are unchanged.
+- **Ask AI.** A labelled **Ask AI** button in the top bar (and in the menu) opens a chat. Type
+  what you want ("move my recipe bookmarks into a Cooking folder") and the AI you set up in AI
+  Settings reads your bookmarks and makes the changes. Works with OpenAI, Anthropic, Google
+  Gemini, Groq, Mistral, DeepSeek, xAI, Together, Cerebras, OpenRouter, a local Ollama or any
+  OpenAI-compatible server, with your own key (Perplexity and Chrome's built-in model cannot use
+  tools, so they are not offered). It sees every folder except those hidden from search. Each
+  change shows a card with **Undo**. The panel names the provider and model that receive your
+  titles, links and tags. The conversation is kept only until the browser closes.
+- **Connect Claude or ChatGPT.** Menu > Connect Claude or ChatGPT > turn on "Let Claude and
+  ChatGPT organise my bookmarks", copy the address, and add it in Claude (Settings > Connectors >
+  Add custom connector) or in ChatGPT (developer mode app, Plus or Pro). Sign in by typing the
+  6-digit code the extension shows (it changes every 10 minutes; 5 wrong tries end it). Then ask
+  Claude or ChatGPT from any device, phone included, while Chrome is open on your computer. You
+  choose the folders and whether it may read only, suggest changes for you to review, or change
+  with Undo (the default). "Make a new address" disconnects every app at once. Requests pass
+  through our relay, which stores none of your bookmarks.
+- **Coding agents on this computer.** Claude Code, Cursor or VS Code connect through the
+  `bookmarks-thumbnails-mcp` npm package (Chrome on Linux and macOS, Node 22): pair with a
+  6-digit code shown in the extension and choose the folders each agent may read. The same
+  three modes apply; new pairings may change with Undo. The CLI adds `apply` and `undo` next to
+  `propose`.
+- **AI changes.** Menu > AI changes ("See and undo what AI changed") lists every change an AI
+  made or suggested, each with one-click Undo, and Finish for a set that was interrupted.
+  Suggestions from a connection set to review first show every change with before and after and
+  a tick box; "Apply N changes" runs them as one step. An item changed since is skipped, Undo
+  never overwrites a newer change, and a set that cannot be applied is refused whole with a
+  reason per change.
+- **Other ways: copy and paste.** Without a key or a connector, share the folders you tick as
+  text for any AI and paste its answer back for review (in Ask AI and in the AI changes empty
+  state).
+- Optional permission `nativeMessaging`, requested only when the coding-agent switch is turned
+  on; install warnings are unchanged from 1.6.0.
 
 ### Changed
 
-- Trash labels items removed by applied AI changes, and keeps the restore record of those items
-  for 30 days so their Undo works later.
+- The top bar's AI Settings button is now **Ask AI**; AI Settings stays in the menu.
+- Menu: "Coding agents" is now **Connect Claude or ChatGPT**, with the coding-agent helper in a
+  collapsed "Coding agents on this computer" section.
+- Trash labels items removed by AI changes, and keeps the restore record of those items for 30
+  days so their Undo works later.
 
 ## [Unreleased]
 

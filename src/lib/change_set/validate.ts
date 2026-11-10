@@ -238,6 +238,9 @@ export function validateChangeSet(set: ChangeSetInput, ctx: ValidateContext): Va
                 const node = w.get(op.id)!;
                 if (node.permanent) { refuse(n, "Chrome's own folders can't be deleted."); break; }
                 if (anyManaged(op.id)) { refuse(n, 'Managed by your organisation.'); break; }
+                // A folder hidden from search never goes to Trash through its parent (the AI cannot see it).
+                // Same reason as an unknown id, so the refusal does not reveal that it exists.
+                if (subtreeIds(op.id).some(x => ctx.hiddenFolderIds.has(x))) { refuse(n, UNKNOWN); break; }
                 if (ancestors(op.id).some(a => trashedFolders.has(a))) { refuse(n, 'It is inside a folder that already goes to Trash in this set.'); break; }
                 const ids = subtreeIds(op.id);
                 if (ids.some(id => createdBy.has(id))) { refuse(n, 'A folder created in this set cannot also go to Trash.'); break; }

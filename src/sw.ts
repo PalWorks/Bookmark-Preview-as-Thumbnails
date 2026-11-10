@@ -13,6 +13,8 @@ import { createTrashService, handleTrashMessage, isTrashMessage } from './sw/tra
 import { createFolderPrefsService, handleFolderPrefsMessage } from './sw/folder_prefs';
 import { createChangeSetsService, handleChangeSetMessage, isChangeSetMessage } from './sw/change_sets';
 import { createAgentBridge, handleBridgeMessage, isBridgeMessage } from './sw/agent_bridge';
+import { createRemoteLink } from './sw/remote_link';
+import { findTool, pickArgs } from './lib/bridge/tools';
 import { TRASH_RESTORING_KEY } from './lib/trash_store';
 import { isValidMetaId, sanitizePagePatch, sanitizeBackupMeta, mergeImported } from './lib/metadata_sanitize';
 
@@ -33,6 +35,33 @@ const changeSets = createChangeSetsService({
 });
 // Coding-agent bridge (Stage 2): optional nativeMessaging, regular worker only.
 const bridge = createAgentBridge({ changeSets });
+// Online connector for Claude and ChatGPT (D20): one WebSocket to our relay, regular worker only.
+const remote = createRemoteLink({ handle: (req) => bridge.remoteRequest(req) });
+
+const AI_MESSAGE_TYPES = ['AGENT_TOOL', 'CONNECTOR_STATE', 'CONNECTOR_ENABLE', 'CONNECTOR_DISABLE', 'CONNECTOR_NEW_ADDRESS'];
+
+/** Ask AI tool calls and the connector switch. Extension pages only, regular windows only. */
+async function handleAIMessage(msg: { type: string } & Record<string, unknown>, sender: chrome.runtime.MessageSender): Promise<unknown> {
+    if (!sender.url?.startsWith(chrome.runtime.getURL(''))) return { ok: false, error: `${msg.type} rejected: not an extension page` };
+    if (IS_INCOGNITO_WORKER) return { ok: false, error: 'AI features work in regular windows only.' };
+    switch (msg.type) {
+        case 'AGENT_TOOL': {
+            const def = findTool(msg.name);
+            if (!def) return { ok: false, error: `Unknown tool ${String(msg.name).slice(0, 40)}` };
+            const args = (msg.args && typeof msg.args === 'object') ? msg.args as Record<string, unknown> : {};
+            return { ok: true, res: await bridge.askAI(def.request, pickArgs(def, args)) };
+        }
+        case 'CONNECTOR_STATE': return { ok: true, state: await remote.state() };
+        case 'CONNECTOR_ENABLE': return { ok: true, state: await remote.setEnabled(true) };
+        case 'CONNECTOR_DISABLE': return { ok: true, state: await remote.setEnabled(false) };
+        case 'CONNECTOR_NEW_ADDRESS': {
+            const state = await remote.newAddress();
+            await bridge.removeTransport('remote');
+            return { ok: true, state };
+        }
+    }
+    return { ok: false, error: 'Unknown message' };
+}
 
 /** Toolbar badge: change sets waiting for review. Nothing opens or takes focus. */
 function refreshBadge(): void {
@@ -165,6 +194,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             .then(sendResponse)
             .catch((err: unknown) => {
                 console.error('[Bridge] message failed', message.type, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
+    }
+
+    if (message && typeof message.type === 'string' && AI_MESSAGE_TYPES.includes(message.type)) {
+        handleAIMessage(message, _sender)
+            .then(sendResponse)
+            .catch((err: unknown) => {
+                console.error('[AI] message failed', message.type, err);
                 sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
             });
         return true; // async response
@@ -759,7 +798,9 @@ if (!IS_INCOGNITO_WORKER) {
             if (p.permissions?.includes('nativeMessaging')) bridge.start().catch(() => undefined);
         });
     }
-    chrome.alarms.onAlarm.addListener((alarm) => bridge.onAlarm(alarm.name));
+    chrome.alarms.onAlarm.addListener((alarm) => { bridge.onAlarm(alarm.name); remote.onAlarm(alarm.name); });
+    // The connector reconnects at every worker start while its switch is on.
+    remote.start().catch(err => console.error('[Connector] start failed', err));
     // Anything that changes what an agent would read makes its cursors stale.
     chrome.bookmarks.onCreated.addListener(() => bridge.invalidate());
     chrome.bookmarks.onChanged.addListener(() => bridge.invalidate());

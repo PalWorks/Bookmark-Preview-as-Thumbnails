@@ -71,6 +71,17 @@ describe('change-set validation', () => {
         expect(new Set(reasons).size).toBe(1);
     });
 
+    it('review D20-1: a folder that holds a hidden folder never goes to Trash, with the same reason as an unknown id', async () => {
+        const shared = fakeBookmarks.seed('1', 'Work');
+        const hiddenF = fakeBookmarks.seed(shared.id, 'Private');
+        fakeBookmarks.seed(hiddenF.id, 'P', 'https://p.example/');
+        const ctx = { roots: await tree(), hiddenFolderIds: new Set([hiddenF.id]), scopeFolderIds: new Set([shared.id]) };
+        const trash = validateChangeSet(set([{ op: 'trash', id: shared.id }]), ctx);
+        expect(trash.ok).toBe(false);
+        expect(trash.verdicts[0].reason).toBe(validateChangeSet(set([{ op: 'rename', id: '999', title: 'x' }]), ctx).verdicts[0].reason);
+        expect(validateChangeSet(set([{ op: 'rename', id: shared.id, title: 'Work 2' }]), ctx).ok).toBe(true);
+    });
+
     it('applies every rule of Stage 1.3', async () => {
         const a = fakeBookmarks.seed('1', 'A');
         const b = fakeBookmarks.seed(a.id, 'B');

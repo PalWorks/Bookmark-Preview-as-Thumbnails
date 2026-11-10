@@ -2,14 +2,15 @@
 
 **See your bookmarks as pictures, delete without fear, and find anything fast.**
 A Chrome extension that turns your bookmarks into a visual grid of page previews, with a
-30-day Trash, optional AI tagging and search. Your bookmarks never leave your browser unless you
-turn on a cloud AI provider or send us feedback.
+30-day Trash, optional AI tagging and search, and AI that tidies your bookmarks for you with
+one-click Undo. Your bookmarks never leave your browser unless you turn on a cloud AI provider,
+connect Claude or ChatGPT, or send us feedback.
 
 [![Extension CI](https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/actions/workflows/extension-ci.yml/badge.svg)](https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/actions/workflows/extension-ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-09T17:04:52+00:00 (1.7.0 on a branch: AI changes and coding agents)._
+_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0 on a branch: Ask AI, Connect Claude or ChatGPT, coding agents)._
 
 ## Contents
 
@@ -36,8 +37,10 @@ grid (or list) of screenshots, captured in the background, with folders, search,
 filters. It is for anyone who keeps many bookmarks and wants to find and tidy them quickly.
 
 Everything stays in your browser profile. The optional AI features run on Chrome's built-in
-on-device model by default, or with your own API key. The in-built feedback form is the only
-thing that talks to a server of ours, and only when you press Send; see [PRIVACY.md](PRIVACY.md).
+on-device model by default, or with your own API key. Two things talk to servers of ours: the
+in-built feedback form, only when you press Send, and the Claude and ChatGPT connector, only
+while you have it switched on (it relays requests and stores none of your bookmarks); see
+[PRIVACY.md](PRIVACY.md).
 
 ## Features
 
@@ -69,15 +72,23 @@ thing that talks to a server of ours, and only when you press Send; see [PRIVACY
   save previews to a folder on disk.
 - **Feedback from inside the extension** (1.6.0): Settings > Submit Feedback sends a
   message, with an optional reply address and optional counts-only technical details.
-- **AI changes** (1.7.0): share the folders you choose with any AI, paste back what it suggests,
-  review every change with tick boxes, apply them as one step, and undo them from AI changes.
-- **Coding agents** (1.7.0): Claude Code, Cursor or VS Code read the folders you share and propose
-  changes through a small helper (`npx bookmarks-thumbnails-mcp`); you review and can undo them.
+- **Ask AI** (1.7.0): a chat panel that uses the provider and key from AI Settings to read and
+  reorganise your bookmarks (folders, moves, renames, tags, ratings, Trash). Changes apply at once
+  and each shows a card with Undo. Every folder except those hidden from search is in scope.
+- **Connect Claude or ChatGPT** (1.7.0): add one address as a custom connector in Claude or a
+  developer mode app in ChatGPT, sign in with a 6-digit code from the extension, then organise
+  your bookmarks from those apps on any device while Chrome is open on your computer. You choose
+  the folders and the mode: read only, suggest for review, or change with Undo.
+- **Coding agents** (1.7.0): Claude Code, Cursor or VS Code connect through a small helper
+  (`npx bookmarks-thumbnails-mcp`) with the same tools and modes.
+- **AI changes** (1.7.0): every change an AI made or suggested, with one-click Undo; suggestions
+  are reviewed with tick boxes and applied as one step. Without a key or connector, "Other ways:
+  copy and paste" shares chosen folders as text for any AI and takes its answer back for review.
 - **Light, dark and system themes**; works from 360px wide up; keyboard and screen reader support.
 
 ## Architecture
 
-Three browser contexts, plus one small relay used only by the feedback form:
+Three browser contexts, plus two small relays of ours (feedback, and the Claude and ChatGPT connector):
 
 | Context | File | Role |
 |---|---|---|
@@ -85,6 +96,8 @@ Three browser contexts, plus one small relay used only by the feedback form:
 | Extension page | `index.html` → `src/popup/` | React UI; behaviour in hooks, `App.tsx` only composes |
 | Content script | `src/content/capture.ts` | Page-side capture helper |
 | Feedback relay (server) | `worker/` | Cloudflare Worker that emails a sent feedback form to support through Resend; holds the only key (D16) |
+| Online connector (server) | `connector/` | Cloudflare Worker: remote MCP server with OAuth 2.1 that relays Claude and ChatGPT tool calls to the browser over a WebSocket; stores no bookmark data (D20) |
+| Coding-agent helper (local) | `bridge/` | npm package: native host, MCP server and CLI for coding agents on the same computer |
 
 Data lives in `chrome.storage.local` (previews `thumb_<url>`, metadata `meta_<url>`, Trash
 `trash_*`, folder prefs `fpref_*`), `chrome.storage.sync` (settings) and IndexedDB (legacy previews, folder handle).
@@ -97,7 +110,8 @@ React 19, TypeScript 5.9, Vite 7, lucide-react icons, plain CSS with design toke
 Manifest V3 APIs (bookmarks, storage, tabs, scripting, webNavigation, favicon, alarms; history
 as an optional permission).
 Capture uses html2canvas-pro 2.5.2. The feedback relay is a Cloudflare Worker (TypeScript, a
-Durable Object for rate limits).
+Durable Object for rate limits); the online connector is another Worker (MCP Streamable HTTP,
+OAuth 2.1 with PKCE, one Durable Object per link).
 Tests: Vitest, jsdom, React Testing Library, fake-indexeddb; the relay uses Node's test runner.
 
 ## Installation
@@ -130,6 +144,8 @@ There are no environment variables. Everything is set in the extension:
 | AI engine, provider, model, server address, preferred tags | AI Settings | `chrome.storage.sync` |
 | AI API key | AI Settings | `chrome.storage.local`, encrypted, bound to its provider |
 | Storage folder for previews | Settings menu → Choose storage folder | IndexedDB (folder handle) |
+| Claude and ChatGPT switch, connector address | Menu → Connect Claude or ChatGPT | `chrome.storage.local` (`connector_link`; never in backups) |
+| Folders and mode per connection | Menu → Connect Claude or ChatGPT | `chrome.storage.local` (`bridge_clients`; never in backups) |
 
 ## Usage
 
@@ -144,11 +160,16 @@ There are no environment variables. Everything is set in the extension:
 6. A folder's **More actions** menu has **Colour...** and **Hide from search**.
 7. In list view, **Columns** chooses Added, Opened, Rating, Visits and Last visited; click
    **Rate** to give a link 1 to 5 stars.
-8. **AI Settings** (top bar or settings menu) turns on Auto-Tag, Smart Search and Duplicate Finder.
-9. **Settings → Organise with an AI** shares chosen folders with any AI and takes its answer
-   back for review; **AI changes** lists every change set with Undo; **Coding agents** pairs
-   Claude Code, Cursor or VS Code ([bridge/README.md](bridge/README.md)).
-10. **Settings → Submit Feedback** sends a message to the team from inside the extension; the
+8. **AI Settings** (settings menu) turns on Auto-Tag, Smart Search and Duplicate Finder, and
+   holds the provider and key that Ask AI uses.
+9. **Ask AI** (top bar) opens the chat: say what to change, and use **Undo** on any change card.
+   **AI changes** (menu) lists everything an AI changed or suggested, with Undo.
+10. **Connect Claude or ChatGPT** (menu): turn on "Let Claude and ChatGPT organise my bookmarks",
+   copy the address into Claude (Settings > Connectors > Add custom connector) or ChatGPT
+   (developer mode app), and type the 6-digit code shown on that page when the app asks. The
+   collapsed "Coding agents on this computer" section pairs Claude Code, Cursor or VS Code
+   ([bridge/README.md](bridge/README.md)).
+11. **Settings → Submit Feedback** sends a message to the team from inside the extension; the
    backup buttons (export backup, export settings, import) are the icon row in the same menu.
 
 ## Project structure
@@ -158,6 +179,11 @@ src/
   sw.ts                 service worker entry (router, capture, AI, migration)
   sw/trash.ts           Trash coordinator (also records deletes made outside the extension)
   sw/folder_prefs.ts    folder colour and hidden-from-search writer
+  sw/change_sets.ts     AI change sets: apply, Undo, recovery
+  sw/agent_bridge.ts    one request handler for Ask AI, the connector and coding agents
+  sw/remote_link.ts     the browser side of the online connector (WebSocket)
+  lib/bridge/tools.ts   the shared tool list
+  lib/agent/llm.ts      Ask AI's tool-calling loop (OpenAI-compatible, Anthropic, Gemini)
   lib/                  shared modules (storage, trash_store, bookmark_tree, AI, backup, utils)
   popup/                React app: App.tsx, hooks/, components/ (AI Settings, tiles)
   components/           TopBar, Sidebar, MainContent, TrashView, FolderPicker, Modal, Toast, ...
@@ -166,8 +192,11 @@ public/manifest.json    extension manifest
 tests/                  Vitest suites, fakes/, sw_bridge.ts
 scripts/check-bundle.mjs  post-build checks
 scripts/e2e/smoke.mjs     npm run e2e: real-Chrome smoke test
+scripts/e2e/bridge.mjs    real Chrome + coding-agent helper + CLI
+scripts/e2e/connector.mjs real Chrome + connector Worker (wrangler dev) + an MCP client
 worker/                 feedback relay (Cloudflare Worker, Resend); see worker/README.md
 bridge/                 coding-agent helper: native host, MCP server, CLI (npm package)
+connector/              online connector for Claude and ChatGPT (Cloudflare Worker); see connector/README.md
 website/                marketing site (GitHub Pages)
 docs/designs/           design documents
 ```
@@ -181,29 +210,32 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-416 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
+446 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
-apply, Undo, recovery), the coding-agent bridge, the reactive bookmark tree, backups, and the
-whole app in jsdom. `npm run e2e` checks the core flows in a real Chrome, and
-`scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together. The feedback relay has
-32 tests of its own and the helper package 9 (`bridge/test/`). See
-[TESTING.md](TESTING.md).
+apply, Undo, recovery), the bridge (modes, apply and undo), Ask AI, the connector link, the
+reactive bookmark tree, backups, and the whole app in jsdom. `npm run e2e` checks the core flows
+in a real Chrome; `scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together (18
+checks); `scripts/e2e/connector.mjs` runs Chrome, the connector Worker under `wrangler dev` and an
+MCP client through sign-in, tools, Undo and revocation (15 checks). The feedback relay has 32
+tests of its own, the helper package 9 (`bridge/test/`) and the connector 34 (`cd connector &&
+npm test`). See [TESTING.md](TESTING.md).
 
 ## Deployment
 
 CI (`.github/workflows/extension-ci.yml`) is one job that runs lint, tests, build, the bundle
-check and the real-Chrome smoke test on pull requests that change code; docs-only pull requests
-skip it. Releases are uploaded to the Chrome Web Store by the maintainer; the
-website deploys to GitHub Pages from `main`; the feedback relay is deployed by hand with Wrangler
-([worker/README.md](worker/README.md)). Steps, the permission gate and rollback:
+check, the connector tests and typecheck, and the real-Chrome smoke, bridge and connector e2e
+scripts on pull requests that change code; docs-only pull requests skip it. Releases are uploaded to the Chrome Web Store by the maintainer; the
+website deploys to GitHub Pages from `main`; the feedback relay and the connector are deployed
+by hand with Wrangler by the owner ([worker/README.md](worker/README.md),
+[connector/README.md](connector/README.md)). Steps, the permission gate and rollback:
 [PLAYBOOK.md](PLAYBOOK.md).
 
 ## Roadmap
 
-1.6.0 is live on the Chrome Web Store. 1.7.0 (AI changes and coding agents,
-[docs/designs/agent-bridge.md](docs/designs/agent-bridge.md)) is built on a branch and waits for
-release. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
+1.6.0 is live on the Chrome Web Store. 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents;
+[docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is built on a branch and waits for
+release; the connector Worker is not deployed yet. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
 changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing

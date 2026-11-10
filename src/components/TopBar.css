@@ -919,3 +919,23 @@
 @media (prefers-reduced-motion: reduce) {
     .menu-chevron { transition: none; }
 }
+
+/* Ask AI (D20): the one AI entry point in the bar; labelled on wider screens. */
+.topbar-ask-btn {
+    gap: 6px;
+}
+.topbar-ask-label {
+    display: none;
+    font-size: 14px;
+    font-weight: 500;
+}
+@media (min-width: 720px) {
+    .topbar-ask-btn {
+        width: auto !important;
+        padding: 0 12px !important;
+        border-radius: 18px !important;
+    }
+    .topbar-ask-label {
+        display: inline;
+    }
+}

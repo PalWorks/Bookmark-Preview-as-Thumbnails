@@ -14,6 +14,7 @@ on:
       - "scripts/**"
       - "worker/**"
       - "bridge/**"
+      - "connector/**"
       - "*.json"
       - "*.ts"
       - "*.js"
@@ -30,7 +31,7 @@ jobs:
   ci:
     name: Lint · Test · Build · Smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -68,6 +69,14 @@ jobs:
           node --test test/*.test.ts
           ../node_modules/.bin/tsc -p tsconfig.json
 
+      # The online connector for Claude and ChatGPT (connector/): OAuth, MCP and the link relay.
+      - name: Connector tests and typecheck
+        working-directory: connector
+        run: |
+          npm ci
+          npm test
+          npm run typecheck
+
       - name: Build
         run: npm run build
 
@@ -83,3 +92,11 @@ jobs:
         env:
           E2E_NO_SANDBOX: "1"
         run: node scripts/e2e/bridge.mjs dist bridge/dist/cli.js
+
+      # Real Chrome, the real Worker under wrangler dev, and an MCP client doing the OAuth sign-in.
+      - name: Connector end to end in headless Chrome
+        env:
+          E2E_NO_SANDBOX: "1"
+        run: |
+          printf 'CLIENT_ID_SECRET=%s\n' "$(openssl rand -base64 48)" > connector/.dev.vars
+          node scripts/e2e/connector.mjs dist

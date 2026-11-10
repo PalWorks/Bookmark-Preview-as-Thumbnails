@@ -1,12 +1,14 @@
 # Coding-agent bridge reference
 
-_Last updated: 2026-11-09T17:02:43+00:00 (first version, package 1.7.0, protocol 1)._
+_Last updated: 2026-11-10T03:45:49+00:00 (D20: shared tools, modes, apply_changes and undo_changes, new menu names)._
 
 Reference for the `bookmarks-thumbnails-mcp` package and its protocol. Quick start and
 troubleshooting: [bridge/README.md](../bridge/README.md). Design and review record:
 [docs/designs/agent-bridge.md](designs/agent-bridge.md). The source of truth for messages and
-errors is `src/lib/bridge/protocol.ts`; `tests/bridge_version.test.ts` fails if this page misses
-an error code.
+errors is `src/lib/bridge/protocol.ts`, and for tools `src/lib/bridge/tools.ts` (the same list
+serves Ask AI and the online connector for Claude and ChatGPT,
+[docs/designs/ai-assistant.md](designs/ai-assistant.md)); `tests/bridge_version.test.ts` fails if
+this page misses an error code.
 
 ## How the pieces connect
 
@@ -17,8 +19,8 @@ Coding agent ──stdio (MCP)──▶ bookmarks-thumbnails-mcp ──Unix sock
 
 - The extension owns all state: pairing, token hashes, the folders each agent may read,
   change sets and Undo. The host only relays and tags each message with a connection number.
-- Writes are never direct: `propose_changes` creates a change set that waits in
-  **AI changes** until the user applies it; one click undoes it.
+- Every write is one change set, validated in full first and journaled, so one click undoes it.
+  What happens to it depends on the connection's mode (below).
 - Linux and macOS, Chrome. Windows, Edge and Brave come later (Stage 3).
 
 ## Tools (MCP) and commands (CLI)
@@ -30,8 +32,26 @@ Coding agent ──stdio (MCP)──▶ bookmarks-thumbnails-mcp ──Unix sock
 | `list_folder` | `list-folder <id>` | Items of one shared folder. |
 | `search` | `search <query>` | Title, URL and tags, case-insensitive, best matches first. |
 | `get_bookmark` | `get-bookmark <id>` | Title, URL, folder, tags, rating, last opened, whether a preview exists. |
-| `propose_changes` | `propose <file.json> [--key k]` | Sends a change set for review; nothing changes yet. |
-| `get_change_set` | `get-change-set <id>` | State of a proposal this agent sent. Poll every 10 s at most. |
+| `apply_changes` | `apply <file.json> [--key k]` | Applies a change set at once (mode `change`) and returns `changeSetId`; in mode `propose` it waits for review instead. |
+| `undo_changes` | `undo <id>` | Undoes a change set this connection made; items changed since are left alone. |
+| `get_change_set` | `get-change-set <id>` | State of a change set this agent sent. Poll every 10 s at most while it waits. |
+| (none) | `propose <file.json> [--key k]` | Sends a change set for review in any mode except `read`; nothing changes yet. (`propose_changes` is still a bridge request, but no longer an MCP tool.) |
+
+## Modes
+
+Each connection has one mode, chosen when pairing (on the code card) and changeable later in
+the extension (menu > Connect Claude or ChatGPT):
+
+**Table B1: Connection modes**
+
+| Mode | Label in the extension | `apply_changes` | `undo_changes` |
+|---|---|---|---|
+| `change` (default for new pairings) | Read and change (with Undo) | Applies at once | Allowed, own sets only |
+| `propose` | Read and suggest (I review first) | Waits in **AI changes** until the user applies it | Allowed, own sets only |
+| `read` | Read only | `READ_ONLY` | `READ_ONLY` |
+
+A refused set changes nothing and answers `accepted: false` with a reason per change. An applied
+set answers `applied: true`, `changeSetId`, how many changed, and any items skipped.
 
 Reads take `limit` (default 100, max 500) and return `cursor` when more remain. A cursor
 expires after 10 minutes and whenever bookmarks, folder settings or tags change
@@ -71,8 +91,9 @@ appears once per kind of change; an item sent to Trash gets no other change; cre
 before moving into it (`new:N` may only be a parent); Chrome's own folders and managed bookmarks
 cannot change; ratings are 1 to 5 or `null`; tags replace the list (at most 20, each up to 40
 characters); bookmarks that share a link share tags and ratings, so two different values for one
-link are refused. At most 5 proposals per agent wait at once. Pass `idempotencyKey`: a retry
-with the same key and the same change set returns the first proposal.
+link are refused. At most 5 proposals per agent wait at once (the limit does not apply to sets
+applied at once). Pass `idempotencyKey`: a retry with the same key and the same change set
+returns the first answer and never applies twice.
 
 ## Errors
 
@@ -101,22 +122,24 @@ MCP returns it with `isError: true`. The CLI writes it to stderr and exits with:
 | `INTERNAL` | 21 |
 
 ### NOT_CONNECTED
-No browser profile has **Settings > Coding agents > Connect coding agents** on, or the profile
+No browser profile has **Connect coding agents** on (extension menu > Connect Claude or ChatGPT >
+Coding agents on this computer), or the profile
 this agent paired with is closed. Turn the switch on in that profile. The agent never switches
 to another profile by itself.
 
 ### NOT_PAIRED
-This agent has no valid pairing with this profile (never paired, removed in Settings, or the
+This agent has no valid pairing with this profile (never paired, removed in the extension, or the
 extension's data was cleared). Call `pair` with no code, then with the code the extension shows.
 The saved token is deleted automatically.
 
 ### PAIRING_PENDING
-The extension is showing a 6-digit code. Read it in Settings > Coding agents and call `pair`
-with it within 2 minutes. Three wrong codes end the prompt.
+The extension is showing a 6-digit code. Read it in the extension (menu > Connect Claude or
+ChatGPT) and call `pair` with it within 2 minutes. Three wrong codes end the prompt.
 
 ### READ_ONLY
-The user allowed this agent to read only. They can choose **Read and propose** for it in
-Settings > Coding agents.
+The user allowed this connection to read only. They can choose **Read and change (with Undo)**
+or **Read and suggest (I review first)** for it in the extension (menu > Connect Claude or
+ChatGPT).
 
 ### INVALID_REQUEST
 The request does not match the tool's description: unknown id, bad cursor, missing field.

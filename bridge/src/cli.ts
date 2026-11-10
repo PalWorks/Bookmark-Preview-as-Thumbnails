@@ -15,7 +15,7 @@ declare const __PACKAGE_VERSION__: string;
 const VERSION = typeof __PACKAGE_VERSION__ === 'string' ? __PACKAGE_VERSION__ : '0.0.0-dev';
 
 const HELP = `${PACKAGE_NAME} ${VERSION}: let coding agents read the bookmark folders you share in Chrome
-and propose changes you review and can undo (Visual Bookmark Manager with Thumbnail Previews).
+and change them, with one-click Undo (Visual Bookmark Manager with Thumbnail Previews).
 
 Quick start (Claude Code):  ${SETUP_COMMAND}
 Then ask the agent: "pair with my bookmarks".
@@ -26,7 +26,9 @@ Commands:
   doctor [--json] [--last-error]
   pair [--code <6 digits>]
   list-folders | list-folder <id> | search <query> | get-bookmark <id> | get-change-set <id>
-  propose <file.json> [--key <idempotency key>]
+  apply <file.json> [--key <idempotency key>]     change now (Undo stays available)
+  undo <change set id>
+  propose <file.json> [--key <idempotency key>]   send for review instead
 Options: --browser <name> --profile <id> --limit <n> --cursor <c> --json
 Docs: https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/blob/main/bridge/README.md`;
 
@@ -91,7 +93,7 @@ async function main(): Promise<void> {
             });
             const next = [
                 '', 'Next:',
-                '  1. In Chrome, open the extension: Settings > Coding agents > turn on "Connect coding agents".',
+                '  1. In Chrome, open the extension: menu > Connect Claude or ChatGPT > Coding agents > turn on "Connect coding agents".',
                 `  2. Claude Code:  ${SETUP_COMMAND}`,
                 `     Cursor / VS Code (mcp.json): {"mcpServers":{"bookmarks":{"command":"npx","args":["-y","${PACKAGE_NAME}@${VERSION}"]}}}`,
                 '  3. Ask the agent: "pair with my bookmarks", and type the code the extension shows.',
@@ -130,7 +132,7 @@ async function main(): Promise<void> {
                     try { await conn.pair(); } catch (err) {
                         if (!(err instanceof BridgeFailure) || err.error.code !== 'PAIRING_PENDING') throw err;
                     }
-                    if (!process.stdin.isTTY) fail(bridgeError('PAIRING_PENDING', 'The browser now shows a code.', { fix: `Rerun with --code <the 6 digits shown in Settings > Coding agents>: ${PACKAGE_NAME} pair --code 123456` }), json);
+                    if (!process.stdin.isTTY) fail(bridgeError('PAIRING_PENDING', 'The browser now shows a code.', { fix: `Rerun with --code <the 6 digits the extension shows>: ${PACKAGE_NAME} pair --code 123456` }), json);
                     const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
                     code = (await rl.question('Type the code shown in your browser: ')).trim();
                     rl.close();
@@ -143,12 +145,14 @@ async function main(): Promise<void> {
             case 'search': body = await conn.request('search', { query: args._.slice(1).join(' ') || need(1, 'query'), ...paging }); break;
             case 'get-bookmark': body = await conn.request('get_bookmark', { id: need(1, 'id') }); break;
             case 'get-change-set': body = await conn.request('get_change_set', { id: need(1, 'id') }); break;
+            case 'apply':
             case 'propose': {
                 const file = need(1, 'file.json');
                 const changeSet = JSON.parse(fs.readFileSync(file, 'utf8'));
-                body = await conn.request('propose_changes', { changeSet, ...(str(args.flags.key) ? { idempotencyKey: str(args.flags.key) } : {}) });
+                body = await conn.request(cmd === 'apply' ? 'apply_changes' : 'propose_changes', { changeSet, ...(str(args.flags.key) ? { idempotencyKey: str(args.flags.key) } : {}) });
                 break;
             }
+            case 'undo': body = await conn.request('undo_changes', { id: need(1, 'change set id') }); break;
             default:
                 fail(bridgeError('INVALID_REQUEST', `Unknown command "${cmd}".`, { fix: `Run ${PACKAGE_NAME} --help` }), json);
         }

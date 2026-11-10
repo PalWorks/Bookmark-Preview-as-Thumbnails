@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// LinkObject: hello and secret rules, one live socket, relaying, codes, limits.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { LinkObject, MCP_PER_MINUTE } from '../src/link.ts';
+import { FakeSocket, LINK_ID, LINK_SECRET, linkState } from './fakes.ts';
+
+const hello = (over: Record<string, unknown> = {}) => JSON.stringify({ type: 'hello', linkId: LINK_ID, secret: LINK_SECRET, extVersion: '1.7.0', protocolVersion: 1, ...over });
+
+function setup() {
+    const st = linkState();
+    const obj = new LinkObject(st as any);
+    const connect = async (frame = hello()) => {
+        const ws = new FakeSocket();
+        obj.accept(ws as any, LINK_ID);
+        await obj.webSocketMessage(ws as any, frame);
+        return ws;
+    };
+    return { st, obj, connect };
+}
+
+test('first hello stores sha256 of the secret and answers ready', async () => {
+    const { st, connect } = setup();
+    const ws = await connect();
+    assert.deepEqual(ws.sent, [{ type: 'ready' }]);
+    const stored = await st.storage.get<string>('secretHash');
+    assert.ok(stored && stored !== LINK_SECRET && stored.length === 43);
+});
+
+test('a later hello with another secret is refused and closed', async () => {
+    const { connect } = setup();
+    await connect();
+    const bad = await connect(hello({ secret: 'T'.repeat(43) }));
+    assert.equal(bad.sent[0].type, 'refused');
+    assert.ok(bad.closed);
+});
+
+test('hello must name the routed link and well-formed ids', async () => {
+    const { connect, st } = setup();
+    for (const frame of [hello({ linkId: 'BBBBBBBBBBBBBBBBBBBBBB' }), hello({ linkId: 'short' }), hello({ secret: 'short' }), JSON.stringify({ type: 'ping' }), 'not json']) {
+        const ws = await connect(frame);
+        assert.equal(ws.sent[0]?.type, 'refused', frame);
+        assert.ok(ws.closed);
+    }
+    assert.equal(await st.storage.get('secretHash'), undefined);
+});
+
+test('a new authenticated socket replaces the old one', async () => {
+    const { connect } = setup();
+    const a = await connect();
+    const b = await connect();
+    assert.equal(a.closed?.code, 4000);
+    assert.equal(b.closed, null);
+});
+
+test('pings get pongs once authenticated', async () => {
+    const { obj, connect } = setup();
+    const ws = await connect();
+    await obj.webSocketMessage(ws as any, JSON.stringify({ type: 'ping' }));
+    assert.deepEqual(ws.sent.at(-1), { type: 'pong' });
+});
+
+test('relay sends a request frame and resolves with the matching response', async () => {
+    const { obj, connect } = setup();
+    const ws = await connect();
+    const p = obj.relay({ v: 1, id: 'r1', type: 'list_folders', token: 't', body: {} }, 'AI app');
+    const frame = ws.sent.at(-1);
+    assert.equal(frame.type, 'request');
+    assert.equal(frame.via, 'AI app');
+    assert.deepEqual(frame.req, { v: 1, id: 'r1', type: 'list_folders', token: 't', body: {} });
+    await obj.webSocketMessage(ws as any, JSON.stringify({ type: 'response', rid: 'other', res: { ok: true } }));
+    await obj.webSocketMessage(ws as any, JSON.stringify({ type: 'response', rid: frame.rid, res: { v: 1, id: 'r1', ok: true, body: { n: 1 } } }));
+    assert.deepEqual(await p, { v: 1, id: 'r1', ok: true, body: { n: 1 } });
+});
+
+test('without a socket, and when the socket drops, relay answers NOT_CONNECTED', async () => {
+    const { obj, connect } = setup();
+    const none = await obj.relay({ v: 1, id: 1, type: 'search', body: {} }, 'AI app');
+    assert.equal(none.ok, false);
+    assert.equal((none as any).error.code, 'NOT_CONNECTED');
+    assert.match((none as any).error.message, /Open Chrome on your computer/);
+    const ws = await connect();
+    const p = obj.relay({ v: 1, id: 2, type: 'search', body: {} }, 'AI app');
+    ws.closed = { code: 1006 };
+    await obj.webSocketClose(ws as any, 1006);
+    assert.equal(((await p) as any).error.code, 'NOT_CONNECTED');
+});
+
+test('authorization codes work once, and not after 2 minutes', async () => {
+    const { obj } = setup();
+    let t = 1_000_000;
+    obj.now = () => t;
+    const rec = { token: 'tok_abcdefghijklmnopqrstuvwxyz', clientId: 'c', redirectUri: 'https://a.example/cb', codeChallenge: 'x' };
+    const code = await obj.putCode(LINK_ID, rec);
+    assert.ok(code.startsWith(`${LINK_ID}.`));
+    assert.equal((await obj.takeCode(code))?.token, rec.token);
+    assert.equal(await obj.takeCode(code), null);
+    const late = await obj.putCode(LINK_ID, rec);
+    t += 2 * 60_000 + 1;
+    assert.equal(await obj.takeCode(late), null);
+});
+
+test('stored codes are keyed by hash and swept by the alarm', async () => {
+    const { obj, st } = setup();
+    let t = 0;
+    obj.now = () => t;
+    const code = await obj.putCode(LINK_ID, { token: 'tok_abcdefghijklmnopqrstuvwxyz', clientId: 'c', redirectUri: 'r', codeChallenge: 'x' });
+    assert.ok(![...st.storage.store.keys()].some((k) => k.includes(code)));
+    assert.ok(st.storage.alarmAt !== null);
+    t = 3 * 60_000;
+    await obj.alarm();
+    assert.equal([...st.storage.store.keys()].filter((k) => k.startsWith('code:')).length, 0);
+});
+
+test('60 MCP requests a minute per link', async () => {
+    const { obj } = setup();
+    let t = 0;
+    obj.now = () => t;
+    for (let i = 0; i < MCP_PER_MINUTE; i++) assert.equal(await obj.takeMcpSlot(), true);
+    assert.equal(await obj.takeMcpSlot(), false);
+    t = 60_000;
+    assert.equal(await obj.takeMcpSlot(), true);
+});

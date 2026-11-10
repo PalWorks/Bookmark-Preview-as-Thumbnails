@@ -222,13 +222,16 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
 
     // ── Import ──────────────────────────────────────────────────────────────
 
-    async function importNow(text: string, source: ChangeSetSource, opts: { scopeFolderIds?: Set<string>; clientId?: string; maxPendingForClient?: number } = {}): Promise<
+    interface ImportOpts { scopeFolderIds?: Set<string>; clientId?: string; maxPendingForClient?: number; applyNow?: boolean }
+
+    async function importNow(text: string, source: ChangeSetSource, opts: ImportOpts = {}): Promise<
         { ok: true; id: string } | { ok: false; error: string; verdicts?: OpVerdict[]; ops?: ChangeOp[] }
     > {
         const parsed = parseChangeSet(text);
         if (!parsed.ok) return { ok: false, error: parsed.error };
         const set: ChangeSetInput = parsed.set;
-        const pending = (await readAll()).filter(r => r.state === 'pending');
+        // A set applied at once never waits, so the waiting-set caps do not apply to it.
+        const pending = opts.applyNow ? [] : (await readAll()).filter(r => r.state === 'pending');
         if (pending.length >= MAX_PENDING_SETS) {
             return { ok: false, error: `You already have ${MAX_PENDING_SETS} change sets waiting. Apply or reject one in AI changes first.` };
         }
@@ -818,7 +821,16 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
 
     return {
         registerSnapshot: (folderIds: string[]) => enqueue(() => registerSnapshot(folderIds)),
-        importText: (text: string, source: ChangeSetSource, opts?: { scopeFolderIds?: Set<string>; clientId?: string; maxPendingForClient?: number }) => enqueue(() => importNow(text, source, opts)),
+        importText: (text: string, source: ChangeSetSource, opts?: ImportOpts) => enqueue(() => importNow(text, source, opts)),
+        /** Validate, store and apply every change in one queued job (AI that acts directly; Undo stays available). */
+        importAndApply: (text: string, source: ChangeSetSource, opts?: ImportOpts) => enqueue(async () => {
+            const res = await importNow(text, source, { ...opts, applyNow: true });
+            if (!res.ok) return res;
+            const r = await readSet(res.id);
+            await applyNow(res.id, r ? r.ops.map((_, n) => n) : []);
+            const after = await readSet(res.id);
+            return { ok: true as const, id: res.id, state: after?.state ?? 'applied', outcome: after?.outcome, ops: after?.ops ?? [] };
+        }),
         apply: (id: string, selected: number[]) => enqueue(() => applyNow(id, selected)),
         finish: (id: string) => enqueue(() => finishNow(id)),
         undo: (id: string) => enqueue(() => undoNow(id)),

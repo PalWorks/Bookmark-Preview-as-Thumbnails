@@ -5,7 +5,7 @@ import { fakeBookmarks } from './fakes/chrome_bookmarks';
 import { localStore, EXTENSION_ORIGIN } from './setup';
 import { createTrashService } from '../src/sw/trash';
 import { createChangeSetsService } from '../src/sw/change_sets';
-import { createAgentBridge, handleBridgeMessage, BRIDGE_CLIENTS_KEY } from '../src/sw/agent_bridge';
+import { createAgentBridge, handleBridgeMessage, BRIDGE_CLIENTS_KEY, type BridgeClient } from '../src/sw/agent_bridge';
 import { ERROR_CODES, EXIT_CODES, bridgeError } from '../src/lib/bridge/protocol';
 
 function setup() {
@@ -21,7 +21,9 @@ function setup() {
     let id = 0;
     const req = (conn: number, type: string, body: Record<string, unknown> = {}, token?: string) =>
         bridge._request(conn, { v: 1, id: ++id, type, body, ...(token ? { token } : {}) }) as Promise<{ ok: boolean; body?: Record<string, unknown>; error?: { code: string; message: string; fix: string; retry: string; docUrl: string } }>;
-    return { bridge, req, clock, changeSets };
+    const remote = (type: string, body: Record<string, unknown> = {}, token?: string) =>
+        bridge.remoteRequest({ v: 1, id: ++id, type, body, ...(token ? { token } : {}) }) as Promise<{ ok: boolean; body?: Record<string, unknown>; error?: { code: string; message: string } }>;
+    return { bridge, req, remote, clock, changeSets };
 }
 
 const pid = (conn: number) => `pairing-id-for-conn-${conn}`;
@@ -162,6 +164,7 @@ describe('agent bridge', () => {
         const x = fakeBookmarks.seed(f.id, 'X', 'https://x.example/');
         const { token, clientId } = await pairClient(s, 1, [f.id]);
         const changeSet = { ops: [{ op: 'rename', id: x.id, title: 'X renamed' }] };
+        await s.bridge.updateClient(clientId, { mode: 'read' });
         expect((await s.req(1, 'propose_changes', { changeSet }, token)).error?.code).toBe('READ_ONLY');
         await s.bridge.updateClient(clientId, { mode: 'propose' });
         const r1 = await s.req(1, 'propose_changes', { changeSet, idempotencyKey: 'k1' }, token);
@@ -215,5 +218,133 @@ describe('agent bridge', () => {
         expect(await handleBridgeMessage(s.bridge, { type: 'BRIDGE_STATE' }, { url: `${EXTENSION_ORIGIN}index.html` }, true)).toMatchObject({ ok: false });
         const st = await handleBridgeMessage(s.bridge, { type: 'BRIDGE_STATE' }, { url: `${EXTENSION_ORIGIN}index.html` }, false);
         expect(JSON.stringify(st)).not.toContain('tokenHash');
+    });
+
+    it('D20: apply_changes changes bookmarks at once, undo_changes reverts them, and a retry never applies twice', async () => {
+        const s = setup();
+        const f = fakeBookmarks.seed('1', 'Work');
+        const x = fakeBookmarks.seed(f.id, 'X', 'https://x.example/');
+        const y = fakeBookmarks.seed(f.id, 'Y', 'https://y.example/');
+        const { token } = await pairClient(s, 1, [f.id]);
+        const changeSet = { title: 'Tidy', ops: [
+            { op: 'create_folder', tempId: 'new:1', parentId: f.id, title: 'Sorted' },
+            { op: 'move', id: x.id, parentId: 'new:1' },
+            { op: 'rename', id: y.id, title: 'Y renamed' },
+        ] };
+        const r = await s.req(1, 'apply_changes', { changeSet, idempotencyKey: 'a1' }, token);
+        expect(r.body).toMatchObject({ accepted: true, applied: true, state: 'applied', changed: 3 });
+        expect(fakeBookmarks.titlesIn(f.id).sort()).toEqual(['Sorted', 'Y renamed']);
+        const again = await s.req(1, 'apply_changes', { changeSet, idempotencyKey: 'a1' }, token);
+        expect(again.body).toMatchObject({ repeated: true, changeSetId: r.body!.changeSetId });
+        expect(fakeBookmarks.titlesIn(f.id).sort()).toEqual(['Sorted', 'Y renamed']);
+        const u = await s.req(1, 'undo_changes', { id: r.body!.changeSetId }, token);
+        expect(u.body).toMatchObject({ undone: true, reverted: 3 });
+        expect(fakeBookmarks.titlesIn(f.id).sort()).toEqual(['X', 'Y']);
+    });
+
+    it('D20: one bad change refuses the whole call with reasons and changes nothing; review mode only proposes; read mode refuses', async () => {
+        const s = setup();
+        const f = fakeBookmarks.seed('1', 'Work');
+        const x = fakeBookmarks.seed(f.id, 'X', 'https://x.example/');
+        const { token, clientId } = await pairClient(s, 1, [f.id]);
+        const bad = await s.req(1, 'apply_changes', { changeSet: { ops: [{ op: 'rename', id: x.id, title: 'Z' }, { op: 'rename', id: '1', title: 'nope' }] } }, token);
+        expect(bad.body).toMatchObject({ accepted: false, applied: false });
+        expect((bad.body!.results as Array<{ ok: boolean }>).filter(v => !v.ok)).toHaveLength(1);
+        expect(fakeBookmarks.titlesIn(f.id)).toEqual(['X']);
+        await s.bridge.updateClient(clientId, { mode: 'propose' });
+        const p = await s.req(1, 'apply_changes', { changeSet: { ops: [{ op: 'rename', id: x.id, title: 'Z' }] } }, token);
+        expect(p.body).toMatchObject({ accepted: true, applied: false });
+        expect(fakeBookmarks.titlesIn(f.id)).toEqual(['X']);
+        await s.bridge.updateClient(clientId, { mode: 'read' });
+        expect((await s.req(1, 'apply_changes', { changeSet: { ops: [{ op: 'rename', id: x.id, title: 'Z' }] } }, token)).error?.code).toBe('READ_ONLY');
+        expect((await s.req(1, 'undo_changes', { id: p.body!.changeSetId }, token)).error?.code).toBe('READ_ONLY');
+    });
+
+    it('D20: another connection cannot undo a change set it did not make', async () => {
+        const s = setup();
+        const f = fakeBookmarks.seed('1', 'Work');
+        const x = fakeBookmarks.seed(f.id, 'X', 'https://x.example/');
+        const a = await pairClient(s, 1, [f.id]);
+        const r = await s.req(1, 'apply_changes', { changeSet: { ops: [{ op: 'rename', id: x.id, title: 'Z' }] } }, a.token);
+        const b = await pairClient(s, 2, [f.id]);
+        expect((await s.req(2, 'undo_changes', { id: r.body!.changeSetId }, b.token)).error?.code).toBe('INVALID_REQUEST');
+        expect(fakeBookmarks.titlesIn(f.id)).toEqual(['Z']);
+    });
+
+    it('D20: Ask AI sees every folder except hidden ones, never pairs, and its changes apply with Undo', async () => {
+        const s = setup();
+        const a = fakeBookmarks.seed('1', 'A');
+        fakeBookmarks.seed(a.id, 'Alpha', 'https://alpha.example/');
+        const hidden = fakeBookmarks.seed('2', 'Hidden');
+        const h = fakeBookmarks.seed(hidden.id, 'Alpha secret', 'https://secret.example/');
+        localStore[`fpref_${hidden.id}`] = { hideFromSearch: true };
+        const found = await s.bridge.askAI('search', { query: 'alpha' }) as unknown as { body: { items: Array<{ id: string }> } };
+        expect(found.body.items.map(i => i.id)).not.toContain(h.id);
+        expect(found.body.items).toHaveLength(1);
+        const folders = await s.bridge.askAI('list_folders', {}) as unknown as { body: { folders: Array<{ id: string }> } };
+        expect(folders.body.folders.map(f => f.id)).toContain(a.id);
+        expect(folders.body.folders.map(f => f.id)).not.toContain(hidden.id);
+        expect((await s.bridge.askAI('pair', { pairingId: 'x'.repeat(20) }) as unknown as { error: { code: string } }).error.code).toBe('INVALID_REQUEST');
+        const r = await s.bridge.askAI('apply_changes', { changeSet: { ops: [{ op: 'rename', id: a.id, title: 'A2' }] } }) as unknown as { body: { applied: boolean; changeSetId: string } };
+        expect(r.body.applied).toBe(true);
+        expect(fakeBookmarks.titlesIn('1')).toContain('A2');
+        const got = await s.changeSets.get(r.body.changeSetId);
+        expect(got.ok && got.set.source).toEqual({ kind: 'agent', name: 'Ask AI' });
+        expect((await s.bridge.askAI('apply_changes', { changeSet: { ops: [{ op: 'rename', id: h.id, title: 'x' }] } }) as unknown as { body: { accepted: boolean } }).body.accepted).toBe(false);
+    });
+
+    it('D20: the online connector pairs with the standing code on the Connect page, with the folders and mode chosen there', async () => {
+        const s = setup();
+        const f = fakeBookmarks.seed('1', 'Work');
+        fakeBookmarks.seed(f.id, 'X', 'https://x.example/');
+        // No code showing: the app's sign-in page asks the extension to show one.
+        expect((await s.remote('pair', { pairingId: 'p'.repeat(20), client: 'Claude' })).error?.code).toBe('PAIRING_PENDING');
+        await s.bridge.cancelPrompt(false);
+        await s.bridge.openInvite();
+        const st = await s.bridge.state();
+        expect(st.invite!.folderIds).toContain('1');
+        expect(st.invite!.mode).toBe('change');
+        await s.bridge.setInviteGrant([f.id], true, 'change');
+        const code = (await s.bridge.state()).invite!.code;
+        // The standing code is for the online connector only.
+        expect((await s.req(1, 'pair', { pairingId: pid(1), code })).ok).toBe(false);
+        const wrong = await s.remote('pair', { pairingId: 'q'.repeat(20), client: 'Claude', code: code === '000000' ? '111111' : '000000' });
+        expect(wrong.error?.message).toMatch(/tries left/);
+        const done = await s.remote('pair', { pairingId: 'q'.repeat(20), client: 'Claude', code });
+        expect(done.ok).toBe(true);
+        expect((await s.bridge.state()).invite).toBeUndefined();
+        const stored = Object.values(localStore[BRIDGE_CLIENTS_KEY] as Record<string, BridgeClient>);
+        expect(stored[0]).toMatchObject({ name: 'Claude', transport: 'remote', folderIds: [f.id], stripQuery: true, mode: 'change' });
+        const list = await s.remote('list_folders', {}, done.body!.token as string);
+        expect((list.body!.folders as Array<{ id: string }>).map(x => x.id)).toEqual([f.id]);
+        await s.bridge.removeTransport('remote');
+        expect((await s.remote('list_folders', {}, done.body!.token as string)).error?.code).toBe('NOT_PAIRED');
+    });
+
+    it('D20: five wrong standing codes end it', async () => {
+        const s = setup();
+        await s.bridge.openInvite();
+        const code = (await s.bridge.state()).invite!.code;
+        const other = code === '000000' ? '111111' : '000000';
+        for (let i = 0; i < 4; i++) expect((await s.remote('pair', { pairingId: 'q'.repeat(20), code: other })).error?.code).toBe('PAIRING_PENDING');
+        expect((await s.remote('pair', { pairingId: 'q'.repeat(20), code: other })).error?.code).toBe('NOT_PAIRED');
+        expect((await s.bridge.state()).invite).toBeUndefined();
+    });
+
+    it('review D20-3: at most 10 new sign-in codes an hour, and a new code keeps the folders the user chose', async () => {
+        const s = setup();
+        const f = fakeBookmarks.seed('1', 'Work');
+        await s.bridge.openInvite();
+        await s.bridge.setInviteGrant([f.id], true, 'read');
+        for (let i = 0; i < 9; i++) { await s.bridge.closeInvite(); expect(await s.bridge.openInvite()).toBe(true); }
+        const kept = (await s.bridge.state()).invite!;
+        expect(kept).toMatchObject({ folderIds: [f.id], stripQuery: true, mode: 'read' });
+        await s.bridge.closeInvite();
+        expect(await s.bridge.openInvite()).toBe(false);
+        const st = await s.bridge.state();
+        expect(st.invite).toBeUndefined();
+        expect(st.inviteRetryAt).toBeGreaterThan(s.clock.t);
+        s.clock.t += 3600_001;
+        expect(await s.bridge.openInvite()).toBe(true);
     });
 });

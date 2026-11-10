@@ -1,11 +1,49 @@
 # Decisions
 
-_Last updated: 2026-11-09T17:05:49+00:00 (D19: both stages built for 1.7.0)._
+_Last updated: 2026-11-10T03:45:49+00:00 (D20: Ask AI and the online connector; D18 and D19 partly superseded)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D20. The AI acts on the bookmarks itself: Ask AI and an online connector (owner, 2026-11-10)
+
+The owner tried the 1.7.0 draft (copy a prompt into ChatGPT, paste the answer back) and found it
+too much effort. New direction: the AI changes the bookmarks directly, from a chat inside the
+extension or from the Claude and ChatGPT apps, phones included. Design:
+[docs/designs/ai-assistant.md](docs/designs/ai-assistant.md). The owner's four answers:
+
+**Table D20a: Owner answers that shape D20**
+
+| Question | Answer |
+|---|---|
+| Which surface? | Both: **Ask AI** (a chat panel in the extension, with the user's own provider and key) first, then the online connector for Claude and ChatGPT |
+| Review first, or apply now? | Apply now. Every call is one change set, validated in full, journaled, and undone in one click (chat card, AI changes, or the AI's `undo_changes`) |
+| A relay of ours between Claude or ChatGPT and the browser? | Accepted, on the condition that it stores nothing it reads: the Worker keeps only a hash of each link secret, one-time authorization codes for 2 minutes, a per-minute request counter and HMAC-named network counters |
+| What happens to PR #16 (the 1.7.0 draft)? | Kept as the foundation (change sets, validator, journal, Undo, local helper); copy and paste is demoted to "Other ways: copy and paste" |
+
+How it is built:
+
+- **One tool list** (`src/lib/bridge/tools.ts`) for Ask AI, the online connector and the local
+  MCP server: `list_folders`, `list_folder`, `search`, `get_bookmark`, `apply_changes`,
+  `undo_changes`, `get_change_set`. `propose_changes` is no longer an MCP tool; the CLI keeps
+  `propose`.
+- **One request handler** (`src/sw/agent_bridge.ts`). Ask AI calls it as the built-in client "Ask
+  AI" (every folder not hidden from search); connected apps call it with the folders the user
+  ticked.
+- **Modes per connection**: `read`, `propose` (review first, the 1.7.0 behaviour) and `change`
+  (the default for every new pairing). An agent may undo only its own change sets.
+- **No new permission.** The connector uses a WebSocket from the service worker; `<all_urls>`
+  already existed. `nativeMessaging` stays optional and is needed only for the local helper.
+
+_Partly supersedes D18 and D19 where they say that every AI change waits for review: changes now
+apply at once by default, and review first is a per-connection mode._
+
+**Rule: every AI surface uses the shared tool list and the bridge's request handler, so scope,
+limits and errors are the same everywhere; changes apply through `change_sets.ts` as one undoable
+set; the connector Worker stores no bookmark data and no long-lived token, and deploying it needs
+the owner.**
 
 ## D19. Build both stages now; how 1.7.0 implements them (owner, 2026-11-09)
 
@@ -27,6 +65,9 @@ while building, each tested:
 (`management.getPermissionWarningsByManifest` returns the same list as 1.6.0); publishing the npm
 package and submitting 1.7.0 need the owner.**
 
+_Partly superseded by D20: AI changes now apply at once by default (review first is a
+per-connection mode), and copy and paste is demoted to "Other ways"._
+
 ## D18. AI change sets come first; the agent bridge waits for demand (autoplan gate, 2026-11-09)
 
 The /gstack-autoplan review of [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) had
@@ -40,7 +81,9 @@ all three challenges at the gate:
 | uc2 | Agents read the whole library minus hidden folders | The user picks the folders an AI may see, none by default, with an option to strip query strings |
 | uc3 | Chrome, Edge and Brave on Linux, Windows and macOS | Bridge first on Chrome for Linux and macOS; the rest in Stage 3 |
 
-_Partly superseded by D19: the owner chose to build Stage 2 now, without the demand check._
+_Partly superseded by D19: the owner chose to build Stage 2 now, without the demand check. Partly superseded by D20: changes from Ask AI and from
+connections in "change" mode apply at once, without the review panel; they still go through one
+format, one validator and the journaled apply with Undo._
 
 **Rule: every AI change, from any source, goes through one change-set format, one validator, the
 Agent changes panel and the worker's journaled apply with Undo. Nothing an AI did not get from a

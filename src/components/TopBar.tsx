@@ -56,7 +56,7 @@ interface TopBarProps {
     activeTag: string | null;
     onTagChange: (tag: string | null) => void;
     onAISettings: () => void;
-    isAISettingsActive: boolean;
+    isAISettingsActive?: boolean;
     /** Show or hide the folder panel (drawer on phones). */
     onToggleFolders: () => void;
     foldersOpen: boolean;
@@ -65,10 +65,12 @@ interface TopBarProps {
     onExportSettings: () => void;
     /** Opens the in-product feedback form. */
     onOpenFeedback: () => void;
-    /** AI changes (D18): share folders with an AI, and review its proposals. */
-    onOrganiseAI?: () => void;
+    /** AI changes (D18): review, apply or undo what AI changed. */
     onOpenAIChanges?: () => void;
     onOpenAgents?: () => void;
+    /** Ask AI (D20): the chat panel. */
+    onAskAI?: () => void;
+    isAskAIActive?: boolean;
     aiPendingCount?: number;
 }
 
@@ -103,7 +105,6 @@ export const TopBar: React.FC<TopBarProps> = ({
     activeTag,
     onTagChange,
     onAISettings,
-    isAISettingsActive,
     onToggleFolders,
     foldersOpen,
     onOpenTrash,
@@ -113,9 +114,10 @@ export const TopBar: React.FC<TopBarProps> = ({
     selecting,
     canSortByVisits,
     onOpenFeedback,
-    onOrganiseAI,
     onOpenAIChanges,
     onOpenAgents,
+    onAskAI,
+    isAskAIActive = false,
     aiPendingCount = 0,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -229,13 +231,13 @@ export const TopBar: React.FC<TopBarProps> = ({
             <div className="topbar-tools">
                 <button
                     type="button"
-                    className={`icon-btn topbar-ai-btn ${isAISettingsActive ? 'topbar-ai-btn--active' : ''}`}
-                    onClick={onAISettings}
-                    title="AI Settings"
-                    aria-label="AI Settings"
-                    aria-pressed={isAISettingsActive}
+                    className={`icon-btn topbar-ai-btn topbar-ask-btn ${isAskAIActive ? 'topbar-ai-btn--active' : ''}`}
+                    onClick={onAskAI ?? onAISettings}
+                    title="Ask AI to organise your bookmarks"
+                    aria-pressed={isAskAIActive}
                 >
                     <Sparkles size={18} aria-hidden="true" />
+                    <span className="topbar-ask-label">Ask AI</span>
                 </button>
 
                 <div className="capture-controls-wrapper">
@@ -551,15 +553,15 @@ export const TopBar: React.FC<TopBarProps> = ({
                             {isTagging && <div className="ai-tag-spinner" aria-hidden="true"></div>}
                         </button>
 
-                        {onOrganiseAI && (
+                        {onAskAI && (
                             <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                                onOrganiseAI();
+                                onAskAI();
                                 setIsMenuOpen(false);
                             }}>
                                 <Bot size={16} className="menu-icon menu-icon--ai" aria-hidden="true" />
                                 <div className="menu-text">
-                                    <div className="menu-title">Organise with an AI</div>
-                                    <div className="menu-desc">Any AI suggests, you review, one-click Undo</div>
+                                    <div className="menu-title">Ask AI</div>
+                                    <div className="menu-desc">Tell AI how to organise your bookmarks</div>
                                 </div>
                             </button>
                         )}
@@ -571,7 +573,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <Clock size={16} className="menu-icon" aria-hidden="true" />
                                 <div className="menu-text">
                                     <div className="menu-title">AI changes{aiPendingCount > 0 ? ` (${aiPendingCount} to review)` : ''}</div>
-                                    <div className="menu-desc">Review, apply or undo</div>
+                                    <div className="menu-desc">See and undo what AI changed</div>
                                 </div>
                             </button>
                         )}
@@ -582,8 +584,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                             }}>
                                 <Plug size={16} className="menu-icon" aria-hidden="true" />
                                 <div className="menu-text">
-                                    <div className="menu-title">Coding agents</div>
-                                    <div className="menu-desc">Claude Code, Cursor, VS Code</div>
+                                    <div className="menu-title">Connect Claude or ChatGPT</div>
+                                    <div className="menu-desc">Organise from their apps, phone included</div>
                                 </div>
                             </button>
                         )}

@@ -1,0 +1,31 @@
+name = "bookmarks-thumbnails-connector"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+account_id = "96ec2a311affbd387b884673c0e84eb8"
+
+# Served on workers.dev, so the address matches CONNECTOR_ORIGIN in
+# src/lib/bridge/connector.ts. Preview URLs are off: one public endpoint.
+workers_dev = true
+preview_urls = false
+
+# Secret, never in this file: CLIENT_ID_SECRET (wrangler secret put CLIENT_ID_SECRET).
+# It signs client ids and authorize page state, and keys the HMAC that names a
+# network in the limiter. Without it every OAuth and MCP endpoint answers 503.
+# For `wrangler dev`, put it in .dev.vars (gitignored).
+
+# One LinkObject per link (named by linkId): the browser's WebSocket (hibernatable),
+# sha256 of the link secret, one-time authorization codes for 2 minutes, and the
+# per-minute MCP counter. No bookmark data, no long-lived tokens.
+[[durable_objects.bindings]]
+name = "LINK"
+class_name = "LinkObject"
+
+# One AuthLimiter per network, named by an HMAC of the address (never the address):
+# 4 authorization attempts a minute; the counter is deleted when its minute ends.
+[[durable_objects.bindings]]
+name = "AUTH_LIMITER"
+class_name = "AuthLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LinkObject", "AuthLimiter"]

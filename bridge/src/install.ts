@@ -130,7 +130,7 @@ export async function doctor(o: { manifestDir?: string; version: string }): Prom
     const problem = (() => { try { return checkRuntimeDir(rd); } catch (err) { return String(err); } })();
     add('runtime folder', !problem, problem ?? rd, 'Remove the folder (or the link) and turn the switch off and on.');
     const live = await liveTargets();
-    add('browser connected', live.length > 0, live.length ? live.map(t => `${t.browser}-${t.profileId}`).join(', ') : 'no browser profile has the switch on', 'In Chrome: extension > Settings > Coding agents > Connect coding agents.');
+    add('browser connected', live.length > 0, live.length ? live.map(t => `${t.browser}-${t.profileId}`).join(', ') : 'no browser profile has the switch on', 'In Chrome: extension menu > Connect Claude or ChatGPT > Connect coding agents.');
     const paired = Object.keys(readTokens().profiles);
     add('paired', paired.length > 0, paired.length ? paired.join(', ') : 'not paired', 'Ask your agent to "pair with my bookmarks", or run: bookmarks-thumbnails pair');
     return checks;

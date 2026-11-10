@@ -4,21 +4,18 @@
 // one onto the bridge requests; errors return isError with the full error body,
 // so an agent can read the code, the fix and when to retry.
 import readline from 'node:readline';
-import { UNTRUSTED_NOTE, bridgeError, type BridgeError } from '../../src/lib/bridge/protocol.ts';
+import { bridgeError, type BridgeError } from '../../src/lib/bridge/protocol.ts';
+import { TOOL_DEFS, AGENT_INSTRUCTIONS, pickArgs } from '../../src/lib/bridge/tools.ts';
 import { BridgeFailure, Connection, chooseTarget } from './client.ts';
 
 const SUPPORTED_PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
-interface Tool { name: string; description: string; inputSchema: Record<string, unknown>; run: (args: Record<string, unknown>) => Promise<Record<string, unknown>> }
+interface Tool { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, unknown>; run: (args: Record<string, unknown>) => Promise<Record<string, unknown>> }
 
 const target = { type: 'object', properties: {
     browser: { type: 'string', description: 'Only if several browsers are connected (AMBIGUOUS_TARGET).' },
     profile: { type: 'string', description: 'Only if several browser profiles are connected.' },
 } } as const;
-const paging = {
-    limit: { type: 'integer', minimum: 1, maximum: 500, description: 'Items per page (default 100).' },
-    cursor: { type: 'string', description: 'From the previous page; omit for the first page.' },
-};
 
 export function tools(connect: (args: Record<string, unknown>) => Promise<Connection>): Tool[] {
     const call = (type: Parameters<Connection['request']>[0], pick: (a: Record<string, unknown>) => Record<string, unknown>) =>
@@ -30,7 +27,7 @@ export function tools(connect: (args: Record<string, unknown>) => Promise<Connec
         {
             name: 'pair',
             description: 'Pair with the user\'s browser. Call with no code first: the extension shows a 6-digit code to the user. Then ask the user for the code and call pair again with it. Needed once per browser profile.',
-            inputSchema: { type: 'object', properties: { code: { type: 'string', description: 'The 6-digit code the user reads in Settings > Coding agents.' }, ...target.properties } },
+            inputSchema: { type: 'object', properties: { code: { type: 'string', description: 'The 6-digit code the extension shows the user.' }, ...target.properties } },
             run: async (args) => {
                 const c = await connect(args);
                 try {
@@ -39,42 +36,14 @@ export function tools(connect: (args: Record<string, unknown>) => Promise<Connec
                 } finally { c.close(); }
             },
         },
-        {
-            name: 'list_folders',
-            description: `List the bookmark folders the user shared with this agent: id, path and item count. ${UNTRUSTED_NOTE}`,
-            inputSchema: { type: 'object', properties: { ...paging, ...target.properties } },
-            run: call('list_folders', a => ({ limit: a.limit, cursor: a.cursor })),
-        },
-        {
-            name: 'list_folder',
-            description: `List one shared folder: bookmarks (title, url, tags, rating, last opened, whether a preview exists) and subfolders. ${UNTRUSTED_NOTE}`,
-            inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, ...paging, ...target.properties } },
-            run: call('list_folder', a => ({ id: a.id, limit: a.limit, cursor: a.cursor })),
-        },
-        {
-            name: 'search',
-            description: `Search shared bookmarks by title, URL and tags (case-insensitive), best matches first. ${UNTRUSTED_NOTE}`,
-            inputSchema: { type: 'object', required: ['query'], properties: { query: { type: 'string' }, ...paging, ...target.properties } },
-            run: call('search', a => ({ query: a.query, limit: a.limit, cursor: a.cursor })),
-        },
-        {
-            name: 'get_bookmark',
-            description: `Details of one shared bookmark or folder. ${UNTRUSTED_NOTE}`,
-            inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, ...target.properties } },
-            run: call('get_bookmark', a => ({ id: a.id })),
-        },
-        {
-            name: 'propose_changes',
-            description: 'Propose changes to shared bookmarks. Nothing changes until the user reviews and applies them in the extension; they can undo with one click. changeSet = {"title": "...", "ops": [...]} with ops: {"op":"create_folder","tempId":"new:1","parentId":"<id or new:N>","title":"..."}, {"op":"move","id","parentId","index"?}, {"op":"rename","id","title"}, {"op":"set_tags","id","tags":[]}, {"op":"set_rating","id","rating":1-5|null}, {"op":"trash","id"}. At most 200 changes; an item sent to Trash gets no other change; create a folder before moving into it. Returns accepted:false with a reason per change when it cannot be applied. Pass an idempotencyKey so a retry never makes a second proposal.',
-            inputSchema: { type: 'object', required: ['changeSet'], properties: { changeSet: { type: 'object' }, idempotencyKey: { type: 'string' }, ...target.properties } },
-            run: call('propose_changes', a => ({ changeSet: a.changeSet, idempotencyKey: a.idempotencyKey })),
-        },
-        {
-            name: 'get_change_set',
-            description: 'Status of a proposal this agent sent: pending (the user has not decided), applied, partly_applied, rejected, expired, undone, with a state per change. Poll every 10 seconds at most.',
-            inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, ...target.properties } },
-            run: call('get_change_set', a => ({ id: a.id })),
-        },
+        // Every other tool is the shared list (src/lib/bridge/tools.ts), plus the browser and profile choice.
+        ...TOOL_DEFS.map(def => ({
+            name: def.name,
+            description: def.description,
+            inputSchema: { ...def.inputSchema, properties: { ...(def.inputSchema.properties as Record<string, unknown>), ...target.properties } },
+            annotations: { readOnlyHint: def.readOnly },
+            run: call(def.request, a => pickArgs(def, a)),
+        })),
     ];
 }
 
@@ -107,7 +76,7 @@ export async function runMcp(opts: { version: string; clientName?: string; befor
                         protocolVersion: SUPPORTED_PROTOCOLS.includes(asked) ? asked : SUPPORTED_PROTOCOLS[0],
                         capabilities: { tools: { listChanged: false } },
                         serverInfo: { name: 'bookmarks-thumbnails', version: opts.version },
-                        instructions: 'Read and organise the user\'s Chrome bookmarks in the folders they shared. Every change is only a proposal until the user applies it in the extension. Start with list_folders; if it says NOT_PAIRED, call pair.',
+                        instructions: `${AGENT_INSTRUCTIONS} If a tool says NOT_PAIRED, call pair.`,
                     });
                 }
                 case 'notifications/initialized':
@@ -116,7 +85,7 @@ export async function runMcp(opts: { version: string; clientName?: string; befor
                 case 'ping':
                     return reply({});
                 case 'tools/list':
-                    return reply({ tools: list.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+                    return reply({ tools: list.map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema, ...(annotations ? { annotations } : {}) })) });
                 case 'tools/call': {
                     const tool = list.find(t => t.name === params.name);
                     if (!tool) return fail(-32602, `Unknown tool ${String(params.name)}`);

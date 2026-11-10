@@ -1,0 +1,20 @@
+{
+    "name": "bookmarks-thumbnails-connector",
+    "version": "1.0.0",
+    "private": true,
+    "license": "AGPL-3.0-only",
+    "description": "Cloudflare Worker: remote MCP server with OAuth 2.1 that relays Claude and ChatGPT tool calls to the user's browser extension over a WebSocket.",
+    "scripts": {
+        "dev": "npx wrangler dev --local",
+        "deploy": "npx wrangler deploy",
+        "test": "node --import ./test/register.mjs --test test/*.test.ts",
+        "smoke": "node scripts/smoke.mjs",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@cloudflare/workers-types": "5.20261027.1",
+        "typescript": "^5.3.3",
+        "wrangler": "4.153.0"
+    },
+    "type": "module"
+}

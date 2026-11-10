@@ -90,7 +90,8 @@ describe('AI changes in the App', { timeout: 20000 }, () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
         render(<App />);
-        await openMenuItem(/Organise with an AI/);
+        await openMenuItem(/AI changes/);
+        fireEvent.click(await screen.findByRole('button', { name: 'Other ways: copy and paste' }));
         const dialog = await screen.findByRole('dialog');
         const boxes = within(dialog).getAllByRole('checkbox');
         expect(boxes.filter(b => (b as HTMLInputElement).checked)).toHaveLength(0);

@@ -36,8 +36,18 @@ export interface BridgeClient {
     /** Folders this agent may read (none at first). */
     folderIds: string[];
     stripQuery: boolean;
-    mode: 'read' | 'propose';
+    /** read: look only; propose: changes wait for review in AI changes; change: changes apply at once, with Undo. */
+    mode: 'read' | 'propose' | 'change';
+    /** How it reaches the extension: the local helper, or the online connector (Claude, ChatGPT). */
+    transport?: 'local' | 'remote';
+    /** Built-in Ask AI only: every folder not hidden from search is in scope. */
+    all?: boolean;
 }
+
+/** The in-extension assistant. Never stored, never paired: it runs in the user's own page. */
+export const ASK_AI_CLIENT: BridgeClient = {
+    id: 'ask-ai', name: 'Ask AI', tokenHash: '', pairedAt: 0, folderIds: [], stripQuery: false, mode: 'change', all: true,
+};
 
 export interface PairingPrompt {
     /** Random id the client made for this pairing; the code only completes the pairing it started. */
@@ -49,7 +59,24 @@ export interface PairingPrompt {
     tries: number;
     folderIds: string[];
     stripQuery: boolean;
+    mode: BridgeClient['mode'];
+    transport: 'local' | 'remote';
 }
+
+/** Standing code on the Connect page, for the online connector's sign-in page. */
+export interface RemoteInvite {
+    code: string;
+    startedAt: number;
+    expiresAt: number;
+    tries: number;
+    folderIds: string[];
+    stripQuery: boolean;
+    mode: BridgeClient['mode'];
+}
+const INVITE_TTL_MS = 10 * 60 * 1000;
+const INVITE_MAX_TRIES = 5;
+/** New standing codes per hour (each allows 5 tries), so guessing stays bounded while the page is open. */
+const INVITE_MAX_PER_HOUR = 10;
 
 export interface BridgeState {
     enabled: boolean;
@@ -59,6 +86,9 @@ export interface BridgeState {
     socket?: string;
     clients: Array<Omit<BridgeClient, 'tokenHash'>>;
     prompt?: Omit<PairingPrompt, 'pairingId' | 'tries'>;
+    invite?: Omit<RemoteInvite, 'tries'>;
+    /** No new code until then (too many codes this hour). */
+    inviteRetryAt?: number;
 }
 
 export interface AgentBridgeDeps {
@@ -92,6 +122,11 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
     let hostVersion: string | undefined;
     let socket: string | undefined;
     let prompt: PairingPrompt | null = null;
+    let invite: RemoteInvite | null = null;
+    const inviteTimes: number[] = [];
+    /** The user's last choice on the code card, kept for the next code. */
+    let inviteGrant: Pick<RemoteInvite, 'folderIds' | 'stripQuery' | 'mode'> | null = null;
+    let inviteRetryAt = 0;
     const promptTimes: number[] = [];
     const blocked = new Map<string, number>();
     const conns = new Map<number, { name?: string; protocol?: number }>();
@@ -208,7 +243,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
     const fail = (id: ClientRequest['id'], e: BridgeError): ClientResponse => ({ v: PROTOCOL_VERSION, id, ok: false, error: e });
     const ok = (id: ClientRequest['id'], body: Record<string, unknown>): ClientResponse => ({ v: PROTOCOL_VERSION, id, ok: true, body });
 
-    async function handleRequest(conn: number, raw: unknown): Promise<ClientResponse> {
+    async function handleRequest(conn: number, raw: unknown, transport: 'local' | 'remote' = 'local', builtin?: BridgeClient): Promise<ClientResponse> {
         const req = raw as ClientRequest;
         const id = (typeof req?.id === 'string' || typeof req?.id === 'number') ? req.id : 0;
         try {
@@ -217,8 +252,8 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
                 return fail(id, bridgeError('INVALID_REQUEST', 'Unknown request type.'));
             }
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
-            const c = conns.get(conn) ?? {};
-            conns.set(conn, c);
+            const c = transport === 'remote' ? {} : (conns.get(conn) ?? {});
+            if (transport === 'local') conns.set(conn, c);
             if (req.type === 'hello') {
                 const pv = Number(body.protocolVersion);
                 c.name = cleanClientName(body.client);
@@ -231,17 +266,22 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
                 }
                 return ok(id, { protocolVersion: PROTOCOL_VERSION, minClient: MIN_CLIENT_PROTOCOL, extVersion, hostVersion });
             }
-            if (req.type === 'pair') return await pair(id, c.name ?? cleanClientName(body.client), body);
+            if (req.type === 'pair') {
+                if (builtin) return fail(id, bridgeError('INVALID_REQUEST', 'Ask AI does not pair.'));
+                return await pair(id, c.name ?? cleanClientName(body.client), body, transport);
+            }
 
-            const client = await authenticate(req.token);
+            const client = builtin ?? await authenticate(req.token);
             if (!client) return fail(id, bridgeError('NOT_PAIRED', 'This agent is not paired with this browser profile.'));
-            await touch(client);
+            if (!builtin) await touch(client);
             switch (req.type) {
                 case 'list_folders': return await listFolders(id, client, body);
                 case 'list_folder': return await listFolder(id, client, body);
                 case 'search': return await search(id, client, body);
                 case 'get_bookmark': return await getBookmark(id, client, body);
-                case 'propose_changes': return await propose(id, client, body);
+                case 'propose_changes': return await propose(id, client, body, false);
+                case 'apply_changes': return await propose(id, client, body, client.mode === 'change');
+                case 'undo_changes': return await undoChanges(id, client, body);
                 case 'get_change_set': return await getChangeSet(id, client, body);
             }
             return fail(id, bridgeError('INVALID_REQUEST', 'Unknown request type.'));
@@ -268,12 +308,27 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
 
     // ── Pairing ─────────────────────────────────────────────────────────────
 
-    async function pair(id: ClientRequest['id'], name: string, body: Record<string, unknown>): Promise<ClientResponse> {
+    async function pair(id: ClientRequest['id'], name: string, body: Record<string, unknown>, transport: 'local' | 'remote'): Promise<ClientResponse> {
         const t = now();
         if (prompt && prompt.expiresAt <= t) { prompt = null; changed(); }
         const code = typeof body.code === 'string' ? body.code.replace(/\s/g, '') : undefined;
         const pairingId = typeof body.pairingId === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(body.pairingId) ? body.pairingId : undefined;
         if (!pairingId) return fail(id, bridgeError('INVALID_REQUEST', 'pair needs a pairingId (16 to 64 letters, digits, _ or -) that the client keeps for this pairing.'));
+        // Online connector: the Connect page shows a standing code (the invite), so the
+        // user can type it on the sign-in page without the app asking first.
+        if (transport === 'remote' && invite && invite.expiresAt <= t) { invite = null; changed(); }
+        if (transport === 'remote' && invite && !(prompt && prompt.pairingId === pairingId)) {
+            if (!code) return fail(id, bridgeError('PAIRING_PENDING', 'A code shows in the extension: menu > Connect Claude or ChatGPT.', { context: { expiresInSeconds: Math.ceil((invite.expiresAt - t) / 1000) } }));
+            if (code !== invite.code) {
+                invite.tries++;
+                if (invite.tries >= INVITE_MAX_TRIES) { invite = null; changed(); return fail(id, bridgeError('NOT_PAIRED', 'Wrong code too many times. The extension shows a new code; try again with it.')); }
+                changed();
+                return fail(id, bridgeError('PAIRING_PENDING', `That code is not right. ${INVITE_MAX_TRIES - invite.tries} tries left.`));
+            }
+            const from = invite;
+            invite = null;
+            return issue(id, { name, folderIds: from.folderIds, stripQuery: from.stripQuery, mode: from.mode }, transport, t);
+        }
         if (!code) {
             if (prompt && prompt.pairingId === pairingId) {
                 return fail(id, bridgeError('PAIRING_PENDING', 'A pairing prompt is already showing.', { context: { expiresInSeconds: Math.ceil((prompt.expiresAt - t) / 1000) } }));
@@ -285,7 +340,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
             if (promptTimes.length >= PAIRING_MAX_PER_HOUR) return fail(id, bridgeError('RATE_LIMITED', `At most ${PAIRING_MAX_PER_HOUR} pairing prompts an hour.`, { retryAfterSeconds: Math.ceil((promptTimes[0] + 3600_000 - t) / 1000) }));
             promptTimes.push(t);
             const n = new DataView(randomBytes(4).buffer).getUint32(0) % 1_000_000;
-            prompt = { pairingId, name, code: String(n).padStart(6, '0'), startedAt: t, expiresAt: t + PAIRING_TTL_MS, tries: 0, folderIds: [], stripQuery: false };
+            prompt = { pairingId, name, code: String(n).padStart(6, '0'), startedAt: t, expiresAt: t + PAIRING_TTL_MS, tries: 0, folderIds: [], stripQuery: false, mode: 'change', transport };
             changed();
             return fail(id, bridgeError('PAIRING_PENDING', `The extension now shows a 6-digit code for "${name}".`, { context: { expiresInSeconds: PAIRING_TTL_MS / 1000 } }));
         }
@@ -296,17 +351,22 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
             changed();
             return fail(id, bridgeError('PAIRING_PENDING', `That code is not right. ${PAIRING_MAX_TRIES - prompt.tries} tries left.`));
         }
+        const from = prompt;
+        prompt = null;
+        return issue(id, from, transport, t);
+    }
+
+    async function issue(id: ClientRequest['id'], from: { name: string; folderIds: string[]; stripQuery: boolean; mode: BridgeClient['mode'] }, transport: 'local' | 'remote', t: number): Promise<ClientResponse> {
         const token = b64url(randomBytes(32));
         const client: BridgeClient = {
-            id: b64url(randomBytes(9)), name: prompt.name, tokenHash: await sha256(token), pairedAt: t,
-            folderIds: prompt.folderIds, stripQuery: prompt.stripQuery, mode: 'read',
+            id: b64url(randomBytes(9)), name: from.name, tokenHash: await sha256(token), pairedAt: t,
+            folderIds: from.folderIds, stripQuery: from.stripQuery, mode: from.mode, transport,
         };
         const map = await clients();
         map[client.id] = client;
         await saveClients(map);
-        prompt = null;
         changed();
-        return ok(id, { token, clientId: client.id, folders: client.folderIds.length, message: client.folderIds.length ? 'Paired.' : 'Paired. No folders are shared yet: choose them in Settings > Coding agents.' });
+        return ok(id, { token, clientId: client.id, folders: client.folderIds.length, mode: client.mode, message: client.folderIds.length ? 'Paired.' : 'Paired. No folders are shared yet: the user chooses them in the extension: menu > Connect Claude or ChatGPT.' });
     }
 
     // ── Reads ───────────────────────────────────────────────────────────────
@@ -326,7 +386,9 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
             return false;
         };
         // Folders hidden from search, and anything inside them, are never shared.
-        const granted = client.folderIds.filter(id => byId.has(id) && !byId.get(id)!.url && !underHidden(id));
+        // Ask AI starts from the top-level folders (Bookmarks bar, Other bookmarks, ...).
+        const wanted = client.all ? (root.children ?? []).map(c => c.id) : client.folderIds;
+        const granted = wanted.filter(id => byId.has(id) && !byId.get(id)!.url && !underHidden(id));
         const grantedSet = new Set(granted);
         const memo = new Map<string, boolean>();
         const inScope = (id: string): boolean => {
@@ -428,7 +490,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         const offset = decodeCursor(body.cursor, 'list_folders');
         if (typeof offset !== 'number') return fail(id, offset);
         const p = page(folders, offset, limitOf(body), 'list_folders');
-        return ok(id, { folders: p.items, total: p.total, ...(p.cursor ? { cursor: p.cursor } : {}), ...(scope.granted.length ? {} : { note: 'No folders are shared with this agent yet. The user chooses them in Settings > Coding agents.' }) });
+        return ok(id, { folders: p.items, total: p.total, ...(p.cursor ? { cursor: p.cursor } : {}), ...(scope.granted.length ? {} : { note: 'No folders are shared with this agent yet. The user chooses them in the extension: menu > Connect Claude or ChatGPT.' }) });
     }
 
     async function listFolder(id: ClientRequest['id'], client: BridgeClient, body: Record<string, unknown>): Promise<ClientResponse> {
@@ -479,8 +541,8 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
 
     // ── Proposals ───────────────────────────────────────────────────────────
 
-    async function propose(id: ClientRequest['id'], client: BridgeClient, body: Record<string, unknown>): Promise<ClientResponse> {
-        if (client.mode !== 'propose') return fail(id, bridgeError('READ_ONLY', 'This agent may read only.'));
+    async function propose(id: ClientRequest['id'], client: BridgeClient, body: Record<string, unknown>, applyNow: boolean): Promise<ClientResponse> {
+        if (client.mode === 'read') return fail(id, bridgeError('READ_ONLY', 'This connection may read only.'));
         const raw = body.changeSet;
         if (!raw || (typeof raw !== 'object' && typeof raw !== 'string')) return fail(id, bridgeError('INVALID_REQUEST', 'changeSet is required (an object with an "ops" list).'));
         const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
@@ -491,9 +553,33 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         if (key) {
             const hit = idemAll[`${client.id}|${key}`];
             if (hit && hit.hash !== hash) return fail(id, bridgeError('INVALID_REQUEST', 'That idempotencyKey was used with a different change set.'));
-            if (hit) return ok(id, { accepted: true, changeSetId: hit.setId, repeated: true, message: 'Already received; waiting for the user to review it in the extension.' });
+            if (hit) return ok(id, { accepted: true, changeSetId: hit.setId, repeated: true, message: 'Already received. Call get_change_set for its state.' });
         }
         const scope = await scopeOf(client);
+        const remember = async (setId: string) => {
+            if (!key) return;
+            idemAll[`${client.id}|${key}`] = { setId, hash, at: now() };
+            await chrome.storage.local.set({ [BRIDGE_IDEM_KEY]: idemAll });
+        };
+        if (applyNow) {
+            const res = await deps.changeSets.importAndApply(text, { kind: 'agent', name: client.name }, { scopeFolderIds: new Set(scope.granted), clientId: client.id });
+            if (!res.ok) {
+                return ok(id, {
+                    accepted: false, applied: false, message: res.error,
+                    results: (res.verdicts ?? []).map(v => ({ change: v.n, ok: v.ok, ...(v.reason ? { reason: v.reason } : {}) })),
+                });
+            }
+            await remember(res.id);
+            bump();
+            const got = await deps.changeSets.get(res.id);
+            const skipped = got.ok ? got.items.filter(i => i.state === 'skipped').map(i => ({ change: i.n, reason: i.reason ?? 'Skipped.' })) : [];
+            const done = res.outcome?.done ?? 0;
+            return ok(id, {
+                accepted: true, applied: true, changeSetId: res.id, state: res.state, changed: done,
+                ...(skipped.length ? { skipped } : {}),
+                message: `Applied ${done} of ${res.ops.length} changes. The user can undo them in the extension, or call undo_changes with this changeSetId.`,
+            });
+        }
         const res = await deps.changeSets.importText(text, { kind: 'agent', name: client.name }, {
             scopeFolderIds: new Set(scope.granted), clientId: client.id, maxPendingForClient: MAX_PENDING_PER_CLIENT,
         });
@@ -506,11 +592,22 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
                 results: (res.verdicts ?? []).map(v => ({ change: v.n, ok: v.ok, ...(v.reason ? { reason: v.reason } : {}) })),
             });
         }
-        if (key) {
-            idemAll[`${client.id}|${key}`] = { setId: res.id, hash, at: now() };
-            await chrome.storage.local.set({ [BRIDGE_IDEM_KEY]: idemAll });
-        }
-        return ok(id, { accepted: true, changeSetId: res.id, message: 'Nothing has changed yet. The user reviews it in the extension (toolbar badge). Poll get_change_set every 10 seconds.' });
+        await remember(res.id);
+        return ok(id, { accepted: true, applied: false, changeSetId: res.id, message: 'Nothing has changed yet: this connection is set to review first. The user reviews it in the extension (toolbar badge). Poll get_change_set every 10 seconds.' });
+    }
+
+    async function undoChanges(id: ClientRequest['id'], client: BridgeClient, body: Record<string, unknown>): Promise<ClientResponse> {
+        if (client.mode === 'read') return fail(id, bridgeError('READ_ONLY', 'This connection may read only.'));
+        const sid = String(body.id ?? '');
+        const got = /^[A-Za-z0-9-]{1,64}$/.test(sid) ? await deps.changeSets.get(sid) : { ok: false as const, error: '' };
+        if (!got.ok || got.set.clientId !== client.id) return fail(id, bridgeError('INVALID_REQUEST', 'Unknown change set id for this connection.'));
+        const res = await deps.changeSets.undo(sid);
+        bump();
+        if (!res.ok) return ok(id, { undone: false, message: res.error ?? 'It could not be undone.' });
+        return ok(id, {
+            undone: true, changeSetId: sid, reverted: res.undone ?? 0, kept: res.skipped ?? 0,
+            message: res.skipped ? `Undid ${res.undone ?? 0} changes; ${res.skipped} were left because they changed since.` : `Undid ${res.undone ?? 0} changes.`,
+        });
     }
 
     async function getChangeSet(id: ClientRequest['id'], client: BridgeClient, body: Record<string, unknown>): Promise<ClientResponse> {
@@ -537,10 +634,13 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
     async function stateNow(): Promise<BridgeState> {
         const s = await settings();
         if (prompt && prompt.expiresAt <= now()) prompt = null;
+        if (invite && invite.expiresAt <= now()) invite = null;
         const list = Object.values(await clients()).map(({ tokenHash: _t, ...rest }) => rest).sort((a, b) => a.pairedAt - b.pairedAt);
         return {
             enabled: s.enabled, status: s.enabled ? status : 'off', error: lastError, hostVersion, socket, clients: list,
-            ...(prompt ? { prompt: { name: prompt.name, code: prompt.code, startedAt: prompt.startedAt, expiresAt: prompt.expiresAt, folderIds: prompt.folderIds, stripQuery: prompt.stripQuery } } : {}),
+            ...(!invite && inviteRetryAt > now() ? { inviteRetryAt } : {}),
+            ...(invite ? { invite: { code: invite.code, startedAt: invite.startedAt, expiresAt: invite.expiresAt, folderIds: invite.folderIds, stripQuery: invite.stripQuery, mode: invite.mode } } : {}),
+            ...(prompt ? { prompt: { name: prompt.name, code: prompt.code, startedAt: prompt.startedAt, expiresAt: prompt.expiresAt, folderIds: prompt.folderIds, stripQuery: prompt.stripQuery, mode: prompt.mode, transport: prompt.transport } } : {}),
         };
     }
 
@@ -564,7 +664,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         if (!c) return false;
         if (Array.isArray(patch.folderIds) && patch.folderIds.every(x => typeof x === 'string') && patch.folderIds.length <= 5000) c.folderIds = patch.folderIds as string[];
         if (typeof patch.stripQuery === 'boolean') c.stripQuery = patch.stripQuery;
-        if (patch.mode === 'read' || patch.mode === 'propose') c.mode = patch.mode;
+        if (patch.mode === 'read' || patch.mode === 'propose' || patch.mode === 'change') c.mode = patch.mode;
         await saveClients(map);
         bump();
         changed();
@@ -579,10 +679,48 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         invalidate: bump,
         state: () => enqueue(stateNow),
         setEnabled: (on: boolean) => enqueue(() => setEnabled(on)),
-        setPromptGrant: (folderIds: string[], strip: boolean) => enqueue(async () => {
-            if (prompt) { prompt.folderIds = folderIds.slice(0, 5000); prompt.stripQuery = strip; changed(); }
+        setPromptGrant: (folderIds: string[], strip: boolean, mode?: unknown) => enqueue(async () => {
+            if (prompt) {
+                prompt.folderIds = folderIds.slice(0, 5000); prompt.stripQuery = strip;
+                if (mode === 'read' || mode === 'propose' || mode === 'change') prompt.mode = mode;
+                changed();
+            }
             return true;
         }),
+        /** Show a code for the online connector's sign-in page (the Connect page asks while it is open). */
+        openInvite: () => enqueue(async () => {
+            const t = now();
+            if (!invite || invite.expiresAt <= t + 30_000) {
+                while (inviteTimes.length && inviteTimes[0] < t - 3600_000) inviteTimes.shift();
+                if (inviteTimes.length >= INVITE_MAX_PER_HOUR) {
+                    invite = null;
+                    inviteRetryAt = inviteTimes[0] + 3600_000;
+                    changed();
+                    return false;
+                }
+                inviteTimes.push(t);
+                const [root] = await chrome.bookmarks.getTree();
+                const hidden = hiddenFolderIds(await readFolderPrefs());
+                const n = new DataView(randomBytes(4).buffer).getUint32(0) % 1_000_000;
+                invite = {
+                    code: String(n).padStart(6, '0'), startedAt: t, expiresAt: t + INVITE_TTL_MS, tries: 0,
+                    folderIds: inviteGrant?.folderIds ?? (root.children ?? []).filter(c => !c.url && !hidden.has(c.id)).map(c => c.id),
+                    stripQuery: inviteGrant?.stripQuery ?? false, mode: inviteGrant?.mode ?? 'change',
+                };
+                changed();
+            }
+            return true;
+        }),
+        setInviteGrant: (folderIds: string[], strip: boolean, mode?: unknown) => enqueue(async () => {
+            if (invite) {
+                invite.folderIds = folderIds.slice(0, 5000); invite.stripQuery = strip;
+                if (mode === 'read' || mode === 'propose' || mode === 'change') invite.mode = mode;
+                inviteGrant = { folderIds: invite.folderIds, stripQuery: invite.stripQuery, mode: invite.mode };
+                changed();
+            }
+            return true;
+        }),
+        closeInvite: () => enqueue(async () => { if (invite) { invite = null; changed(); } return true; }),
         cancelPrompt: (block: boolean) => enqueue(async () => {
             if (prompt && block) blocked.set(prompt.name, now() + 3600_000);
             prompt = null;
@@ -598,8 +736,20 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
             return true;
         }),
         removeAll: () => enqueue(async () => { await saveClients({}); changed(); return true; }),
+        /** Forget every connection that came through one transport (a new connector address). */
+        removeTransport: (t: 'local' | 'remote') => enqueue(async () => {
+            const map = await clients();
+            for (const [k, c] of Object.entries(map)) if ((c.transport ?? 'local') === t) delete map[k];
+            await saveClients(map);
+            changed();
+            return true;
+        }),
         /** Test hook: feed a host message. */
         _host: (m: HostToExtension) => enqueue(() => onHost(m)),
+        /** A request from the online connector (src/sw/remote_link.ts). */
+        remoteRequest: (req: unknown) => enqueue(() => handleRequest(-1, req, 'remote')),
+        /** A tool call from Ask AI in the extension page: every non-hidden folder, changes apply at once. */
+        askAI: (type: string, body: Record<string, unknown>) => enqueue(() => handleRequest(-2, { v: PROTOCOL_VERSION, id: 0, type, body }, 'local', ASK_AI_CLIENT)),
         /** Test hook: handle one request without a port. */
         _request: (conn: number, req: unknown) => enqueue(() => handleRequest(conn, req)),
     };
@@ -609,6 +759,7 @@ export type AgentBridge = ReturnType<typeof createAgentBridge>;
 
 export const BRIDGE_MESSAGE_TYPES = [
     'BRIDGE_STATE', 'BRIDGE_ENABLE', 'BRIDGE_DISABLE', 'BRIDGE_PROMPT_GRANT', 'BRIDGE_PROMPT_CANCEL',
+    'BRIDGE_INVITE_OPEN', 'BRIDGE_INVITE_GRANT', 'BRIDGE_INVITE_CLOSE',
     'BRIDGE_UPDATE_CLIENT', 'BRIDGE_REMOVE_CLIENT', 'BRIDGE_REMOVE_ALL',
 ] as const;
 
@@ -623,13 +774,16 @@ export async function handleBridgeMessage(
     incognito: boolean,
 ): Promise<unknown> {
     if (!sender.url?.startsWith(chrome.runtime.getURL(''))) return { ok: false, error: `${msg.type} rejected: not an extension page` };
-    if (incognito) return { ok: false, error: 'Coding agents work in regular windows only.' };
+    if (incognito) return { ok: false, error: 'Connections work in regular windows only.' };
     const ids = (v: unknown) => (Array.isArray(v) && v.every(x => typeof x === 'string') ? v as string[] : []);
     switch (msg.type) {
         case 'BRIDGE_STATE': return { ok: true, state: await bridge.state() };
         case 'BRIDGE_ENABLE': return { ok: true, state: await bridge.setEnabled(true) };
         case 'BRIDGE_DISABLE': return { ok: true, state: await bridge.setEnabled(false) };
-        case 'BRIDGE_PROMPT_GRANT': return { ok: await bridge.setPromptGrant(ids(msg.folderIds), msg.stripQuery === true) };
+        case 'BRIDGE_PROMPT_GRANT': return { ok: await bridge.setPromptGrant(ids(msg.folderIds), msg.stripQuery === true, msg.mode) };
+        case 'BRIDGE_INVITE_OPEN': return { ok: await bridge.openInvite() };
+        case 'BRIDGE_INVITE_GRANT': return { ok: await bridge.setInviteGrant(ids(msg.folderIds), msg.stripQuery === true, msg.mode) };
+        case 'BRIDGE_INVITE_CLOSE': return { ok: await bridge.closeInvite() };
         case 'BRIDGE_PROMPT_CANCEL': return { ok: await bridge.cancelPrompt(msg.block === true) };
         case 'BRIDGE_UPDATE_CLIENT': return { ok: typeof msg.id === 'string' && await bridge.updateClient(msg.id, (msg.patch ?? {}) as Record<string, unknown>) };
         case 'BRIDGE_REMOVE_CLIENT': return { ok: typeof msg.id === 'string' && await bridge.removeClient(msg.id) };

@@ -2,7 +2,7 @@
 // 1.6.0: the settings menu layout (Generate Preview sub-menu, icon-only backup row,
 // AI Settings entry) and the in-product feedback form.
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within, cleanup, configure } from '@testing-library/react';
+import { render, screen, fireEvent, within, cleanup, configure } from '@testing-library/react';
 import App from '../../src/popup/App';
 import { FeedbackDialog } from '../../src/components/FeedbackDialog';
 import { fakeBookmarks } from '../fakes/chrome_bookmarks';
@@ -70,10 +70,21 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         render(<App />);
         const menu = await openMenu();
         expect(within(menu).queryByText('Auto-Tag Bookmarks')).toBeNull();
-        const toolbarAI = screen.getByRole('button', { name: 'AI Settings', pressed: false });
         fireEvent.click(within(menu).getByRole('menuitem', { name: /AI Settings/ }));
-        await waitFor(() => expect(toolbarAI.getAttribute('aria-pressed')).toBe('true'));
+        await screen.findByRole('heading', { name: 'AI Settings' });
         expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('D20: the toolbar Ask AI button and the menu open Ask AI; the menu offers Connect Claude or ChatGPT', async () => {
+        render(<App />);
+        const ask = await screen.findByRole('button', { name: 'Ask AI', pressed: false });
+        fireEvent.click(ask);
+        await screen.findByRole('heading', { name: 'Ask AI' });
+        expect(ask.getAttribute('aria-pressed')).toBe('true');
+        const menu = await openMenu();
+        expect(within(menu).getByRole('menuitem', { name: /Ask AI/ })).toBeTruthy();
+        expect(within(menu).getByRole('menuitem', { name: /Connect Claude or ChatGPT/ })).toBeTruthy();
+        expect(within(menu).queryByText('Organise with an AI')).toBeNull();
     });
 
     it('the folder panel no longer carries an AI Settings link', async () => {

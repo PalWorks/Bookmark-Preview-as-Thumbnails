@@ -126,7 +126,7 @@ test('MCP server: initialize, tools with the untrusted-data note, NOT_PAIRED wit
     assert.equal((init.result as { protocolVersion: string }).protocolVersion, '2025-06-18');
     mcp.stdin!.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     const list = (await call('tools/list')).result as { tools: Array<{ name: string; description: string }> };
-    assert.deepEqual(list.tools.map(t => t.name).sort(), ['get_bookmark', 'get_change_set', 'list_folder', 'list_folders', 'pair', 'propose_changes', 'search']);
+    assert.deepEqual(list.tools.map(t => t.name).sort(), ['apply_changes', 'get_bookmark', 'get_change_set', 'list_folder', 'list_folders', 'pair', 'search', 'undo_changes']);
     for (const t of list.tools.filter(t => ['list_folders', 'list_folder', 'search', 'get_bookmark'].includes(t.name))) assert.match(t.description, /untrusted/);
 
     const before = (await call('tools/call', { name: 'list_folders', arguments: {} })).result as { isError: boolean; structuredContent: { error: { code: string; fix: string } } };
