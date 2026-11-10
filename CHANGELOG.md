@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Helper 1.7.1] - 2026-11-10 (`bookmarks-thumbnails-mcp` on npm only; the extension is unchanged)
+
+Recorded 2026-11-10T08:04:16+00:00.
+
+### Changed
+
+- `install` sets up unpacked copies of the extension by itself. It reads each Chrome profile's
+  Preferences for copies loaded from a folder whose manifest name matches the extension, and adds
+  their ids to the helper manifest. No `--extension-id` needed.
+- `install` also covers Chrome started with its own `--user-data-dir` (test profiles, automation):
+  it finds the running ones and writes the helper manifest into their data folder, where that
+  Chrome looks for it. Folders without the extension are left alone. `uninstall` and `doctor`
+  cover the same folders.
+- The extension's setup command points at `@1.7.1` from its next release; 1.7.0 keeps working.
+
 ## [1.7.0] - 2026-11-10 (submitted to the Web Store 2026-11-10T06:33:36+00:00, in review)
 
 Merged in PR #16 and tagged `v1.7.0`. The connector Worker is live, `bookmarks-thumbnails-mcp@1.7.0`

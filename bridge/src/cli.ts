@@ -22,6 +22,7 @@ Then ask the agent: "pair with my bookmarks".
 
 Commands:
   install [--dry-run] [--node <path>] [--manifest-dir <dir>] [--extension-id <id>]
+                  (finds unpacked copies and Chrome data folders by itself)
   uninstall [--dry-run]
   doctor [--json] [--last-error]
   pair [--code <6 digits>]

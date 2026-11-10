@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { EXIT_CODES, HOST_NAME, STORE_EXTENSION_ID } from '../../src/lib/bridge/protocol.ts';
+import { dataDirFromCommandLine } from '../src/detect.ts';
 
 const CLI = new URL('../dist/cli.js', import.meta.url).pathname;
 const HOST = new URL('../dist/host.js', import.meta.url).pathname;
@@ -20,6 +21,7 @@ function home() {
         HOME: root, XDG_CONFIG_HOME: path.join(root, '.config'), XDG_DATA_HOME: path.join(root, '.local', 'share'),
         BOOKMARKS_THUMBNAILS_RUNTIME_DIR: path.join(root, 'run'), BOOKMARKS_THUMBNAILS_DATA_DIR: path.join(root, 'data'),
         BOOKMARKS_THUMBNAILS_TOKEN_FILE: path.join(root, 'cfg', 'tokens.json'),
+        BOOKMARKS_THUMBNAILS_CHROME_DIRS: '',
     };
     return { root, env };
 }
@@ -43,6 +45,53 @@ test('install writes the manifest, launcher and host copy; it is idempotent; uni
     const un = run(['uninstall', '--json'], env);
     assert.equal(un.status, 0);
     assert.equal(fs.existsSync(manifest), false);
+    fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('reads the data folder from a Chrome command line in either form', () => {
+    assert.equal(dataDirFromCommandLine('/opt/google/chrome/chrome --remote-debugging-port=9228 --user-data-dir=/home/u/.config/test profile --force-dark-mode https://x'), '/home/u/.config/test profile');
+    assert.equal(dataDirFromCommandLine('/opt/google/chrome/chrome\0--user-data-dir=/home/u/p\0about:blank'), '/home/u/p');
+    assert.equal(dataDirFromCommandLine('/usr/bin/node --user-data-dir=/home/u/p'), null);
+    assert.equal(dataDirFromCommandLine('/opt/google/chrome/chrome --user-data-dir=relative'), null);
+    assert.equal(dataDirFromCommandLine('/opt/google/chrome/chrome --no-first-run'), null);
+});
+
+test('install finds unpacked copies and Chrome data folders by itself', () => {
+    const { root, env } = home();
+    const prefs = (dir: string, settings: Record<string, unknown>) => {
+        fs.mkdirSync(path.join(dir, 'Default'), { recursive: true });
+        fs.writeFileSync(path.join(dir, 'Default', 'Secure Preferences'), JSON.stringify({ extensions: { settings } }));
+    };
+    const src = path.join(root, 'src-build');
+    fs.mkdirSync(src);
+    fs.writeFileSync(path.join(src, 'manifest.json'), JSON.stringify({ name: 'Visual Bookmark Manager with Thumbnail Previews' }));
+    const other = path.join(root, 'other-ext');
+    fs.mkdirSync(other);
+    fs.writeFileSync(path.join(other, 'manifest.json'), JSON.stringify({ name: 'Something else' }));
+    const unpacked = 'pinepbhghhkcpnjmkohlfnipldbgcogm';
+    prefs(path.join(root, '.config', 'google-chrome'), { [unpacked]: { path: src, location: 4 }, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb: { path: other, location: 4 } });
+    const testProfile = path.join(root, 'test-profile');
+    prefs(testProfile, { [STORE_EXTENSION_ID]: { location: 1 } });
+    const unrelated = path.join(root, 'unrelated-profile');
+    prefs(unrelated, {});
+    const e = { ...env, BOOKMARKS_THUMBNAILS_CHROME_DIRS: [testProfile, unrelated].join(path.delimiter) };
+
+    const r = run(['install'], e);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, new RegExp(`Found an unpacked copy \\(${unpacked}\\)`));
+    const main = path.join(root, '.config', 'google-chrome', 'NativeMessagingHosts', `${HOST_NAME}.json`);
+    const extra = path.join(testProfile, 'NativeMessagingHosts', `${HOST_NAME}.json`);
+    for (const m of [main, extra]) {
+        assert.deepEqual(JSON.parse(fs.readFileSync(m, 'utf8')).allowed_origins, [`chrome-extension://${STORE_EXTENSION_ID}/`, `chrome-extension://${unpacked}/`]);
+    }
+    assert.equal(fs.existsSync(path.join(unrelated, 'NativeMessagingHosts')), false, 'a folder without the extension is left alone');
+
+    const d = JSON.parse(run(['doctor', '--json'], e).stdout) as { checks: Array<{ name: string; ok: boolean }> };
+    assert.equal(d.checks.find(c => c.name === `unpacked copy ${unpacked}`)?.ok, true);
+    assert.equal(d.checks.find(c => c.name === `chrome (${testProfile}): host manifest`)?.ok, true);
+
+    assert.equal(run(['uninstall'], e).status, 0);
+    assert.equal(fs.existsSync(main) || fs.existsSync(extra), false);
     fs.rmSync(root, { recursive: true, force: true });
 });
 

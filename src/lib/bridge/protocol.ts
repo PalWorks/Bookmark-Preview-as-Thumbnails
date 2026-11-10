@@ -13,7 +13,7 @@ export const HOST_NAME = 'com.palworks.bookmarks_thumbnails';
 export const STORE_EXTENSION_ID = 'eedekafhclngkhhkcocblnllkbodgnhj';
 export const PACKAGE_NAME = 'bookmarks-thumbnails-mcp';
 /** The package version the extension's setup snippet pins (bridge/package.json must match; a test checks). */
-export const PACKAGE_VERSION = '1.7.0';
+export const PACKAGE_VERSION = '1.7.1';
 /** The one line a Claude Code user types. */
 export const SETUP_COMMAND = `claude mcp add bookmarks -- npx -y ${PACKAGE_NAME}@${PACKAGE_VERSION}`;
 export const DOCS_URL = 'https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/blob/main/docs/bridge.md';
