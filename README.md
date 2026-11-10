@@ -249,10 +249,11 @@ settings are ever changed. Steps, the permission gate and rollback:
 
 ## Roadmap
 
-1.6.0 is live on the Chrome Web Store. 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents;
-[docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is in Web Store review, with the
-connector Worker live and `bookmarks-thumbnails-mcp@1.7.1` on npm. `main` already holds the next
-release: one AI Tools page, the provider fixes and the palworks.ai addresses. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
+1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents;
+[docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is live on the Chrome Web Store.
+1.7.1 (one AI Tools page, Ask AI beside the bookmarks with saved chats and the open folder as
+context, provider fixes, security fixes) is in Web Store review, with
+`bookmarks-thumbnails-mcp@1.7.2` for coding agents. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
 changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing

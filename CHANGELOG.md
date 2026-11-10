@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-10 (with helper 1.7.2 on npm; release prepared 2026-11-10T20:02:43+00:00)
+
 Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser); provider fixes
 and addresses 2026-11-10T11:23:53+00:00.
 
@@ -57,7 +59,7 @@ and addresses 2026-11-10T11:23:53+00:00.
 
 ### Security
 
-- **Helper (next npm release, 1.7.2): asks before allowing an unpacked copy** (D25, review F7,
+- **Helper 1.7.2 (npm): asks before allowing an unpacked copy** (D25, review F7,
   2026-11-10T19:20:55+00:00). `install` shows each unpacked copy it finds and allows it only after you answer yes in a
   terminal; the answer is remembered. A copy in a folder another user owns or can change is never
   allowed. `--extension-id` takes a comma-separated list. `uninstall` forgets the answers.

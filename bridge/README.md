@@ -20,17 +20,17 @@ Linux and macOS, Google Chrome, Node 22 or newer. Windows, Edge and Brave are pl
 2. Add the helper to your agent. Claude Code:
 
    ```bash
-   claude mcp add bookmarks -- npx -y bookmarks-thumbnails-mcp@1.7.1
+   claude mcp add bookmarks -- npx -y bookmarks-thumbnails-mcp@1.7.2
    ```
 
    Cursor or VS Code (`mcp.json`):
 
    ```json
-   { "mcpServers": { "bookmarks": { "command": "npx", "args": ["-y", "bookmarks-thumbnails-mcp@1.7.1"] } } }
+   { "mcpServers": { "bookmarks": { "command": "npx", "args": ["-y", "bookmarks-thumbnails-mcp@1.7.2"] } } }
    ```
 
    The first run installs the browser helper for you. To do it by hand:
-   `npx bookmarks-thumbnails-mcp@1.7.1 install`, then turn the switch off and on.
+   `npx bookmarks-thumbnails-mcp@1.7.2 install`, then turn the switch off and on.
    Install finds any Chrome started with its own `--user-data-dir` by itself (from 1.7.1). It
    also finds unpacked copies of the extension and asks before allowing each one (from 1.7.2):
    answer yes only for a copy you loaded yourself. Without a terminal it allows none; pass
