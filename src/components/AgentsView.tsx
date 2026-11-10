@@ -22,6 +22,8 @@ interface Props {
     roots: Node[];
     hiddenFolderIds: Set<string>;
     onBack: () => void;
+    /** The AI Tools tab bar, shown under the header. */
+    tabBar?: React.ReactNode;
     readOnly: boolean;
     toast: (message: string, tone?: 'error') => void;
 }
@@ -51,7 +53,7 @@ const ModeSelect: React.FC<{ id: string; value: ConnectionMode; onChange: (m: Co
     </>
 );
 
-export const AgentsView: React.FC<Props> = ({ api, connector, roots, hiddenFolderIds, onBack, readOnly, toast }) => {
+export const AgentsView: React.FC<Props> = ({ api, connector, roots, hiddenFolderIds, onBack, tabBar, readOnly, toast }) => {
     const { state } = api;
     const cstate = connector.state;
     const [editing, setEditing] = useState<{ id: string; name: string; chosen: Set<string>; strip: boolean } | null>(null);
@@ -113,8 +115,9 @@ export const AgentsView: React.FC<Props> = ({ api, connector, roots, hiddenFolde
                 <button className="back-button" onClick={onBack} title="Back to bookmarks" aria-label="Back to bookmarks">
                     <ArrowLeft size={18} aria-hidden="true" />
                 </button>
-                <h2>Connect Claude or ChatGPT</h2>
+                <h2>{tabBar ? 'AI Tools' : 'Connect Claude or ChatGPT'}</h2>
             </header>
+            {tabBar}
             <div className="trash-scroll">
                 {readOnly ? (
                     <div className="inline-banner" role="note">Connections work in regular windows only.</div>

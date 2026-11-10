@@ -10,6 +10,8 @@ import type { AskAIApi, ChatItem } from '../popup/hooks/useAskAI';
 interface Props {
     api: AskAIApi;
     onBack: () => void;
+    /** The AI Tools tab bar, shown under the header. */
+    tabBar?: React.ReactNode;
     onOpenSettings: () => void;
     onOpenConnect: () => void;
     onOpenActivity: () => void;
@@ -59,7 +61,7 @@ const Row: React.FC<{ item: ChatItem; onUndo: (id: string) => void; busyUndo: st
     }
 };
 
-export const AskAIView: React.FC<Props> = ({ api, onBack, onOpenSettings, onOpenConnect, onOpenActivity, onCopyPaste, readOnly, toast }) => {
+export const AskAIView: React.FC<Props> = ({ api, onBack, tabBar, onOpenSettings, onOpenConnect, onOpenActivity, onCopyPaste, readOnly, toast }) => {
     const [text, setText] = useState('');
     const [busyUndo, setBusyUndo] = useState<string | null>(null);
     const listRef = useRef<HTMLDivElement>(null);
@@ -93,11 +95,12 @@ export const AskAIView: React.FC<Props> = ({ api, onBack, onOpenSettings, onOpen
                 <button className="back-button" onClick={onBack} title="Back to bookmarks" aria-label="Back to bookmarks">
                     <ArrowLeft size={18} aria-hidden="true" />
                 </button>
-                <h2>Ask AI</h2>
+                <h2>{tabBar ? 'AI Tools' : 'Ask AI'}</h2>
                 {api.items.length > 0 && !api.running && (
                     <button type="button" className="btn btn--text ask-new" onClick={api.clear}>New chat</button>
                 )}
             </header>
+            {tabBar}
 
             <div className="trash-scroll ask-scroll" ref={listRef} aria-live="polite">
                 {readOnly ? (

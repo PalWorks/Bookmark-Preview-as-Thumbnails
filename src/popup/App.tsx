@@ -45,6 +45,7 @@ import { useBridge } from './hooks/useBridge';
 import { useConnector } from './hooks/useConnector';
 import { useAskAI } from './hooks/useAskAI';
 import { AskAIView } from '../components/AskAIView';
+import { AIToolsTabs, type AIToolsTab, type SettingsTab } from '../components/AIToolsTabs';
 
 /** Bookmark and folder counts for feedback diagnostics (numbers only). */
 function countTree(roots: chrome.bookmarks.BookmarkTreeNode[]): { bookmarks: number; folders: number } {
@@ -135,7 +136,11 @@ function App() {
     const [activePanel, setActivePanel] = useState<Panel>('bookmarks');
     // Incrementing this causes useAITagger to re-check availability after settings save
     const [aiSettingsVersion, setAISettingsVersion] = useState(0);
+    // AI Tools (owner, 2026-11-10): one page whose tabs are Ask AI, the settings tabs,
+    // Connect Claude or ChatGPT and AI changes. The settings tabs share one panel.
+    const [settingsTab, setSettingsTab] = useState<SettingsTab>('settings');
     const openPanel = (panel: Panel) => {
+        if (panel === 'ai-settings') setSettingsTab('settings');
         setActivePanel(panel);
         setDrawerOpen(false);
         // Another tab may have changed the Trash setting since this page loaded.
@@ -180,6 +185,13 @@ function App() {
     const bridgeApi = useBridge();
     const connector = useConnector(!IS_INCOGNITO_PAGE);
     const askAI = useAskAI(!IS_INCOGNITO_PAGE);
+    const openAITab = (tab: AIToolsTab) => {
+        if (tab === 'settings' || tab === 'autotag' || tab === 'search' || tab === 'duplicates') { openPanel('ai-settings'); setSettingsTab(tab); }
+        else if (tab === 'ask') openPanel('ask-ai');
+        else if (tab === 'connect') openPanel('agents');
+        else openAIChanges(null);
+    };
+    const aiTabBar = (active: AIToolsTab) => <AIToolsTabs active={active} onSelect={openAITab} pendingCount={changeSets.pendingCount} />;
 
     // ── AI auto-tagging ───────────────────────────────────────────────────────
     const {
@@ -690,8 +702,6 @@ function App() {
                 onToggleFolders={toggleFolders}
                 foldersOpen={foldersOpen}
                 onOpenTrash={() => openPanel('trash')}
-                onOpenAIChanges={() => openAIChanges(null)}
-                onOpenAgents={() => openPanel('agents')}
                 onAskAI={() => openPanel('ask-ai')}
                 isAskAIActive={activePanel === 'ask-ai'}
                 aiPendingCount={changeSets.pendingCount}
@@ -727,11 +737,15 @@ function App() {
                         onDeleteBookmarks={(targets) => trash.deleteItems(targets, { origin: 'duplicate-finder' })}
                         canDelete={canDelete}
                         hiddenFolderIds={hiddenIds}
+                        tab={settingsTab}
+                        onTab={openAITab}
+                        pendingCount={changeSets.pendingCount}
                     />
                 ) : activePanel === 'ask-ai' ? (
                     <AskAIView
                         api={askAI}
                         onBack={() => openPanel('bookmarks')}
+                        tabBar={aiTabBar('ask')}
                         onOpenSettings={() => openPanel('ai-settings')}
                         onOpenConnect={() => openPanel('agents')}
                         onOpenActivity={() => openAIChanges(null)}
@@ -746,6 +760,7 @@ function App() {
                         roots={bookmarkTree}
                         hiddenFolderIds={hiddenIds}
                         onBack={() => openPanel('bookmarks')}
+                        tabBar={aiTabBar('connect')}
                         readOnly={IS_INCOGNITO_PAGE}
                         toast={(message, tone) => toast.show({ message, tone: tone === 'error' ? 'error' : 'success' })}
                     />
@@ -756,6 +771,7 @@ function App() {
                         selectedId={aiSetId}
                         onSelect={setAISetId}
                         onBack={() => openPanel('bookmarks')}
+                        tabBar={aiTabBar('changes')}
                         onOrganise={() => setAIDialog('export')}
                         onAskAI={() => openPanel('ask-ai')}
                         onImport={() => setAIDialog('import')}

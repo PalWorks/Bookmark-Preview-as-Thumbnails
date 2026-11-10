@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser).
+
+### Changed
+
+- **One AI Tools page.** The menu's four AI items (AI Settings, Ask AI, AI changes, Connect
+  Claude or ChatGPT) are now one item, **AI Tools**. It opens a page with tabs: Ask AI first, then
+  Provider Settings, Auto-Tag, Smart Search, Duplicate Finder, Connect Claude or ChatGPT and AI
+  changes (with the count waiting for review). The tabs scroll sideways on phones.
+- The **Ask AI** button in the top bar is the icon alone (named "Ask AI" for screen readers). It
+  opens AI Tools on the Ask AI tab.
+
 ## [Helper 1.7.1] - 2026-11-10 (`bookmarks-thumbnails-mcp` on npm only; the extension is unchanged)
 
 Recorded 2026-11-10T08:04:16+00:00.

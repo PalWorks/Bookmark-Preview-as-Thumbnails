@@ -40,6 +40,22 @@
     transition: color 0.15s, border-color 0.15s;
 }
 .ai-tab:hover { color: #202124; background: rgba(0,0,0,0.04); }
+
+/* AI Tools (owner, 2026-11-10): seven tabs in one row that scrolls sideways on phones. */
+.ai-tools-page { display: flex; flex-direction: column; min-height: 0; }
+.ai-tools-tabs {
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; flex-shrink: 0;
+    padding: 0 16px; scrollbar-width: thin;
+}
+.ai-tools-tabs .ai-tab {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;
+    margin-bottom: 0;
+}
+.ai-tab-count {
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    background: #1a73e8; color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+}
+.theme-dark .ai-tab-count { background: #8ab4f8; color: #202124; }
 .ai-tab--active { color: #1a73e8; border-bottom-color: #1a73e8; }
 
 /* ── Section label ───────────────────────────────────────────────────────────── */

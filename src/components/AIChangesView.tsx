@@ -19,6 +19,8 @@ interface Props {
     selectedId: string | null;
     onSelect: (id: string | null) => void;
     onBack: () => void;
+    /** The AI Tools tab bar, shown under the header. */
+    tabBar?: React.ReactNode;
     onOrganise: () => void;
     onAskAI?: () => void;
     onImport: () => void;
@@ -85,7 +87,7 @@ function summaryLine(s: ChangeSetSummary): string {
     return parts.join(', ');
 }
 
-export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelect, onBack, onOrganise, onAskAI, onImport, readOnly, toast }) => {
+export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelect, onBack, tabBar, onOrganise, onAskAI, onImport, readOnly, toast }) => {
     const [detail, setDetail] = useState<{ set: ChangeSetRecord; items: JournalItem[] } | null>(null);
     const [ticked, setTicked] = useState<Set<number>>(new Set());
     const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -146,18 +148,24 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
         return next;
     });
 
-    const header = (
+    const headerBar = (
         <header className="main-header trash-header">
             <button className="back-button" onClick={selectedId ? () => onSelect(null) : onBack} title={selectedId ? 'Back to AI changes' : 'Back to bookmarks'} aria-label={selectedId ? 'Back to AI changes' : 'Back to bookmarks'}>
                 <ArrowLeft size={18} aria-hidden="true" />
             </button>
-            <h2>{selectedId ? 'Review changes' : 'AI changes'}</h2>
+            <h2>{selectedId ? 'Review changes' : tabBar ? 'AI Tools' : 'AI changes'}</h2>
             {!selectedId && !readOnly && (
                 <button type="button" className="btn btn--secondary trash-empty-btn" onClick={onImport}>
                     <Upload size={16} aria-hidden="true" /> Import changes
                 </button>
             )}
         </header>
+    );
+    const header = (
+        <>
+            {headerBar}
+            {!selectedId && tabBar}
+        </>
     );
 
     if (selectedId) {
