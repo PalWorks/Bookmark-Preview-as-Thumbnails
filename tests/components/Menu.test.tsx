@@ -66,24 +66,33 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         for (const b of buttons) expect(b.getAttribute('title')).toBe(b.getAttribute('aria-label'));
     });
 
-    it('AI Settings replaces Auto-Tag and opens the AI page', async () => {
+    it('one AI Tools item replaces the four AI items and opens AI Tools on the Ask AI tab', async () => {
         render(<App />);
         const menu = await openMenu();
         expect(within(menu).queryByText('Auto-Tag Bookmarks')).toBeNull();
-        fireEvent.click(within(menu).getByRole('menuitem', { name: /AI Settings/ }));
-        await screen.findByRole('heading', { name: 'AI Settings' });
+        for (const old of [/AI Settings/, /^Ask AI/, /AI changes/, /Connect Claude or ChatGPT/]) {
+            expect(within(menu).queryByRole('menuitem', { name: old })).toBeNull();
+        }
+        fireEvent.click(within(menu).getByRole('menuitem', { name: /AI Tools/ }));
+        await screen.findByRole('heading', { name: 'AI Tools' });
+        const tabs = screen.getAllByRole('tab').map(t => t.textContent);
+        expect(tabs).toEqual(['Ask AI', 'Provider Settings', 'Auto-Tag', 'Smart Search', 'Duplicate Finder', 'Connect Claude or ChatGPT', 'AI changes']);
+        expect(screen.getByRole('tab', { name: 'Ask AI', selected: true })).toBeTruthy();
         expect(screen.queryByRole('menu')).toBeNull();
+        fireEvent.click(screen.getByRole('tab', { name: 'Provider Settings' }));
+        await screen.findByRole('tab', { name: 'Provider Settings', selected: true });
+        fireEvent.click(screen.getByRole('tab', { name: 'Connect Claude or ChatGPT' }));
+        await screen.findByRole('tab', { name: 'Connect Claude or ChatGPT', selected: true });
     });
 
-    it('D20: the toolbar Ask AI button and the menu open Ask AI; the menu offers Connect Claude or ChatGPT', async () => {
+    it('the toolbar Ask AI button is an icon alone and opens the Ask AI tab', async () => {
         render(<App />);
         const ask = await screen.findByRole('button', { name: 'Ask AI', pressed: false });
+        expect(ask.textContent).toBe('');
         fireEvent.click(ask);
-        await screen.findByRole('heading', { name: 'Ask AI' });
+        await screen.findByRole('tab', { name: 'Ask AI', selected: true });
         expect(ask.getAttribute('aria-pressed')).toBe('true');
         const menu = await openMenu();
-        expect(within(menu).getByRole('menuitem', { name: /Ask AI/ })).toBeTruthy();
-        expect(within(menu).getByRole('menuitem', { name: /Connect Claude or ChatGPT/ })).toBeTruthy();
         expect(within(menu).queryByText('Organise with an AI')).toBeNull();
     });
 

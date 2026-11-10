@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, Eye, EyeOff, CheckCircle2, Search, Copy, Trash2, ExternalLink, Sparkles, Plus, X, StopCircle, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, CheckCircle2, Search, Copy, Trash2, ExternalLink, Sparkles, Plus, X, StopCircle, ChevronDown } from 'lucide-react';
 import './AISettingsPage.css';
+import { AIToolsTabs, type AIToolsTab, type SettingsTab } from '../../components/AIToolsTabs';
 import {
     loadAISettings, saveAISettings, getBoundApiKey, apiKeyBinding, saveCustomTags, parseCustomTags, PROVIDERS,
     type AIMode, type AIProvider,
@@ -26,6 +27,10 @@ interface AISettingsPageProps {
     canDelete: boolean;
     /** Folders hidden from search: Smart Search over "All folders" leaves them out. */
     hiddenFolderIds?: Set<string>;
+    /** Which settings tab shows; the AI Tools tab bar switches tabs and pages. */
+    tab?: SettingsTab;
+    onTab?: (tab: AIToolsTab) => void;
+    pendingCount?: number;
 }
 
 type BuiltinStatus = 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'unsupported';
@@ -161,8 +166,9 @@ const RING_CIRC = 2 * Math.PI * 15; // ≈ 94.25
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, currentFolder, onDeleteBookmarks, canDelete, hiddenFolderIds }) => {
-    const [activeTab, setActiveTab] = useState<'settings' | 'autotag' | 'search' | 'duplicates'>('settings');
+export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, currentFolder, onDeleteBookmarks, canDelete, hiddenFolderIds, tab, onTab, pendingCount }) => {
+    const [localTab, setLocalTab] = useState<SettingsTab>('settings');
+    const activeTab = tab ?? localTab;
 
     // Guard the "Saved!" reset timers so they don't setState after the page unmounts
     // (the user can click Back during the ~1s confirmation window).
@@ -675,32 +681,17 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
-        <div className="ai-settings-page">
+        <div className="main-content trash-view ai-tools-page">
 
-            {/* ── Header ───────────────────────────────────────────────────── */}
-            <div className="ai-settings-header">
-                <button className="ai-settings-back" onClick={onBack}>
-                    <ChevronLeft size={15} /> Back
+            {/* ── Header and the AI Tools tabs ─────────────────────────────── */}
+            <header className="main-header trash-header ai-tools-header">
+                <button className="back-button" onClick={onBack} title="Back to bookmarks" aria-label="Back to bookmarks">
+                    <ArrowLeft size={18} aria-hidden="true" />
                 </button>
-                <h2 className="ai-settings-title">AI Settings</h2>
-                <p className="ai-settings-subtitle">Configure AI provider and explore AI-powered features.</p>
-            </div>
-
-            {/* ── Tabs ─────────────────────────────────────────────────────── */}
-            <div className="ai-tabs">
-                {(['settings', 'autotag', 'search', 'duplicates'] as const).map(tab => (
-                    <button
-                        key={tab}
-                        className={`ai-tab ${activeTab === tab ? 'ai-tab--active' : ''}`}
-                        onClick={() => setActiveTab(tab)}
-                    >
-                        {tab === 'settings' ? '⚙ Provider Settings'
-                            : tab === 'autotag' ? '🏷 Auto-Tag'
-                            : tab === 'search' ? '🔍 Smart Search'
-                            : '🧹 Duplicate Finder'}
-                    </button>
-                ))}
-            </div>
+                <h2>AI Tools</h2>
+            </header>
+            <AIToolsTabs active={activeTab} pendingCount={pendingCount} onSelect={t => (onTab ? onTab(t) : (t === 'settings' || t === 'autotag' || t === 'search' || t === 'duplicates') && setLocalTab(t))} />
+            <div className="ai-settings-page">
 
             {/* ══════════════ SETTINGS TAB ══════════════════════════════════ */}
             {activeTab === 'settings' && (
@@ -1344,6 +1335,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                     )}
                 </div>
             )}
+            </div>
         </div>
     );
 };

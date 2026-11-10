@@ -17,9 +17,11 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-async function openMenuItem(name: RegExp) {
+// AI changes is a tab of AI Tools (owner, 2026-11-10): menu > AI Tools > AI changes.
+async function openMenuItem(tab: RegExp) {
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /AI Tools/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: tab }));
 }
 
 describe('AI changes in the App', { timeout: 20000 }, () => {

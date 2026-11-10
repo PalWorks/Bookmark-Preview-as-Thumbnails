@@ -28,7 +28,7 @@ describe('Ask AI in the App', { timeout: 20000 }, () => {
         await screen.findByText(/Chrome's built-in AI cannot use tools/);
         expect(screen.getByRole('button', { name: /Set up an AI provider/ })).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: /Use Claude or ChatGPT instead/ }));
-        await screen.findByRole('heading', { name: 'Connect Claude or ChatGPT' });
+        await screen.findByRole('tab', { name: /Connect Claude or ChatGPT/, selected: true });
     });
 
     it('applies the change the model asks for at once, shows a card, and Undo reverts it', async () => {

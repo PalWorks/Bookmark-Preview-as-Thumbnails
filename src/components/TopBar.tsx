@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown, Bot, Plug } from 'lucide-react';
+import { Search, Settings, FolderOpen, Eye, EyeOff, Info, Filter, ArrowUpDown, LayoutGrid, List, Download, Upload, Trash2, Clock, MessageSquare, Star, Sparkles, Menu, SlidersHorizontal, CheckSquare, Camera, ChevronDown } from 'lucide-react';
 import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
 import type { SortOrder } from '../lib/list_columns';
@@ -65,10 +65,7 @@ interface TopBarProps {
     onExportSettings: () => void;
     /** Opens the in-product feedback form. */
     onOpenFeedback: () => void;
-    /** AI changes (D18): review, apply or undo what AI changed. */
-    onOpenAIChanges?: () => void;
-    onOpenAgents?: () => void;
-    /** Ask AI (D20): the chat panel. */
+    /** AI Tools (D20): opens on the Ask AI tab; the menu's single AI entry. */
     onAskAI?: () => void;
     isAskAIActive?: boolean;
     aiPendingCount?: number;
@@ -114,8 +111,6 @@ export const TopBar: React.FC<TopBarProps> = ({
     selecting,
     canSortByVisits,
     onOpenFeedback,
-    onOpenAIChanges,
-    onOpenAgents,
     onAskAI,
     isAskAIActive = false,
     aiPendingCount = 0,
@@ -234,10 +229,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                     className={`icon-btn topbar-ai-btn topbar-ask-btn ${isAskAIActive ? 'topbar-ai-btn--active' : ''}`}
                     onClick={onAskAI ?? onAISettings}
                     title="Ask AI to organise your bookmarks"
+                    aria-label="Ask AI"
                     aria-pressed={isAskAIActive}
                 >
                     <Sparkles size={18} aria-hidden="true" />
-                    <span className="topbar-ask-label">Ask AI</span>
                 </button>
 
                 <div className="capture-controls-wrapper">
@@ -538,57 +533,20 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <div className="menu-divider"></div>
 
                         <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                            onAISettings();
+                            (onAskAI ?? onAISettings)();
                             setIsMenuOpen(false);
                         }}>
                             <Sparkles size={16} className="menu-icon menu-icon--ai" aria-hidden="true" />
                             <div className="menu-text">
-                                <div className="menu-title">AI Settings</div>
+                                <div className="menu-title">AI Tools{aiPendingCount > 0 ? ` (${aiPendingCount} to review)` : ''}</div>
                                 <div className="menu-desc">
                                     {isTagging
                                         ? `Auto-Tagging… (${taggingProgress.done}/${taggingProgress.total})`
-                                        : 'Auto-Tag and Smart Search'}
+                                        : 'Ask AI, Auto-Tag, Smart Search, Claude and ChatGPT'}
                                 </div>
                             </div>
                             {isTagging && <div className="ai-tag-spinner" aria-hidden="true"></div>}
                         </button>
-
-                        {onAskAI && (
-                            <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                                onAskAI();
-                                setIsMenuOpen(false);
-                            }}>
-                                <Bot size={16} className="menu-icon menu-icon--ai" aria-hidden="true" />
-                                <div className="menu-text">
-                                    <div className="menu-title">Ask AI</div>
-                                    <div className="menu-desc">Tell AI how to organise your bookmarks</div>
-                                </div>
-                            </button>
-                        )}
-                        {onOpenAIChanges && (
-                            <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                                onOpenAIChanges();
-                                setIsMenuOpen(false);
-                            }}>
-                                <Clock size={16} className="menu-icon" aria-hidden="true" />
-                                <div className="menu-text">
-                                    <div className="menu-title">AI changes{aiPendingCount > 0 ? ` (${aiPendingCount} to review)` : ''}</div>
-                                    <div className="menu-desc">See and undo what AI changed</div>
-                                </div>
-                            </button>
-                        )}
-                        {onOpenAgents && (
-                            <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                                onOpenAgents();
-                                setIsMenuOpen(false);
-                            }}>
-                                <Plug size={16} className="menu-icon" aria-hidden="true" />
-                                <div className="menu-text">
-                                    <div className="menu-title">Connect Claude or ChatGPT</div>
-                                    <div className="menu-desc">Organise from their apps, phone included</div>
-                                </div>
-                            </button>
-                        )}
 
                         <div className="menu-divider"></div>
 

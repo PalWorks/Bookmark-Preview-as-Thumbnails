@@ -1,6 +1,6 @@
 # Ask AI and the online connector
 
-_Last updated: 2026-11-10T03:09:08+00:00 (first version, D20)._
+_Last updated: 2026-11-10T08:23:46+00:00 (AI Tools page: one menu item and one tabbed page, owner)._
 
 ## Why
 
@@ -77,6 +77,10 @@ Claude / ChatGPT servers ──HTTPS (MCP + OAuth)──▶ Worker /mcp/<linkId>
 requests a minute per link.
 
 ## Ask AI (in the extension)
+
+- Entry points (owner, 2026-11-10): the top bar's Ask AI icon and the menu's single **AI Tools**
+  item. Both open the AI Tools page on its first tab, Ask AI. The page's tabs: Ask AI, Provider
+  Settings, Auto-Tag, Smart Search, Duplicate Finder, Connect Claude or ChatGPT, AI changes.
 
 - Runs in the extension page with the provider settings and bound key from AI settings (D2).
 - Tool calling for three API styles: OpenAI-compatible (most providers and Ollama), Anthropic
