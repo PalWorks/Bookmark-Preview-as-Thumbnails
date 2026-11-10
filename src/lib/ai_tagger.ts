@@ -7,7 +7,7 @@
 
 import { loadAISettings, getBoundApiKey, type AIProvider, type AICloudConfig } from './ai_settings_storage';
 import {
-    fetchWithRetry, providerError, openAIBody, replyBudget, geminiThinkingConfig, wasCutAtBudget,
+    endpointProblem, fetchWithRetry, providerError, openAIBody, replyBudget, geminiThinkingConfig, wasCutAtBudget,
     EmptyReplyError, EMPTY_REPLY_MESSAGE, OUT_OF_CREDIT_MESSAGE,
 } from './ai_provider_rules';
 
@@ -237,6 +237,10 @@ async function callCloudRaw(
     if (cloud.provider === 'gemini')    return callGemini(apiKey, cloud.model, systemPrompt, userContent, signal, maxTokens);
 
     let endpoint: string;
+    if (cloud.provider === 'ollama' || (cloud.provider === 'custom' && cloud.customUrl)) {
+        const problem = endpointProblem(cloud.customUrl || 'http://localhost:11434');
+        if (problem) throw new Error(problem);
+    }
     if (cloud.provider === 'ollama') {
         endpoint = (cloud.customUrl?.replace(/\/$/, '') ?? 'http://localhost:11434') + '/v1/chat/completions';
     } else if (cloud.provider === 'custom') {
@@ -367,6 +371,10 @@ export async function validateProviderKey(
         const base = providerBaseUrl(provider, customUrl);
         if ((provider === 'custom' || provider === 'ollama') && !base) {
             return { ok: false, models: [], message: 'Enter the base URL first.' };
+        }
+        if (provider === 'custom' || provider === 'ollama') {
+            const problem = endpointProblem(base);
+            if (problem) return { ok: false, models: [], message: problem };
         }
         const headers: Record<string, string> = {};
         if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;

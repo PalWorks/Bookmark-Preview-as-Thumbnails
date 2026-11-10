@@ -65,6 +65,8 @@ export interface ChangeSetRecord {
     /** Journal dropped (retention cap): Activity keeps the row, Undo is gone. */
     undoAvailable: boolean;
     outcome?: { done: number; skipped: number; undone?: number; undoSkipped?: number };
+    /** Set when Redo replayed this undone set; it can be redone only once. */
+    redoneAs?: string;
 }
 
 export interface JournalItem {
@@ -831,6 +833,37 @@ export function createChangeSetsService(deps: ChangeSetsDeps) {
             const after = await readSet(res.id);
             return { ok: true as const, id: res.id, state: after?.state ?? 'applied', outcome: after?.outcome, ops: after?.ops ?? [] };
         }),
+        /**
+         * Redo an undone set: the same changes as a new set, applied at once, with ids that
+         * a Trash restore changed mapped to the restored items. Returns the new set's id.
+         */
+        redo: (id: string) => enqueue(async (): Promise<{ ok: true; id: string; outcome?: ChangeSetRecord['outcome'] } | { ok: false; error: string }> => {
+            const r = await readSet(id);
+            if (!r) return { ok: false, error: 'That change set no longer exists.' };
+            if (r.state !== 'undone' && r.state !== 'partly_undone') return { ok: false, error: 'Only undone changes can be redone.' };
+            if (r.redoneAs) return { ok: false, error: 'Those changes were already redone.' };
+            const { items } = await readJournal(id);
+            const idMap = new Map<string, string>();
+            for (const it of items) for (const [a, b] of Object.entries(it.idMap ?? {})) idMap.set(a, b);
+            const map = (x: string) => idMap.get(x) ?? x;
+            const done = new Set(items.filter(i => i.state === 'undone').map(i => i.n));
+            const ops = r.ops
+                .filter((_, n) => r.state === 'undone' ? r.approval?.selected.includes(n) ?? true : done.has(n))
+                .map(op => {
+                    const o = { ...op } as ChangeOp & { id?: string; parentId?: string };
+                    if ('id' in o && typeof o.id === 'string') o.id = map(o.id);
+                    if ('parentId' in o && typeof o.parentId === 'string') o.parentId = map(o.parentId);
+                    return o as ChangeOp;
+                });
+            if (!ops.length) return { ok: false, error: 'There is nothing to redo.' };
+            const res = await importNow(JSON.stringify({ title: r.title, ops }), r.source, { applyNow: true, ...(r.clientId ? { clientId: r.clientId } : {}) });
+            if (!res.ok) return { ok: false, error: res.error };
+            r.redoneAs = res.id;
+            await writeSet(r);
+            await applyNow(res.id, ops.map((_, n) => n));
+            const after = await readSet(res.id);
+            return { ok: true, id: res.id, outcome: after?.outcome };
+        }),
         apply: (id: string, selected: number[]) => enqueue(() => applyNow(id, selected)),
         finish: (id: string) => enqueue(() => finishNow(id)),
         undo: (id: string) => enqueue(() => undoNow(id)),
@@ -846,7 +879,7 @@ export type ChangeSetsService = ReturnType<typeof createChangeSetsService>;
 
 // ─── Message routing ──────────────────────────────────────────────────────────
 
-export const CS_MESSAGE_TYPES = ['CS_SNAPSHOT', 'CS_IMPORT', 'CS_LIST', 'CS_GET', 'CS_APPLY', 'CS_FINISH', 'CS_UNDO', 'CS_REJECT'] as const;
+export const CS_MESSAGE_TYPES = ['CS_SNAPSHOT', 'CS_IMPORT', 'CS_LIST', 'CS_GET', 'CS_APPLY', 'CS_FINISH', 'CS_UNDO', 'CS_REDO', 'CS_REJECT'] as const;
 
 export function isChangeSetMessage(m: unknown): m is { type: typeof CS_MESSAGE_TYPES[number] } & Record<string, unknown> {
     return !!m && typeof m === 'object' && (CS_MESSAGE_TYPES as readonly string[]).includes((m as { type?: string }).type ?? '');
@@ -887,6 +920,8 @@ export async function handleChangeSetMessage(
             return isId(msg.id) ? service.finish(msg.id) : { ok: false, error: 'Invalid id' };
         case 'CS_UNDO':
             return isId(msg.id) ? service.undo(msg.id) : { ok: false, error: 'Invalid id' };
+        case 'CS_REDO':
+            return isId(msg.id) ? service.redo(msg.id) : { ok: false, error: 'Invalid id' };
         case 'CS_REJECT':
             return isId(msg.id) ? service.reject(msg.id) : { ok: false, error: 'Invalid id' };
     }

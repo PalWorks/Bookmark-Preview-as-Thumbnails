@@ -185,6 +185,12 @@ function App() {
     const bridgeApi = useBridge();
     const connector = useConnector(!IS_INCOGNITO_PAGE);
     const askAI = useAskAI(!IS_INCOGNITO_PAGE);
+    // The Ask AI side panel beside the bookmarks (owner, 2026-11-10), remembered for this session.
+    const [askDock, setAskDock] = useState(() => { try { return sessionStorage.getItem('ask_dock') === '1'; } catch { return false; } });
+    const toggleAskDock = (open = !askDock) => {
+        setAskDock(open);
+        try { sessionStorage.setItem('ask_dock', open ? '1' : '0'); } catch { /* storage blocked */ }
+    };
     const openAITab = (tab: AIToolsTab) => {
         if (tab === 'settings' || tab === 'autotag' || tab === 'search' || tab === 'duplicates') { openPanel('ai-settings'); setSettingsTab(tab); }
         else if (tab === 'ask') openPanel('ask-ai');
@@ -594,11 +600,11 @@ function App() {
                 else parts.push(`Imported ${plural(r.settingsApplied, 'setting')}`);
                 if (r.settingsSkipped) parts[0] += `, skipped ${r.settingsSkipped}`;
                 let message = `${parts[0]}.`;
-                if (r.aiProviderHeld) message += ' AI provider not changed because an API key is saved. Review it in AI Settings.';
+                if (r.aiProviderHeld) message += ' The AI provider and server in the file were not applied: choose them yourself in Provider Settings.';
                 toast.replace(id, {
                     message,
                     tone: 'success',
-                    actions: r.aiProviderHeld ? [{ label: 'AI Settings', onClick: () => openPanel('ai-settings') }] : [],
+                    actions: r.aiProviderHeld ? [{ label: 'Provider Settings', onClick: () => openPanel('ai-settings') }] : [],
                     autoHideMs: r.aiProviderHeld ? 0 : 8000,
                 });
                 // Apply without a page reload.
@@ -702,8 +708,9 @@ function App() {
                 onToggleFolders={toggleFolders}
                 foldersOpen={foldersOpen}
                 onOpenTrash={() => openPanel('trash')}
-                onAskAI={() => openPanel('ask-ai')}
-                isAskAIActive={activePanel === 'ask-ai'}
+                onAskAI={() => { if (activePanel === 'ask-ai') openPanel('bookmarks'); toggleAskDock(activePanel === 'ask-ai' ? true : undefined); }}
+                isAskAIActive={askDock && activePanel !== 'ask-ai'}
+                onAITools={() => openPanel('ask-ai')}
                 aiPendingCount={changeSets.pendingCount}
                 trashCount={trash.badgeCount}
                 onToggleSelect={() => { if (selection.active) selection.clear(); else { openPanel('bookmarks'); selection.start(); } }}
@@ -843,6 +850,19 @@ function App() {
                         onOpened={(url) => linkMeta.markOpened([url])}
                         hiddenResultCount={hiddenResultCount}
                         onShowHidden={showHiddenResults}
+                    />
+                )}
+                {askDock && activePanel !== 'ask-ai' && (
+                    <AskAIView
+                        api={askAI}
+                        variant="dock"
+                        onBack={() => toggleAskDock(false)}
+                        onOpenSettings={() => openPanel('ai-settings')}
+                        onOpenConnect={() => openPanel('agents')}
+                        onOpenActivity={() => openAIChanges(null)}
+                        onCopyPaste={() => setAIDialog('export')}
+                        readOnly={IS_INCOGNITO_PAGE}
+                        toast={(message, tone) => toast.show({ message, tone: tone === 'error' ? 'error' : 'success' })}
                     />
                 )}
             </div>

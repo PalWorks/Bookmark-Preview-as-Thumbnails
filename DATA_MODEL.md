@@ -1,6 +1,6 @@
 # Data model
 
-_Last updated: 2026-11-10T11:40:58+00:00 (retired default models upgraded on read; no new keys)._
+_Last updated: 2026-11-10T17:21:42+00:00 (Ask AI chats kept on this device, the Ask AI model choice, Redo on change sets)._
 
 All data is local to the browser profile. None of the 1.7.0 `cs*`, `bridge_*` or `connector_link`
 keys has the legacy metadata shape (`tests/change_sets.test.ts`), and backups never include them
@@ -37,6 +37,8 @@ goes to the relay in `worker/` when the user presses Send, and the relay keeps n
 | `bridge_settings` | worker only (`src/sw/agent_bridge.ts`) | `{ enabled, profileId }` | 1.7.0. Coding agents switch and a random 8-character profile id. |
 | `bridge_clients` | worker only | `{ [clientId]: { id, name, tokenHash, pairedAt, lastUsedAt?, folderIds, stripQuery, mode: 'read' \| 'propose' \| 'change', transport?: 'local' \| 'remote' } }` | Paired coding agents (`local`) and Claude or ChatGPT connections (`remote`, D20). Only the SHA-256 of each token is stored. `mode`: `read` looks only, `propose` makes changes wait in AI changes, `change` applies at once with Undo (the default for new pairings, D20). A missing `transport` means `local`. "Make a new address" removes every `remote` client. |
 | `bridge_idem` | worker only | `{ ["clientId|key"]: { setId, hash, at } }` | Idempotency keys for `apply_changes` and `propose_changes`, 24 h. |
+| `ask_ai_chats` | page (`src/lib/agent/chat_store.ts`) | `[{ id, title, createdAt, updatedAt }]` | D24. The list of Ask AI chats, newest first, at most 50 (the least recently used goes first). Never synced, never in backups. |
+| `ask_ai_chat_<id>` | page | `{ items, history }` | D24. One chat: the rows the panel shows (each with its time `at`) and the messages sent to the provider, last 200 of each. Rows keep display data only: bookmark refs keep http(s) links only. Deleted with the chat, with "Delete all chats", or when it falls off the 50. |
 | `connector_link` | worker only (`src/sw/remote_link.ts`) | `{ enabled, linkId, secret, origin? }` | 1.7.0, D20. The Claude and ChatGPT switch. `linkId` 16 random bytes and `secret` 32 bytes, base64url. `origin` overrides the production Worker address and is accepted only for `http://localhost` or `http://127.0.0.1` (development). "Make a new address" replaces `linkId` and `secret`. Never in backups. |
 | `trash_recreated_folders` | worker only | `{ [folderId]: ms }` | Folders a restore recreated; a later restore of the original folder merges into them, never into a folder the user made. Pruned after 30 days. |
 
@@ -74,7 +76,8 @@ Trash.
 
 | Key | Owner (writer) | Shape | Notes |
 |---|---|---|---|
-| `ask_ai_chat` | page (`src/popup/hooks/useAskAI.ts`) | `{ items, history }` | 1.7.0, D20. The Ask AI conversation (what the panel shows, and the messages sent to the provider), last 200 of each. Lives only for this browser session. |
+| `ask_ai_current` | page | chat id | D24. The chat that is open, so a reload continues it. |
+| `ask_ai_chat` | page | `{ items, history }` | 1.7.0 only. Moved into `ask_ai_chats` the first time the next version opens, then removed. |
 
 ## Memory only (service worker)
 
@@ -99,6 +102,7 @@ Trash.
 | `ai_model` | string | up to 200 characters. On read, an id that is exactly a retired default (for example Groq `llama-3.3-70b-versatile`, DeepSeek `deepseek-chat`, Gemini `gemini-2.5-flash`) is replaced by its successor (`RETIRED_MODELS` in `src/lib/ai_provider_rules.ts`); the stored value is rewritten only when the user saves |
 | `ai_custom_url` | string | http(s) URL without credentials, query or fragment |
 | `ai_custom_tags` | string | comma-separated, up to 2000 characters |
+| `ask_ai_model` | string | `<provider>\|<model>`: Ask AI's own model (D24), used only while that provider is chosen; absent means the Provider Settings model. Not in the backup allowlist. |
 
 `SETTINGS_SCHEMA` in `src/lib/backup_manager.ts` is the single allowlist for export and import.
 

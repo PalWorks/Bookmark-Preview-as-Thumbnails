@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-10T11:40:58+00:00 (row 21 next release waiting on 1.7.0 review; rows 22 and 23 done: helper 1.7.1 and the npm placeholder, palworks.ai addresses)._
+> _Last updated: 2026-11-10T17:21:42+00:00 (rows 24 and 25 from the AI security review; Ask AI side panel built for the next release)._
 
 ## 0. North star: every open item, one row each
 
@@ -28,6 +28,8 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 | 18 | §3.2 | P2 | **Waiting** | L | M | 2026-11-10 | 1.7.0 ships Ask AI, Connect Claude or ChatGPT (live connector Worker) and coding agents (`bookmarks-thumbnails-mcp@1.7.0` on npm), D18 to D20. Merged (PR #16), tagged, submitted to the Web Store 2026-11-10T06:33:36+00:00; live tests with real Claude and ChatGPT accounts passed. | After approval: PLAYBOOK release step 8 on a clean profile, then the website feature list. Stage 3 (Edge, Brave, Windows for the local helper) after. |
 | 21 | §3.1 | P2 | **Waiting** | S | M | 2026-11-10 | `main` holds the next release: one AI Tools page (D23, PR #19), provider fixes from ai-provider-kit (D21, PR #20), the palworks.ai addresses (D22) and the setup command for `bookmarks-thumbnails-mcp@1.7.1`. 1.7.0 is still in Web Store review, and a new upload would cancel that review. | After 1.7.0 is approved: bump to 1.7.1, run PLAYBOOK release steps 1 to 8 (owner approves tag, upload and submit). |
+| 25 | §3.3 | P2 | **Decision** | S | M | 2026-11-10 | Security review F3 and F7: whoever controls the shared Cloudflare account can capture connector tokens; the helper installer trusts any unpacked extension with our name. | Owner decides: a dedicated Cloudflare account with 2FA and scoped API tokens (or accept and document); ask before adding a detected unpacked id (or keep automatic). |
+| 24 | §3.3 | P3 | **Open** | S | M | 2026-11-10 | Security review F2 and F6: connector tokens never expire; failed tokens use up a link's per-minute budget. | Expire a token after 90 days unused; count failed tokens separately in the link's Durable Object. Needs a Worker deploy. |
 | 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is live on the Web Store at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00); submitted 2026-11-09T13:56:04+00:00. The Privacy tab now declares personally identifiable information (the optional reply address) and personal communications (the feedback message). | PLAYBOOK release step 8 (store install on a clean profile, update from 1.5.0), then rows 10 and 16 and the website feature list. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
@@ -148,7 +150,9 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
 | 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Waiting**: in Web Store review | L | M |
-| 21 | Next release 1.7.1: AI Tools page, provider fixes, palworks.ai addresses | §3.1 | **Waiting**: on 1.7.0 approval | S | M |
+| 21 | Next release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **Waiting**: on 1.7.0 approval | S | M |
+| 25 | Security decisions: dedicated Cloudflare account (F3), helper detection (F7) | §3.3 | **Decision** | S | M |
+| 24 | Connector token expiry and failed-token budget (F2, F6) | §3.3 | **Open** | S | M |
 | 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **In progress**: live; release step 8 left | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |

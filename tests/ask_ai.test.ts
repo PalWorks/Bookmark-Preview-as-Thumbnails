@@ -123,7 +123,7 @@ describe('chat rows', () => {
     it('an applied set becomes a card with Undo; a refused one lists reasons', () => {
         const call = { id: '1', name: 'apply_changes', args: { changeSet: { title: 'Sort', ops: [{ op: 'move' }] } } };
         expect(itemsForTool(call, { res: { v: 1, id: 0, ok: true, body: { applied: true, changeSetId: 'cs1', skipped: [] } } }))
-            .toEqual([{ kind: 'changes', changeSetId: 'cs1', title: 'Sort', summary: '1 moved', skipped: 0 }]);
+            .toEqual([{ kind: 'changes', changeSetId: 'cs1', title: 'Sort', summary: '1 moved', skipped: 0, targets: [] }]);
         expect(itemsForTool(call, { res: { v: 1, id: 0, ok: true, body: { accepted: false, results: [{ change: 0, ok: false, reason: 'Unknown id' }] } } }))
             .toEqual([{ kind: 'refused', title: 'Sort', reasons: ['Change 1: Unknown id'] }]);
         expect(itemsForTool(call, undefined)[0]).toMatchObject({ kind: 'tool', failed: true });

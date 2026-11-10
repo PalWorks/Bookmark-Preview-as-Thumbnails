@@ -1,33 +1,52 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 // Page side of Ask AI (docs/designs/ai-assistant.md). Lives at App level so a run
-// keeps going while the user looks at other panels. The conversation is kept in
-// chrome.storage.session (this browser session only, never synced or backed up).
+// keeps going while the user looks at other panels. Conversations are kept on this
+// device (src/lib/agent/chat_store.ts, D24): never synced and never in backups.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadAISettings, getBoundApiKey, PROVIDERS, type AICloudConfig } from '../../lib/ai_settings_storage';
 import { callModel, runAgent, NO_TOOLS, type Msg, type ToolCall } from '../../lib/agent/llm';
 import { friendlyError } from '../../lib/ai_tagger';
 import type { ClientResponse } from '../../lib/bridge/protocol';
+import {
+    listChats, loadChat, saveChat, deleteChat, deleteAllChats, getCurrentChatId, setCurrentChatId,
+    newChatId, chatTitle, LEGACY_SESSION_KEY, type ChatSummary,
+} from '../../lib/agent/chat_store';
+import { loadAskModel, saveAskModel, listModels } from '../../lib/agent/models';
 
-const SESSION_KEY = 'ask_ai_chat';
 const MAX_KEPT_MESSAGES = 200;
+/** Bookmarks a row can point the preview pane at. */
+const MAX_REFS = 60;
 
 /** What the panel shows, one entry per visible row. */
-export type ChatItem =
+export type ChatItem = (
     | { kind: 'user'; text: string }
     | { kind: 'assistant'; text: string }
-    | { kind: 'tool'; label: string; failed?: boolean }
-    | { kind: 'changes'; changeSetId: string; title: string; summary: string; skipped: number; undone?: boolean }
+    | { kind: 'tool'; label: string; failed?: boolean; refs?: BookmarkRef[] }
+    | { kind: 'changes'; changeSetId: string; title: string; summary: string; skipped: number; undone?: boolean; targets?: ChangeTarget[] }
     | { kind: 'refused'; title: string; reasons: string[] }
-    | { kind: 'error'; text: string };
+    /** Sends items to Trash: waits for the user's OK in the chat (D24). */
+    | { kind: 'pending'; changeSetId: string; title: string; summary: string; targets?: ChangeTarget[]; decided?: 'discarded' | 'expired' }
+    | { kind: 'error'; text: string }
+) & { at?: number };
+
+/** A bookmark or folder the AI read, for the preview pane. Display data only, never opened from here. */
+export interface BookmarkRef { id: string; title: string; url?: string; folder?: string }
+/** One change the AI made, for the preview pane. */
+export interface ChangeTarget { id: string; op: string; detail?: string }
 
 export interface ProviderInfo {
     ready: boolean;
     /** Why it is not ready, in words for the user. */
     problem?: string;
     label: string;
+    /** The model Ask AI uses (its own choice, else the Provider Settings model). */
     model: string;
+    /** The Provider Settings model, used by Auto-Tag and Smart Search. */
+    defaultModel?: string;
+    /** For a server the user typed (Ollama, custom), its host, so the page says where data goes. */
+    host?: string;
     cloud?: AICloudConfig;
 }
 
@@ -35,10 +54,25 @@ export interface AskAIApi {
     items: ChatItem[];
     running: boolean;
     provider: ProviderInfo | null;
+    /** Past conversations on this device, newest first. */
+    chats: ChatSummary[];
+    chatId: string | null;
     send: (text: string) => void;
     stop: () => void;
+    /** Start a new chat; the current one stays in the list. */
     clear: () => void;
+    openChat: (id: string) => void;
+    removeChat: (id: string) => void;
+    removeAllChats: () => void;
+    /** Ask AI's own model for this provider ('' goes back to the Provider Settings model). */
+    setModel: (model: string) => void;
+    /** Every chat model the saved key can reach (throws with a reason). */
+    listModels: () => Promise<string[]>;
     undo: (changeSetId: string) => Promise<{ ok: boolean; error?: string; undone?: number; skipped?: number }>;
+    /** Apply the changes the AI could not make alone. Gaps between checks are the user's to see. */
+    approve: (changeSetId: string) => Promise<{ ok: boolean; error?: string }>;
+    discard: (changeSetId: string) => Promise<{ ok: boolean; error?: string }>;
+    redo: (changeSetId: string) => Promise<{ ok: boolean; error?: string }>;
     reloadProvider: () => void;
 }
 
@@ -103,7 +137,10 @@ export function itemsForTool(call: ToolCall, result: unknown): ChatItem[] {
         const cs = call.args.changeSet as { title?: unknown; ops?: unknown } | undefined;
         const title = str(cs?.title, 80) || 'Changes';
         if (b.applied && b.changeSetId) {
-            return [{ kind: 'changes', changeSetId: b.changeSetId, title, summary: summarizeOps(cs?.ops), skipped: Array.isArray(b.skipped) ? b.skipped.length : 0 }];
+            return [{ kind: 'changes', changeSetId: b.changeSetId, title, summary: summarizeOps(cs?.ops), skipped: Array.isArray(b.skipped) ? b.skipped.length : 0, targets: changeTargets(cs?.ops) }];
+        }
+        if (b.accepted && (b as { needsApproval?: boolean }).needsApproval && b.changeSetId) {
+            return [{ kind: 'pending', changeSetId: b.changeSetId, title, summary: summarizeOps(cs?.ops), targets: changeTargets(cs?.ops) }];
         }
         if (b.accepted === false) {
             const reasons = (b.results ?? []).filter(x => !x.ok).slice(0, 5).map(x => `Change ${x.change + 1}: ${x.reason ?? 'refused'}`);
@@ -111,7 +148,49 @@ export function itemsForTool(call: ToolCall, result: unknown): ChatItem[] {
         }
     }
     if (call.name === 'undo_changes') return [{ kind: 'tool', label: String((r.body as { message?: string }).message ?? 'Undid changes') }];
-    return [{ kind: 'tool', label: toolLabel(call) }];
+    const refs = bookmarkRefs(r.body);
+    return [{ kind: 'tool', label: toolLabel(call), ...(refs.length ? { refs } : {}) }];
+}
+
+const ID_RE = /^[\w-]{1,40}$/;
+
+/**
+ * Bookmarks in a read tool's answer (search, list_folder, get_bookmark), kept as plain
+ * display data. A URL is kept only when it is http(s), so nothing the AI read can turn
+ * into a script link in the page (javascript:, data:, chrome: and the like are dropped).
+ */
+export function bookmarkRefs(body: unknown): BookmarkRef[] {
+    const b = body as { items?: unknown[] } & Record<string, unknown>;
+    const list: unknown[] = Array.isArray(b?.items) ? b.items : (b && typeof b.id === 'string' ? [b] : []);
+    const out: BookmarkRef[] = [];
+    for (const raw of list) {
+        const o = raw as { id?: unknown; title?: unknown; url?: unknown; folder?: unknown; isFolder?: unknown };
+        if (typeof o?.id !== 'string' || !ID_RE.test(o.id) || o.isFolder === true) continue;
+        const url = typeof o.url === 'string' && /^https?:\/\//i.test(o.url) ? o.url.slice(0, 2048) : undefined;
+        out.push({ id: o.id, title: str(o.title, 200) || '(untitled)', ...(url ? { url } : {}), ...(typeof o.folder === 'string' ? { folder: str(o.folder, 200) } : {}) });
+        if (out.length >= MAX_REFS) break;
+    }
+    return out;
+}
+
+const OP_LABEL: Record<string, string> = {
+    move: 'Moved', rename: 'Renamed', set_tags: 'Tagged', set_rating: 'Rated', trash: 'Sent to Trash',
+};
+
+/** What each op changed, for the preview pane (folder creation has no bookmark to show). */
+export function changeTargets(ops: unknown): ChangeTarget[] {
+    if (!Array.isArray(ops)) return [];
+    const out: ChangeTarget[] = [];
+    for (const raw of ops) {
+        const o = raw as { op?: unknown; id?: unknown; title?: unknown; tags?: unknown; rating?: unknown };
+        if (typeof o?.op !== 'string' || !OP_LABEL[o.op] || typeof o.id !== 'string' || !ID_RE.test(o.id)) continue;
+        const detail = o.op === 'rename' ? str(o.title, 80)
+            : o.op === 'set_tags' && Array.isArray(o.tags) ? o.tags.filter(t => typeof t === 'string').slice(0, 5).join(', ')
+                : o.op === 'set_rating' && typeof o.rating === 'number' ? `${o.rating} of 5` : '';
+        out.push({ id: o.id, op: OP_LABEL[o.op], ...(detail ? { detail } : {}) });
+        if (out.length >= MAX_REFS * 4) break;
+    }
+    return out;
 }
 
 async function readProvider(): Promise<ProviderInfo> {
@@ -125,37 +204,78 @@ async function readProvider(): Promise<ProviderInfo> {
     const { key, mismatch } = await getBoundApiKey(settings.cloud.provider, settings.cloud.customUrl);
     const keyless = settings.cloud.provider === 'ollama' || settings.cloud.provider === 'custom';
     if (!keyless && (mismatch || !key)) return { ready: false, label, model, problem: mismatch ? 'Your API key was saved for another provider. Enter it again.' : 'No API key is saved yet.' };
-    return { ready: true, label, model, cloud: settings.cloud };
+    const askModel = await loadAskModel(settings.cloud.provider, model);
+    let host: string | undefined;
+    if (keyless) { try { host = new URL(settings.cloud.customUrl || 'http://localhost:11434').host; } catch { host = 'an invalid address'; } }
+    return { ready: true, label, model: askModel, defaultModel: model, ...(host ? { host } : {}), cloud: { ...settings.cloud, model: askModel } };
 }
 
 export function useAskAI(enabled = true): AskAIApi {
     const [items, setItems] = useState<ChatItem[]>([]);
     const [running, setRunning] = useState(false);
     const [provider, setProvider] = useState<ProviderInfo | null>(null);
+    const [chats, setChats] = useState<ChatSummary[]>([]);
+    const [chatId, setChatId] = useState<string | null>(null);
     const history = useRef<Msg[]>([]);
     const abort = useRef<AbortController | null>(null);
     const loaded = useRef(false);
+    const current = useRef<{ id: string | null; createdAt: number; title: string }>({ id: null, createdAt: 0, title: '' });
 
+    /** Save the open chat (creating it on its first message) and refresh the list. */
     const persist = useCallback((nextItems: ChatItem[]) => {
-        const keep = { items: nextItems.slice(-MAX_KEPT_MESSAGES), history: trimHistory(history.current) };
-        chrome.storage.session?.set({ [SESSION_KEY]: keep }).catch(() => undefined);
+        const c = current.current;
+        if (!nextItems.length) return;
+        if (!c.id) {
+            const first = nextItems.find(i => i.kind === 'user');
+            c.id = newChatId();
+            c.createdAt = Date.now();
+            c.title = chatTitle(first && first.kind === 'user' ? first.text : '');
+            setChatId(c.id);
+            void setCurrentChatId(c.id);
+        }
+        const summary: ChatSummary = { id: c.id, title: c.title, createdAt: c.createdAt, updatedAt: Date.now() };
+        saveChat(summary, { items: nextItems.slice(-MAX_KEPT_MESSAGES), history: trimHistory(history.current) })
+            .then(setChats).catch(() => undefined);
     }, []);
 
     const reloadProvider = useCallback(() => { void readProvider().then(setProvider).catch(() => setProvider({ ready: false, label: '', model: '', problem: 'Could not read AI settings.' })); }, []);
+
+    const show = useCallback(async (id: string | null) => {
+        const rec = id ? await loadChat<ChatItem, Msg>(id) : null;
+        const list = await listChats();
+        const summary = rec ? list.find(c => c.id === id) : undefined;
+        current.current = summary ? { id: summary.id, createdAt: summary.createdAt, title: summary.title } : { id: null, createdAt: 0, title: '' };
+        history.current = rec?.history ?? [];
+        setItems(rec?.items ?? []);
+        setChatId(summary ? summary.id : null);
+        setChats(list);
+        await setCurrentChatId(summary ? summary.id : null);
+    }, []);
 
     useEffect(() => {
         if (!enabled) return;
         reloadProvider();
         if (loaded.current) return;
         loaded.current = true;
-        chrome.storage.session?.get(SESSION_KEY).then(got => {
-            const saved = got?.[SESSION_KEY] as { items?: ChatItem[]; history?: Msg[] } | undefined;
-            if (saved?.items?.length) { setItems(saved.items); history.current = saved.history ?? []; }
-        }).catch(() => undefined);
-    }, [enabled, reloadProvider]);
+        void (async () => {
+            // 1.7.0 kept one chat for the browser session; keep it as the first saved chat.
+            const legacy = await chrome.storage.session?.get(LEGACY_SESSION_KEY).catch(() => undefined);
+            const old = legacy?.[LEGACY_SESSION_KEY] as { items?: ChatItem[]; history?: Msg[] } | undefined;
+            if (old?.items?.length) {
+                const first = old.items.find(i => i.kind === 'user');
+                const id = newChatId();
+                const now = Date.now();
+                await saveChat({ id, title: chatTitle(first && first.kind === 'user' ? first.text : ''), createdAt: now, updatedAt: now }, { items: old.items, history: old.history ?? [] });
+                await chrome.storage.session?.remove(LEGACY_SESSION_KEY).catch(() => undefined);
+                await setCurrentChatId(id);
+            }
+            await show(await getCurrentChatId());
+        })().catch(() => undefined);
+    }, [enabled, reloadProvider, show]);
 
     const add = useCallback((more: ChatItem[]) => {
-        setItems(prev => { const next = [...prev, ...more]; persist(next); return next; });
+        const at = Date.now();
+        setItems(prev => { const next = [...prev, ...more.map(m => ({ ...m, at }))]; persist(next); return next; });
     }, [persist]);
 
     const send = useCallback((textRaw: string) => {
@@ -203,13 +323,71 @@ export function useAskAI(enabled = true): AskAIApi {
         })();
     }, [running, add, persist]);
 
+    const switchTo = (id: string | null) => {
+        if (running) return;
+        void show(id);
+    };
+
     return {
         items,
         running,
         provider,
+        chats,
+        chatId,
         send,
         stop: () => abort.current?.abort(),
-        clear: () => { abort.current?.abort(); history.current = []; setItems([]); chrome.storage.session?.remove(SESSION_KEY).catch(() => undefined); },
+        clear: () => switchTo(null),
+        openChat: (id) => switchTo(id),
+        removeChat: (id) => {
+            if (running && id === chatId) return;
+            void deleteChat(id).then(list => { setChats(list); if (id === current.current.id) void show(null); });
+        },
+        removeAllChats: () => {
+            if (running) return;
+            void deleteAllChats().then(() => show(null));
+        },
+        setModel: (model) => {
+            const p = provider?.cloud?.provider;
+            if (!p) return;
+            void saveAskModel(p, model === provider?.defaultModel ? '' : model).then(reloadProvider);
+        },
+        listModels: async () => {
+            const { settings } = await loadAISettings();
+            const { key } = await getBoundApiKey(settings.cloud.provider, settings.cloud.customUrl);
+            return listModels(settings.cloud.provider, key, settings.cloud.customUrl);
+        },
+        approve: async (changeSetId) => {
+            const got = await chrome.runtime.sendMessage({ type: 'CS_GET', id: changeSetId }).catch(() => null) as { ok: boolean; set?: { verdicts: Array<{ ok: boolean }> }; error?: string } | null;
+            if (!got?.ok || !got.set) return { ok: false, error: got?.error ?? 'That change is no longer waiting.' };
+            const selected = got.set.verdicts.map((v, n) => (v.ok ? n : -1)).filter(n => n >= 0);
+            const r = await chrome.runtime.sendMessage({ type: 'CS_APPLY', id: changeSetId, selected }).catch(() => null) as { ok: boolean; error?: string } | null;
+            if (!r?.ok) {
+                if (/expired|already decided|no longer exists/.test(r?.error ?? '')) setItems(prev => { const next = prev.map(it => (it.kind === 'pending' && it.changeSetId === changeSetId ? { ...it, decided: 'expired' as const } : it)); persist(next); return next; });
+                return { ok: false, error: r?.error ?? 'The extension did not answer.' };
+            }
+            setItems(prev => {
+                const next = prev.map((it): ChatItem => (it.kind === 'pending' && it.changeSetId === changeSetId
+                    ? { kind: 'changes', changeSetId, title: it.title, summary: it.summary, skipped: 0, targets: it.targets, at: it.at }
+                    : it));
+                persist(next);
+                return next;
+            });
+            return { ok: true };
+        },
+        discard: async (changeSetId) => {
+            const r = await chrome.runtime.sendMessage({ type: 'CS_REJECT', id: changeSetId }).catch(() => null) as { ok: boolean; error?: string } | null;
+            setItems(prev => { const next = prev.map(it => (it.kind === 'pending' && it.changeSetId === changeSetId ? { ...it, decided: 'discarded' as const } : it)); persist(next); return next; });
+            return r ?? { ok: false, error: 'The extension did not answer.' };
+        },
+        redo: async (changeSetId) => {
+            const r = await chrome.runtime.sendMessage({ type: 'CS_REDO', id: changeSetId }).catch(() => null) as { ok: boolean; id?: string; error?: string } | null;
+            if (r?.ok && r.id) {
+                const newId = r.id;
+                setItems(prev => { const next = prev.map(it => (it.kind === 'changes' && it.changeSetId === changeSetId ? { ...it, changeSetId: newId, undone: false } : it)); persist(next); return next; });
+                return { ok: true };
+            }
+            return { ok: false, error: r?.error ?? 'The extension did not answer.' };
+        },
         undo: async (changeSetId) => {
             const r = await chrome.runtime.sendMessage({ type: 'CS_UNDO', id: changeSetId }).catch(() => null) as { ok: boolean; error?: string; undone?: number; skipped?: number } | null;
             if (r?.ok) setItems(prev => { const next = prev.map(it => (it.kind === 'changes' && it.changeSetId === changeSetId ? { ...it, undone: true } : it)); persist(next); return next; });

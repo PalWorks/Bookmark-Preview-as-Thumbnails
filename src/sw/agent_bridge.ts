@@ -49,6 +49,18 @@ export const ASK_AI_CLIENT: BridgeClient = {
     id: 'ask-ai', name: 'Ask AI', tokenHash: '', pairedAt: 0, folderIds: [], stripQuery: false, mode: 'change', all: true,
 };
 
+/**
+ * Does this change set send anything to Trash? Ask AI applies everything else at once, but
+ * a destructive change waits for the user's OK in the chat (owner, 2026-11-10; D24). This
+ * also bounds what a prompt injected through a bookmark title can do without the user.
+ */
+export function sendsToTrash(changeSet: unknown): boolean {
+    let v: unknown = changeSet;
+    if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return false; } }
+    const ops = (v as { ops?: unknown })?.ops;
+    return Array.isArray(ops) && ops.some(o => (o as { op?: unknown })?.op === 'trash');
+}
+
 export interface PairingPrompt {
     /** Random id the client made for this pairing; the code only completes the pairing it started. */
     pairingId: string;
@@ -271,7 +283,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
                 return await pair(id, c.name ?? cleanClientName(body.client), body, transport);
             }
 
-            const client = builtin ?? await authenticate(req.token);
+            const client = builtin ?? await authenticate(req.token, transport);
             if (!client) return fail(id, bridgeError('NOT_PAIRED', 'This agent is not paired with this browser profile.'));
             if (!builtin) await touch(client);
             switch (req.type) {
@@ -280,7 +292,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
                 case 'search': return await search(id, client, body);
                 case 'get_bookmark': return await getBookmark(id, client, body);
                 case 'propose_changes': return await propose(id, client, body, false);
-                case 'apply_changes': return await propose(id, client, body, client.mode === 'change');
+                case 'apply_changes': return await propose(id, client, body, client.mode === 'change' && !(client.id === ASK_AI_CLIENT.id && sendsToTrash(body.changeSet)));
                 case 'undo_changes': return await undoChanges(id, client, body);
                 case 'get_change_set': return await getChangeSet(id, client, body);
             }
@@ -292,10 +304,11 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         }
     }
 
-    async function authenticate(token: unknown): Promise<BridgeClient | undefined> {
+    /** A token works only on the transport it was issued for: a local token is refused through the connector and the other way round. */
+    async function authenticate(token: unknown, transport: 'local' | 'remote'): Promise<BridgeClient | undefined> {
         if (typeof token !== 'string' || token.length < 20 || token.length > 200) return undefined;
         const hash = await sha256(token);
-        return Object.values(await clients()).find(c => c.tokenHash === hash);
+        return Object.values(await clients()).find(c => c.tokenHash === hash && (c.transport ?? 'local') === transport);
     }
 
     async function touch(client: BridgeClient): Promise<void> {
@@ -340,7 +353,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
             if (promptTimes.length >= PAIRING_MAX_PER_HOUR) return fail(id, bridgeError('RATE_LIMITED', `At most ${PAIRING_MAX_PER_HOUR} pairing prompts an hour.`, { retryAfterSeconds: Math.ceil((promptTimes[0] + 3600_000 - t) / 1000) }));
             promptTimes.push(t);
             const n = new DataView(randomBytes(4).buffer).getUint32(0) % 1_000_000;
-            prompt = { pairingId, name, code: String(n).padStart(6, '0'), startedAt: t, expiresAt: t + PAIRING_TTL_MS, tries: 0, folderIds: [], stripQuery: false, mode: 'change', transport };
+            prompt = { pairingId, name, code: String(n).padStart(6, '0'), startedAt: t, expiresAt: t + PAIRING_TTL_MS, tries: 0, folderIds: [], stripQuery: transport === 'remote', mode: 'change', transport };
             changed();
             return fail(id, bridgeError('PAIRING_PENDING', `The extension now shows a 6-digit code for "${name}".`, { context: { expiresInSeconds: PAIRING_TTL_MS / 1000 } }));
         }
@@ -593,6 +606,9 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
             });
         }
         await remember(res.id);
+        if (client.id === ASK_AI_CLIENT.id) {
+            return ok(id, { accepted: true, applied: false, needsApproval: true, changeSetId: res.id, message: 'Nothing has changed yet: sending items to Trash needs the user\'s OK, and the chat now shows them an Apply card. Tell the user in one sentence what will go to Trash and stop. Do not call apply_changes again for these changes.' });
+        }
         return ok(id, { accepted: true, applied: false, changeSetId: res.id, message: 'Nothing has changed yet: this connection is set to review first. The user reviews it in the extension (toolbar badge). Poll get_change_set every 10 seconds.' });
     }
 
@@ -705,7 +721,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
                 invite = {
                     code: String(n).padStart(6, '0'), startedAt: t, expiresAt: t + INVITE_TTL_MS, tries: 0,
                     folderIds: inviteGrant?.folderIds ?? (root.children ?? []).filter(c => !c.url && !hidden.has(c.id)).map(c => c.id),
-                    stripQuery: inviteGrant?.stripQuery ?? false, mode: inviteGrant?.mode ?? 'change',
+                    stripQuery: inviteGrant?.stripQuery ?? true, mode: inviteGrant?.mode ?? 'change',
                 };
                 changed();
             }

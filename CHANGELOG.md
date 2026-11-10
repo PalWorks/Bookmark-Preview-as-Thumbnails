@@ -30,6 +30,37 @@ and addresses 2026-11-10T11:23:53+00:00.
   ChatGPT** (extension now; the `bookmarks-thumbnails-mcp` helper with its next npm release).
 - The privacy policy (and the website copy) names the two relay addresses.
 
+- **Ask AI beside your bookmarks** (owner, 2026-11-10; D24). The top bar's Ask AI icon opens Ask AI
+  as a side panel next to the folders and tiles, so you watch the bookmarks change while you
+  chat; it is a full-screen sheet on phones. The menu's **AI Tools** item opens the full page.
+- **Chats are kept** on this device (up to 50), grouped Today, Yesterday and by date, with Delete
+  and Delete all. Every message shows its time, with a divider when the day changes. The AI's
+  replies are bubbles too.
+- **Choose the model** from a pill under the message box: it lists every chat model your saved key
+  can reach, with search. The choice applies to Ask AI only.
+- **The AI says which model it is**: the instructions name the real model and provider (a Groq
+  model had answered "GPT-4 Turbo").
+- **Previews**: the AI Tools page shows previews of the bookmarks the AI changed or looked at in
+  the chat. Only http(s) links open, in a new tab.
+- **Undo and Redo**: prominent Undo and Redo for the latest change in the chat, and Redo on every
+  undone change card. Redo replays the change as a new set, once.
+- **Trash needs your OK** in Ask AI: changes apply at once except sending to Trash, which waits on
+  an Apply card (Apply or Don't). This also limits what a hostile bookmark title can make the AI do.
+
+### Security
+
+From a review of every AI surface on 2026-11-10 (findings in SECURITY.md):
+
+- Only the extension's own pages can message the service worker; the capture content script
+  never could, and now nothing else can either (F5). Stored data is set to trusted contexts only.
+- A backup or settings file never sets the AI mode, provider or server address (F4), with or
+  without a saved key.
+- A server you type (Ollama, custom) must use https unless it is on this computer or the local
+  network (F9). The panel names that server's address.
+- A coding-agent token works only on its own transport, local or online (F8).
+- New Claude and ChatGPT connections hide query strings in links by default (F2, part).
+- The helper's update instruction is pinned to its version (F11).
+
 ### Fixed
 
 Provider rules ported from the owner's ai-provider-kit (`src/lib/ai_provider_rules.ts`):

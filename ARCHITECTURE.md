@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-10T11:40:58+00:00 (AI Tools page, provider rules module, palworks.ai addresses for the connector and the feedback relay)._
+_Last updated: 2026-11-10T17:21:42+00:00 (Ask AI side panel, chats on the device, model picker, Trash approval, Redo, sender check)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has two small servers of its own:
 the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0), and the
@@ -275,7 +275,20 @@ Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
   limits; 429 (unless out of credit), 5xx and network errors retry twice with `Retry-After` (at
   most 10 s), never our own abort or timeout. Retired default models are upgraded on load only
   when the stored id is exactly the retired one.
-- **Entry points**: the menu's single **AI Tools** item and the top bar's Ask AI icon open one
+- **Side panel (D24)**: the top bar's Ask AI icon toggles `AskAIView variant="dock"` beside the
+  main content (`App.tsx`, state `askDock`, kept in `sessionStorage`); a fixed sheet under 900px.
+  The menu's **AI Tools** item opens the page variant, whose side pane shows previews
+  (`src/components/AskAIPreviews.tsx`, rows from `src/lib/agent/previews.ts`) or the chats list.
+  Both share one `useAskAI` state at App level.
+- **Chats** (`src/lib/agent/chat_store.ts`): an index plus one record per chat in
+  `chrome.storage.local`, 50 at most; the open chat's id in `chrome.storage.session`.
+- **Model picker** (`src/lib/agent/models.ts`): lists the key's chat models (speech, image,
+  embedding and similar ids filtered out; OpenRouter limited to models that take tools) and keeps
+  Ask AI's own choice per provider in `ask_ai_model`. The system prompt names the model and provider.
+- **Trash approval and Redo**: `agent_bridge.ts` stores an Ask AI set that sends to Trash as
+  pending (`needsApproval`); the chat's Apply card sends `CS_GET` then `CS_APPLY`, Don't sends
+  `CS_REJECT`. `CS_REDO` (`change_sets.ts`) replays an undone set as a new set, once (`redoneAs`).
+- **Earlier entry points** (D23): the menu's single **AI Tools** item opens one
   page whose tab bar (`src/components/AIToolsTabs.tsx`) is shared by `AskAIView`,
   `AISettingsPage` (Provider Settings, Auto-Tag, Smart Search, Duplicate Finder), `AgentsView`
   (Connect Claude or ChatGPT) and `AIChangesView`. `App.tsx` maps each tab to its panel.

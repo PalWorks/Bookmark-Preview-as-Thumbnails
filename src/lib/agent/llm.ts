@@ -9,7 +9,7 @@
 import type { AICloudConfig } from '../ai_settings_storage';
 import { PROVIDERS } from '../ai_settings_storage';
 import { TOOL_DEFS, AGENT_INSTRUCTIONS } from '../bridge/tools';
-import { fetchWithRetry, providerError, openAIBody, replyBudget, geminiThinkingConfig, wasCutAtBudget, EmptyReplyError } from '../ai_provider_rules';
+import { endpointProblem, fetchWithRetry, providerError, openAIBody, replyBudget, geminiThinkingConfig, wasCutAtBudget, EmptyReplyError } from '../ai_provider_rules';
 
 export interface ToolCall { id: string; name: string; args: Record<string, unknown> }
 
@@ -34,8 +34,14 @@ const MAX_OUTPUT_TOKENS = 4096;
 /** Providers whose API has no tool calling. */
 export const NO_TOOLS = new Set(['perplexity']);
 
-export function systemPrompt(): string {
-    return `${AGENT_INSTRUCTIONS} Today is ${new Date().toISOString().slice(0, 10)}. Answer in the user's language. Keep replies short.`;
+/**
+ * Names the model and its provider, so "which model is this?" gets a true answer rather than
+ * the model's guess about itself (owner, 2026-11-10: a Groq gpt-oss model said "GPT-4 Turbo").
+ */
+export function systemPrompt(cloud?: Pick<AICloudConfig, 'provider' | 'model'>): string {
+    const label = cloud ? (PROVIDERS.find(p => p.id === cloud.provider)?.label ?? cloud.provider) : '';
+    const who = cloud ? ` You are running as the model "${cloud.model.replace(/[^\w.:/@+-]/g, '').slice(0, 120)}" served by ${label} through the user's own API key; if asked which model you are, say exactly that.` : '';
+    return `${AGENT_INSTRUCTIONS}${who} Today is ${new Date().toISOString().slice(0, 10)}. Answer in the user's language. Keep replies short.`;
 }
 
 async function postJson(provider: AICloudConfig['provider'], url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<unknown> {
@@ -64,6 +70,10 @@ function parseArgs(raw: unknown): Record<string, unknown> {
 // ── OpenAI-compatible ───────────────────────────────────────────────────────
 
 export function openAIEndpoint(cloud: AICloudConfig): string {
+    if (cloud.provider === 'ollama' || cloud.provider === 'custom') {
+        const problem = cloud.provider === 'custom' && !cloud.customUrl ? '' : endpointProblem(cloud.customUrl || 'http://localhost:11434');
+        if (problem) throw new Error(problem);
+    }
     if (cloud.provider === 'ollama') return (cloud.customUrl?.replace(/\/$/, '') || 'http://localhost:11434') + '/v1/chat/completions';
     if (cloud.provider === 'custom') {
         if (!cloud.customUrl) throw new Error('Custom endpoint URL not configured. Open AI settings.');
@@ -171,7 +181,7 @@ export function fromGemini(data: unknown): ModelReply {
 // ── One model turn ──────────────────────────────────────────────────────────
 
 export async function callModel(cloud: AICloudConfig, apiKey: string, msgs: Msg[], signal?: AbortSignal): Promise<ModelReply> {
-    const system = systemPrompt();
+    const system = systemPrompt(cloud);
     if (NO_TOOLS.has(cloud.provider)) throw new Error('This provider cannot use tools. Choose another provider in AI settings to use Ask AI.');
     if (cloud.provider === 'anthropic') {
         const data = await postJson('anthropic', 'https://api.anthropic.com/v1/messages', {

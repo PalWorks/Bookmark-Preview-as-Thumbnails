@@ -65,7 +65,7 @@ const DEFAULTS: Record<ErrorCode, { fix: string; retry: BridgeError['retry'] }> 
     CURSOR_EXPIRED: { fix: 'Start the listing again without a cursor.', retry: 'never' },
     AMBIGUOUS_TARGET: { fix: 'Pass --browser and --profile (or the tool arguments) to choose one.', retry: 'after_user_action' },
     UPDATE_EXTENSION: { fix: 'Update the extension: chrome://extensions, Developer mode, Update.', retry: 'after_user_action' },
-    UPDATE_PACKAGE: { fix: `Run: npx ${PACKAGE_NAME}@latest install`, retry: 'after_user_action' },
+    UPDATE_PACKAGE: { fix: `Run: npx ${PACKAGE_NAME}@${PACKAGE_VERSION} install`, retry: 'after_user_action' },
     INTERNAL: { fix: 'Try again. If it keeps failing, run doctor and send its output with Settings > Submit Feedback.', retry: 'after_user_action' },
 };
 

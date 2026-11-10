@@ -1,6 +1,6 @@
 # Ask AI and the online connector
 
-_Last updated: 2026-11-10T11:40:58+00:00 (provider rules from ai-provider-kit, D21; the connector at bookmarks-connector.palworks.ai, D22)._
+_Last updated: 2026-11-10T17:21:42+00:00 (D24: side panel, chats on the device, model picker, Trash approval, Redo, security review)._
 
 ## Why
 
@@ -82,6 +82,9 @@ requests a minute per link.
   item. Both open the AI Tools page on its first tab, Ask AI. The page's tabs: Ask AI, Provider
   Settings, Auto-Tag, Smart Search, Duplicate Finder, Connect Claude or ChatGPT, AI changes.
 
+- **Side panel and chats (D24)**: the top bar icon opens Ask AI beside the bookmarks; chats are
+  kept on this device (50), each message has a time, and a pill picks the model from the key's
+  list. Sending to Trash waits for the user's Apply; Undo and Redo sit at the top.
 - Runs in the extension page with the provider settings and bound key from Provider Settings (D2).
 - Requests follow the measured provider rules in `src/lib/ai_provider_rules.ts` (D21): OpenAI's
   newer budget field, headroom for models that think, Gemini thinking on and dynamic, an empty

@@ -216,3 +216,23 @@ export const RETIRED_MODELS: Partial<Record<AIProvider, Record<string, string>>>
 export function upgradeRetiredModel(provider: AIProvider, model: string): string {
     return RETIRED_MODELS[provider]?.[model.trim()] ?? model.trim();
 }
+
+// ─── Where a key may be sent in clear text (security review 2026-11-10, F9) ─
+
+const PRIVATE_HOST = /^(localhost|127(\.\d{1,3}){3}|\[::1\]|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|[\w-]+\.local|[\w-]+)$/i;
+
+/**
+ * A server the user typed (Ollama, custom) must use https unless it is on this computer or
+ * the local network (localhost, private addresses, *.local, a bare host name). Plain http to
+ * the internet would send the key and every title and link in clear text. Returns a reason
+ * to show, or '' when the address is fine.
+ */
+export function endpointProblem(raw: string | undefined): string {
+    let u: URL;
+    try { u = new URL((raw ?? '').trim()); } catch { return 'The server address is not a valid URL. Check it in Provider Settings.'; }
+    if (u.username || u.password) return 'Remove the user name and password from the server address.';
+    if (u.protocol === 'https:') return '';
+    if (u.protocol === 'http:' && PRIVATE_HOST.test(u.hostname)) return '';
+    if (u.protocol === 'http:') return 'Use https for a server outside your computer or local network, so your key and bookmarks are not sent in clear text.';
+    return 'The server address must start with https:// (or http:// on your own network).';
+}

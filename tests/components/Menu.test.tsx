@@ -2,7 +2,7 @@
 // 1.6.0: the settings menu layout (Generate Preview sub-menu, icon-only backup row,
 // AI Settings entry) and the in-product feedback form.
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, within, cleanup, configure } from '@testing-library/react';
+import { render, screen, fireEvent, within, cleanup, configure, waitFor } from '@testing-library/react';
 import App from '../../src/popup/App';
 import { FeedbackDialog } from '../../src/components/FeedbackDialog';
 import { fakeBookmarks } from '../fakes/chrome_bookmarks';
@@ -85,13 +85,17 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         await screen.findByRole('tab', { name: 'Connect Claude or ChatGPT', selected: true });
     });
 
-    it('the toolbar Ask AI button is an icon alone and opens the Ask AI tab', async () => {
+    it('the toolbar Ask AI button is an icon alone and opens Ask AI beside the bookmarks', async () => {
         render(<App />);
         const ask = await screen.findByRole('button', { name: 'Ask AI', pressed: false });
         expect(ask.textContent).toBe('');
         fireEvent.click(ask);
-        await screen.findByRole('tab', { name: 'Ask AI', selected: true });
+        const dock = await screen.findByRole('complementary', { name: 'Ask AI' });
         expect(ask.getAttribute('aria-pressed')).toBe('true');
+        expect(screen.queryByRole('tab', { name: 'Ask AI' })).toBeNull();
+        fireEvent.click(within(dock).getByRole('button', { name: 'Close Ask AI' }));
+        await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Ask AI' })).toBeNull());
+        expect(ask.getAttribute('aria-pressed')).toBe('false');
         const menu = await openMenu();
         expect(within(menu).queryByText('Organise with an AI')).toBeNull();
     });

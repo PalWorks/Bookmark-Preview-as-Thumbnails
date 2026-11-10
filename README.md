@@ -10,7 +10,7 @@ connect Claude or ChatGPT, or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-10T11:40:58+00:00 (1.7.0 in Web Store review; on `main` for the next release: one AI Tools page, provider fixes, palworks.ai addresses)._
+_Last updated: 2026-11-10T17:21:42+00:00 (Ask AI side panel, chats, model picker, Trash approval, Undo and Redo, security fixes)._
 
 ## Contents
 
@@ -70,6 +70,9 @@ while you have it switched on (it relays requests and stores none of your bookma
   server with your own key. Provider rules measured in the owner's ai-provider-kit (newer OpenAI
   models, reasoning models, out-of-credit errors, retries, current default models) live in
   `src/lib/ai_provider_rules.ts`.
+- **Ask AI beside your bookmarks** (next release): a side panel with chats kept on this device,
+  times on every message, a model picker, Undo and Redo, and an Apply step before anything goes to
+  Trash.
 - **One AI Tools page** (next release): the menu's single **AI Tools** item and the top bar's Ask
   AI icon open one page with tabs: Ask AI, Provider Settings, Auto-Tag, Smart Search, Duplicate
   Finder, Connect Claude or ChatGPT, AI changes.
@@ -168,7 +171,10 @@ There are no environment variables. Everything is set in the extension:
 8. **AI Tools** (menu, or the Ask AI icon in the top bar) opens one page with tabs. **Provider
    Settings** holds the provider and key; **Auto-Tag**, **Smart Search** and **Duplicate Finder**
    turn those features on.
-9. **Ask AI** (first tab) is the chat: say what to change, and use **Undo** on any change card.
+9. **Ask AI** (the top bar icon) opens beside your bookmarks: say what to change and watch them
+   change. Use **Undo** and **Redo** at the top, or on any change card; sending to Trash waits for
+   your **Apply**. **Chats** lists past chats, and the pill under the message box picks the model.
+   The **Ask AI** tab of AI Tools shows the same chat with previews of what changed.
    **AI changes** (last tab) lists everything an AI changed or suggested, with Undo.
 10. **Connect Claude or ChatGPT** (AI Tools tab): turn on "Let Claude and ChatGPT organise my bookmarks",
    copy the address into Claude (Settings > Connectors > Add custom connector) or ChatGPT
@@ -217,7 +223,7 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-459 tests cover migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
+475 tests cover migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
 apply, Undo, recovery), the bridge (modes, apply and undo), Ask AI, the connector link, the

@@ -26,6 +26,7 @@ const local = {
 const sync = {
     get: vi.fn(),
     set: vi.fn(),
+    remove: vi.fn(),
 };
 
 export const EXTENSION_ORIGIN = 'chrome-extension://testextensionid/';
@@ -150,6 +151,10 @@ function wireStorageMocks(): void {
         Object.assign(syncStore, items);
         return Promise.resolve();
     });
+    sync.remove.mockImplementation((keys: string | string[]) => {
+        (Array.isArray(keys) ? keys : [keys]).forEach(k => { delete syncStore[k]; });
+        return Promise.resolve();
+    });
 }
 
 // Wire on initial load
@@ -158,6 +163,7 @@ wireStorageMocks();
 // ─── Per-test reset ────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+    try { sessionStorage.clear(); } catch { /* no DOM in this test file */ }
     // Clear stored data
     Object.keys(localStore).forEach(k => delete localStore[k]);
     Object.keys(syncStore).forEach(k => delete syncStore[k]);
