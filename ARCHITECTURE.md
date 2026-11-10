@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: Ask AI, the online connector, shared tools and modes)._
+_Last updated: 2026-11-10T11:40:58+00:00 (AI Tools page, provider rules module, palworks.ai addresses for the connector and the feedback relay)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has two small servers of its own:
 the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0), and the
@@ -261,12 +261,24 @@ Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
 
 - `src/components/AskAIView.tsx` and `src/popup/hooks/useAskAI.ts` in the extension page;
   `src/lib/agent/llm.ts` runs the tool-calling loop with the provider settings and the bound key
-  from AI Settings (D2). Three wire formats: OpenAI-compatible chat completions (most providers,
+  from Provider Settings (D2). Three wire formats: OpenAI-compatible chat completions (most providers,
   Ollama, custom servers), Anthropic Messages, Gemini. Perplexity and Chrome's built-in model
   cannot call tools and are not offered.
 - At most 12 tool calls per message; each tool result sent back to the model is cut at 24,000
   characters. Each call goes to the worker as `AGENT_TOOL` (extension pages in regular windows
   only) and runs through the bridge handler as "Ask AI".
+- Requests are built by `src/lib/ai_provider_rules.ts` (D21), shared with Auto-Tag and Smart
+  Search in `src/lib/ai_tagger.ts`: OpenAI gets `max_completion_tokens` and no temperature; a
+  300-token floor plus 4,096 tokens of headroom for models that think anyway (named sets keyed
+  `provider:model`); Gemini thinking is off for tagging and search and dynamic for Ask AI; a 200
+  with no answer cut at the limit throws `EmptyReplyError`; out of credit is named before rate
+  limits; 429 (unless out of credit), 5xx and network errors retry twice with `Retry-After` (at
+  most 10 s), never our own abort or timeout. Retired default models are upgraded on load only
+  when the stored id is exactly the retired one.
+- **Entry points**: the menu's single **AI Tools** item and the top bar's Ask AI icon open one
+  page whose tab bar (`src/components/AIToolsTabs.tsx`) is shared by `AskAIView`,
+  `AISettingsPage` (Provider Settings, Auto-Tag, Smart Search, Duplicate Finder), `AgentsView`
+  (Connect Claude or ChatGPT) and `AIChangesView`. `App.tsx` maps each tab to its panel.
 - The conversation is kept in `chrome.storage.session` (`ask_ai_chat`, last 200 messages), so it
   ends with the browser session. The panel names the provider and model that receive what it
   reads.
@@ -295,7 +307,10 @@ Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
   only its SHA-256. Removing the connection in the extension revokes it.
 - **Make a new address** replaces `linkId` and `secret` and removes every `remote` client.
 - **Worker** (`connector/`): stateless client registration (HMAC-signed client ids), per-link and
-  per-network limits, no bookmark data and no long-lived tokens stored. Details:
+  per-network limits, no bookmark data and no long-lived tokens stored. Served on
+  `bookmarks-connector.palworks.ai` (`CONNECTOR_ORIGIN`, D22) and on its workers.dev address for
+  1.7.0 copies; both reach the same Durable Objects, and every OAuth address is derived from the
+  request's own origin, so a link works on either. Details:
   [connector/README.md](connector/README.md).
 
 ## Coding-agent bridge (1.7.0)

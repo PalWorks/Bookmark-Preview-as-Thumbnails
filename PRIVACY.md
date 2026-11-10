@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-10T03:45:49+00:00
+**Last Updated:** 2026-11-10T11:40:58+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -73,14 +73,14 @@ order to screenshot them).
 - **Ask AI.** If you open Ask AI and send a message, the extension sends your message
   and what the AI asks to read (bookmark and folder titles, links, folder paths, tags,
   ratings and when you last opened a bookmark from the extension) to **the provider you
-  chose in AI Settings, only**, under your own key, so it can answer and make the changes
+  chose in Provider Settings (AI Tools; AI Settings in 1.7.0 and earlier), only**, under your own key, so it can answer and make the changes
   you ask for. It can read every folder except those hidden from search. The panel names
   the provider and model before you send. The provider handles this data under its own
   policy. The conversation is kept in the browser's session storage and is gone when the
   browser closes. We never receive it.
 - **Claude and ChatGPT (online connector).** If you turn on "Let Claude and ChatGPT
-  organise my bookmarks" (menu > Connect Claude or ChatGPT), the extension keeps a
-  connection to our relay (a Cloudflare Worker run by us) while Chrome is open. When you
+  organise my bookmarks" (menu > AI Tools > Connect Claude or ChatGPT; in 1.7.0, menu > Connect Claude or ChatGPT), the extension keeps a
+  connection to our relay (a Cloudflare Worker run by us at bookmarks-connector.palworks.ai; 1.7.0 reaches the same Worker at its workers.dev address) while Chrome is open. When you
   ask Claude or ChatGPT about your bookmarks, their servers send the request through our
   relay to your browser, and your browser's answer (titles, links, folder paths, tags and
   ratings from the folders you chose) goes back through the relay to them. The relay
@@ -116,7 +116,7 @@ order to screenshot them).
 
 **Settings > Submit Feedback** opens a form inside the extension. Nothing is sent
 until you press **Send feedback**. Then the extension sends, to our feedback relay
-(a Cloudflare Worker run by us), which emails it to support@palworks.ai through our
+(a Cloudflare Worker run by us at bookmarks-feedback.palworks.ai; 1.6.0 and 1.7.0 reach the same Worker at its workers.dev address), which emails it to support@palworks.ai through our
 email provider (Resend):
 
 - the topic you picked and the **message you typed**;
@@ -159,7 +159,7 @@ support@palworks.ai.
 - Uninstall the extension (clears its local data), or
 - Clear the browser's "Hosted App Data" for the extension.
 
-Your stored API key is removed when you clear it in AI Settings or uninstall. Backup
+Your stored API key is removed when you clear it in Provider Settings (AI Settings in 1.7.0 and earlier) or uninstall. Backup
 and **Export Settings** files never contain the API key or its encryption key.
 
 ## Contact

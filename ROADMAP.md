@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-10T06:33:36+00:00 (1.7.0 merged, on npm and submitted to the Web Store; rows 19 and 20 done, row 18 waiting on review)._
+> _Last updated: 2026-11-10T11:40:58+00:00 (row 21 next release waiting on 1.7.0 review; rows 22 and 23 done: helper 1.7.1 and the npm placeholder, palworks.ai addresses)._
 
 ## 0. North star: every open item, one row each
 
@@ -27,6 +27,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 | 18 | §3.2 | P2 | **Waiting** | L | M | 2026-11-10 | 1.7.0 ships Ask AI, Connect Claude or ChatGPT (live connector Worker) and coding agents (`bookmarks-thumbnails-mcp@1.7.0` on npm), D18 to D20. Merged (PR #16), tagged, submitted to the Web Store 2026-11-10T06:33:36+00:00; live tests with real Claude and ChatGPT accounts passed. | After approval: PLAYBOOK release step 8 on a clean profile, then the website feature list. Stage 3 (Edge, Brave, Windows for the local helper) after. |
+| 21 | §3.1 | P2 | **Waiting** | S | M | 2026-11-10 | `main` holds the next release: one AI Tools page (D23, PR #19), provider fixes from ai-provider-kit (D21, PR #20), the palworks.ai addresses (D22) and the setup command for `bookmarks-thumbnails-mcp@1.7.1`. 1.7.0 is still in Web Store review, and a new upload would cancel that review. | After 1.7.0 is approved: bump to 1.7.1, run PLAYBOOK release steps 1 to 8 (owner approves tag, upload and submit). |
 | 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is live on the Web Store at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00); submitted 2026-11-09T13:56:04+00:00. The Privacy tab now declares personally identifiable information (the optional reply address) and personal communications (the feedback message). | PLAYBOOK release step 8 (store install on a clean profile, update from 1.5.0), then rows 10 and 16 and the website feature list. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
@@ -93,7 +94,17 @@ Priority, Size and Impact are separate columns because they answer separate ques
 
 ## 2. Next up
 
-### 2.1 Status: 1.7.0 in Web Store review (updated 2026-11-10T06:33:36+00:00)
+### 2.1 Status: 1.7.0 in Web Store review, next release on `main` (updated 2026-11-10T11:40:58+00:00)
+
+Since the 1.7.0 submission, `main` gained the next release (row 21): one **AI Tools** page that
+replaces four menu items (D23, PR #19), the provider rules from the owner's ai-provider-kit
+(D21, PR #20) and our own addresses, `bookmarks-connector.palworks.ai` and
+`bookmarks-feedback.palworks.ai` (D22, row 23). Both Workers were redeployed from `main` on
+2026-11-10 and serve the old workers.dev addresses too, so 1.7.0 keeps working. The helper is at
+`bookmarks-thumbnails-mcp@1.7.1` on npm and the stray `0.0.0-stage` is deprecated (row 22). The
+release waits for 1.7.0's approval, because uploading now would cancel that review.
+
+The 1.7.0 status, kept for reference:
 
 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents; row 18) was merged (PR #16), tagged
 `v1.7.0`, published to npm as `bookmarks-thumbnails-mcp@1.7.0` and submitted to the Web Store at
@@ -137,12 +148,15 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
 | 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Waiting**: in Web Store review | L | M |
+| 21 | Next release 1.7.1: AI Tools page, provider fixes, palworks.ai addresses | §3.1 | **Waiting**: on 1.7.0 approval | S | M |
 | 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **In progress**: live; release step 8 left | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 10 | Reply to the user who requested parity | §3.1 | **Open**: 1.6.0 is live, reply can go | T | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
 | 15 | Undo history beyond the toast | §3.2 | **Deferred** | M | L |
+| 23 | Own addresses for the connector and the relay (custom domains on palworks.ai) | §3.3 | **Done** 2026-11-10 (D22; both Workers redeployed from `main`) | Was S | M |
+| 22 | Helper 1.7.1 (finds unpacked copies and Chrome data folders) and deprecate the npm placeholder `0.0.0-stage` | §3.1 | **Done** 2026-11-10 (PR #18) | Was S | M |
 | 20 | Web Store privacy update for 1.7.0 | §3.1 | **Done** 2026-11-10 | Was S | H |
 | 19 | Deploy the online connector Worker | §3.1 | **Done** 2026-11-10 | Was S | H |
 | 1 | Record deletions made outside the extension | §3.2 | **Done** 2026-11-08 (built in 1.4.0, ships with row 12) | Was M | M |

@@ -1,11 +1,54 @@
 # Decisions
 
-_Last updated: 2026-11-10T03:45:49+00:00 (D20: Ask AI and the online connector; D18 and D19 partly superseded)._
+_Last updated: 2026-11-10T11:40:58+00:00 (D21: provider rules from ai-provider-kit; D22: own addresses on a shared Cloudflare account; D23: one AI Tools page)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D23. One AI Tools page (owner, 2026-11-10)
+
+The owner reviewed 1.7.0 in the test browser and asked for less menu: the four AI items (AI
+Settings, Ask AI, AI changes, Connect Claude or ChatGPT) became one menu item, **AI Tools**, and
+the top bar's Ask AI button became the icon alone. Both open one page whose tabs are, in order:
+Ask AI, Provider Settings, Auto-Tag, Smart Search, Duplicate Finder, Connect Claude or ChatGPT, AI
+changes (with the count waiting for review). AI changes became a tab too because it was one of
+the four items. The tabs scroll sideways at phone width. PR #19.
+
+**Rule:** every AI surface is a tab of AI Tools (`src/components/AIToolsTabs.tsx`); do not add AI
+items to the menu or the top bar.
+
+## D22. Our own addresses, on a Cloudflare account shared with other projects (owner, 2026-11-10)
+
+The connector and the feedback relay were reachable only at `*.sunmooncal.workers.dev`, because
+the workers.dev name belongs to the whole Cloudflare account, which the owner shares across about
+a dozen projects (Reply Wizard's live API among them). Options were: rename the account's
+workers.dev name (breaks every Worker on it), a new Cloudflare account (new login and billing,
+every link pairs again), or custom domains on palworks.ai. Chosen: custom domains,
+`bookmarks-connector.palworks.ai` and `bookmarks-feedback.palworks.ai`, attached on 2026-11-10 as
+hostnames of these two Workers only, then recorded in each `wrangler.toml`. The workers.dev
+addresses stay on, so copies of 1.6.0 and 1.7.0 and connections made with the old address keep
+working; both addresses reach the same Durable Objects. The owner's condition: the other projects
+must not be disturbed in any way, which outranks this change. The product prefix (rather than
+`connector.` and `feedback.`) leaves the plain names free for other projects.
+
+**Rule:** change only these two Workers' own settings. Never the account's workers.dev name,
+another Worker, or a DNS record we did not create (AGENTS rule 25).
+
+## D21. Provider rules come from the owner's ai-provider-kit (owner, 2026-11-10)
+
+The owner's ai-provider-kit (a separate, private repository) records measured behaviour of about
+26 AI providers. Eight of its rules fixed real faults here: stale default models (Groq, DeepSeek,
+Gemini, Cerebras), newer OpenAI models refusing `max_tokens` and a temperature, reasoning models
+returning empty tags at a small budget, a 200 with no answer treated as success, any OpenRouter
+key passing validation, out of credit reported as "wait and retry", xAI's unusual status codes,
+and no retries. The owner chose to port the rules into TypeScript (`src/lib/ai_provider_rules.ts`)
+rather than depend on the kit, which has no remote, no types and no licence. PR #20.
+
+**Rule:** provider behaviour lives in that module, gated on named sets keyed `provider:model`;
+when a provider misbehaves, check the kit's KNOWLEDGE.md first and port the measured rule with
+its date.
 
 ## D20. The AI acts on the bookmarks itself: Ask AI and an online connector (owner, 2026-11-10)
 

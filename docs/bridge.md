@@ -1,6 +1,6 @@
 # Coding-agent bridge reference
 
-_Last updated: 2026-11-10T03:45:49+00:00 (D20: shared tools, modes, apply_changes and undo_changes, new menu names)._
+_Last updated: 2026-11-10T11:40:58+00:00 (menu path in fix texts is now AI Tools > Connect Claude or ChatGPT)._
 
 Reference for the `bookmarks-thumbnails-mcp` package and its protocol. Quick start and
 troubleshooting: [bridge/README.md](../bridge/README.md). Design and review record:
@@ -40,7 +40,7 @@ Coding agent ──stdio (MCP)──▶ bookmarks-thumbnails-mcp ──Unix sock
 ## Modes
 
 Each connection has one mode, chosen when pairing (on the code card) and changeable later in
-the extension (menu > Connect Claude or ChatGPT):
+the extension (menu > AI Tools > Connect Claude or ChatGPT):
 
 **Table B1: Connection modes**
 
@@ -122,7 +122,7 @@ MCP returns it with `isError: true`. The CLI writes it to stderr and exits with:
 | `INTERNAL` | 21 |
 
 ### NOT_CONNECTED
-No browser profile has **Connect coding agents** on (extension menu > Connect Claude or ChatGPT >
+No browser profile has **Connect coding agents** on (extension menu > AI Tools > Connect Claude or ChatGPT >
 Coding agents on this computer), or the profile
 this agent paired with is closed. Turn the switch on in that profile. The agent never switches
 to another profile by itself.
@@ -133,12 +133,12 @@ extension's data was cleared). Call `pair` with no code, then with the code the 
 The saved token is deleted automatically.
 
 ### PAIRING_PENDING
-The extension is showing a 6-digit code. Read it in the extension (menu > Connect Claude or
+The extension is showing a 6-digit code. Read it in the extension (menu > AI Tools > Connect Claude or
 ChatGPT) and call `pair` with it within 2 minutes. Three wrong codes end the prompt.
 
 ### READ_ONLY
 The user allowed this connection to read only. They can choose **Read and change (with Undo)**
-or **Read and suggest (I review first)** for it in the extension (menu > Connect Claude or
+or **Read and suggest (I review first)** for it in the extension (menu > AI Tools > Connect Claude or
 ChatGPT).
 
 ### INVALID_REQUEST

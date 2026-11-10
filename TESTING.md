@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-10T03:52:03+00:00 (1.7.0, D20: 446 Vitest tests, 9 bridge tests, 36 connector tests, three e2e scripts; measured 2026-11-10 after the security review fixes)._
+_Last updated: 2026-11-10T11:40:58+00:00 (459 Vitest tests, 11 bridge tests, 36 connector tests, three e2e scripts; provider rules tests; wrangler dev pinned to its local origin)._
 
 ## Commands
 
@@ -21,7 +21,10 @@ node scripts/e2e/connector.mjs <build>                                          
 
 `<build>` is a scratch build (`npx vite build --outDir <scratch>/build`), never `dist/` on a
 feature branch. `scripts/e2e/connector.mjs` needs `connector/.dev.vars` with a
-`CLIENT_ID_SECRET` (CI writes a random one); it starts `wrangler dev --local` itself.
+`CLIENT_ID_SECRET` (CI writes a random one); it starts `wrangler dev --local` itself. Because
+`connector/wrangler.toml` names a custom domain, `wrangler dev` would otherwise give requests that
+domain's host, so the e2e script and `connector/scripts/smoke.mjs` pass `--local-upstream
+127.0.0.1:<port>`; without it the authorize page answers "This link does not match".
 
 ## Setup
 
@@ -69,7 +72,7 @@ storage and bookmarks to test crash recovery.
 | Selection, history permission, link metadata refresh | `hooks/useSelection.test.ts`, `hooks/useHistoryStats.test.tsx`, `hooks/useLinkMeta.test.ts` |
 | List column values and sorting | `list_columns.test.ts` |
 | Feedback client: validation, payload, counts-only details, Edge detection, rate-limit, relay, network and timeout errors | `feedback.test.ts` |
-| 1.6.0 settings menu (Generate Preview sub-menu, backup icon row, AI Settings, trash-icon Delete) and the feedback dialog (no details when unticked, double submit sends once, text kept after a failed send) | `components/Menu.test.tsx` |
+| 1.6.0 settings menu (Generate Preview sub-menu, backup icon row, trash-icon Delete), the single AI Tools item, the AI Tools tab order and the icon-only Ask AI button, and the feedback dialog (no details when unticked, double submit sends once, text kept after a failed send) | `components/Menu.test.tsx` |
 | Capture page copy without scripts, expected failures logged as warnings | `content_capture.test.ts` |
 | Feedback relay: origins, limits, Durable Object counters, IPv6 /64, body caps, sanitising, provider errors | `worker/test/index.test.ts` (Node test runner, not in the Vitest count) |
 | AI change sets: format parsing, every validation rule, simulation, apply as one step and Undo (tree, tags, ratings, Trash), skipped changes, frozen Trash, move out then trash parent, dependency unticking, interrupted apply and Finish, expiry, retention, scope, storage-key shape | `change_sets.test.ts` |
@@ -77,6 +80,7 @@ storage and bookmarks to test crash recovery.
 | Coding-agent bridge, extension side: error contract, pairing (code never sent, id-bound, 3 tries, 2 min, 5 an hour), grants and hidden folders for every tool, cursors, read-only, idempotency, per-agent caps, ownership, version handshake | `agent_bridge.test.ts` |
 | D20 bridge: `apply_changes` applies at once and `undo_changes` reverts it, retries never apply twice, one bad change refuses the whole call, review mode only proposes, read mode refuses, a connection cannot undo another's set, Ask AI scope (every non-hidden folder, never paired), the connector's standing code with its folders and mode, five wrong codes end it | `agent_bridge.test.ts` |
 | Ask AI: shared tool list mapping, the three provider adapters (OpenAI-compatible, Anthropic, Gemini), key in a header never the URL, providers without tool calling refused, the tool loop and its cap, tool errors, change cards with Undo | `ask_ai.test.ts` |
+| Provider rules (ai-provider-kit, D21): OpenAI `max_completion_tokens` and no temperature, the 300-token floor and thinking headroom by named set, Gemini thinking switch, empty replies cut at the limit in all three shapes, out of credit before rate limits, xAI 400 and 403, retries (5xx yes; 401, out-of-credit 429 and our own abort no; `Retry-After` clamped), retired defaults upgraded only on an exact match, OpenRouter checked at `/key` with management keys refused | `ai_provider_rules.test.ts` |
 | Ask AI in the App: what to set up without a provider, a change applied at once with a card and Undo | `components/AskAI.test.tsx` |
 | Online connector, browser side: off until switched on, hello with id and secret, relay by request id, pings, reconnect, a new address, only a local development origin may override | `remote_link.test.ts` |
 | Connect Claude or ChatGPT page: switch, address with Copy, standing code with folders and mode, connected apps | `components/Connect.test.tsx` |
@@ -95,8 +99,8 @@ propose, apply and undo. `scripts/e2e/connector.mjs` runs real Chrome with the e
 real Worker under `wrangler dev --local`, and an MCP client that registers, signs in with the
 code the extension shows, exchanges it with PKCE, reads only the ticked folder, applies and
 undoes a change, and checks revocation (401 after removal) and the offline answer. Real Claude
-and ChatGPT clients against the deployed Worker are not covered by any test [Unverified until
-the Worker is deployed].
+and ChatGPT clients against the deployed Worker are not covered by any test; they passed a
+manual run on 2026-11-10.
 `npm run e2e` (`scripts/e2e/smoke.mjs`) automates the core of it locally: it starts its own
 headless Chrome with a throwaway profile, loads `dist/`, and checks that a delete made outside the
 extension is kept and restores with its colour, that an extension delete is recorded once, the

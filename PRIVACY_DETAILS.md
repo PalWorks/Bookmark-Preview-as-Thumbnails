@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy Details
 
-_Last updated: 2026-11-10T06:33:36+00:00 (1.7.0 submitted; data usage wording matches the dashboard)._
+_Last updated: 2026-11-10T11:40:58+00:00 (AI Tools menu path for the next release; 1.7.0 text as submitted is unchanged in substance)._
 
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
@@ -26,7 +26,7 @@ These are the permissions actually declared in the manifest:
 | **favicon** | Show a bookmark's site icon from Chrome's local favicon cache when no thumbnail exists yet. No network request. |
 | **alarms** | Run a daily local clean-up that permanently removes Trash items older than 30 days. |
 | **history** (optional) | Requested only when the user turns on the Visits or Last visited column in list view. Reads visit count and last visit time for the bookmarks on screen with `chrome.history.getVisits`; nothing is stored or sent anywhere. Optional permissions add no install warning. |
-| **nativeMessaging** (optional, 1.7.0) | Requested only when the user turns on "Connect coding agents" (menu > Connect Claude or ChatGPT > Coding agents on this computer). Lets the extension exchange messages with a helper program the user installed (`bookmarks-thumbnails-mcp`), which relays requests from coding agents the user pairs. Agents read only folders the user ticks and change bookmarks only in the mode the user chose (read only, review first, or change with one-click Undo). Optional permissions add no install warning (checked with `management.getPermissionWarningsByManifest`, Chrome, 2026-11-09). |
+| **nativeMessaging** (optional, 1.7.0) | Requested only when the user turns on "Connect coding agents" (menu > AI Tools > Connect Claude or ChatGPT > Coding agents on this computer; in 1.7.0: menu > Connect Claude or ChatGPT). Lets the extension exchange messages with a helper program the user installed (`bookmarks-thumbnails-mcp`), which relays requests from coding agents the user pairs. Agents read only folders the user ticks and change bookmarks only in the mode the user chose (read only, review first, or change with one-click Undo). Optional permissions add no install warning (checked with `management.getPermissionWarningsByManifest`, Chrome, 2026-11-09). |
 | **webNavigation** | Detect when a page finishes loading during batch capture so the screenshot reflects the rendered page. |
 | **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and, only if the user enables a cloud AI provider (Auto-Tag, Smart Search, Ask AI), send requests to that provider's API endpoint. The feedback form (1.6.0) posts to our own relay, and the optional Claude and ChatGPT connector (1.7.0) keeps a WebSocket to our own connector Worker; neither needs an extra permission. |
 

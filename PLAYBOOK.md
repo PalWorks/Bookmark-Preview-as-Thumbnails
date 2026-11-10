@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: online connector deploy, rollback and CLIENT_ID_SECRET)._
+_Last updated: 2026-11-10T11:40:58+00:00 (merging after review and CI no longer needs the owner; custom domains; the shared Cloudflare account)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -31,7 +31,9 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
    pull requests that change code, never on pushes to `main`. Run the full set locally first,
    push each branch as few times as possible, and put docs-only changes in their own PR (no CI)
    or fold them into the next code PR.
-5. Merge, then tag with `TZ=UTC git tag -a v<version>` and push the tag.
+5. Merge once the diff is reviewed and CI passes (the owner does not need to be asked, 2026-11-10),
+   rebuild `dist/` from `main`, then tag with `TZ=UTC git tag -a v<version>` and push the tag
+   (tags, npm and the Web Store still need the owner).
 6. `npm run zip` (builds, runs the bundle check, writes `extension.zip`). Confirm the zip has
    no `.map` files.
 7. Upload `extension.zip` with the maintainer's Chrome Web Store CLI credentials (item id
@@ -117,7 +119,10 @@ Deployed by hand, separately from extension releases; the owner approves each de
 1. `cd worker && npm ci`, then `npx --yes node@22.18 --test test/index.test.ts && npm run typecheck`.
 2. `npx wrangler deploy`. Secrets (`RESEND_API_KEY`, `IP_HASH_SECRET`) are set once with
    `npx wrangler secret put`; never in the repository or on a command line.
-3. Check `GET /health` returns `{ "ok": true }`, then send one message from an unpacked build.
+3. Check `GET https://bookmarks-feedback.palworks.ai/health` returns `{ "ok": true }`, then
+   send one message from an unpacked build. The Worker is also on its workers.dev address for
+   1.6.0 and 1.7.0 copies; keep both until no supported version uses the old one. The Cloudflare
+   account is shared with the owner's other projects (AGENTS rule 25).
 4. Roll back with `npx wrangler rollback` to the previous version [Unverified: not yet exercised
    on this Worker]. Live logs: `npx wrangler tail`.
 

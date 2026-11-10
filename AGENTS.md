@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: Ask AI, the online connector in `connector/`, rules 22 and 23)._
+_Last updated: 2026-11-10T11:40:58+00:00 (rule 24: provider rules in one module; rule 25: the shared Cloudflare account; merging no longer needs the owner)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,
@@ -44,6 +44,8 @@ node scripts/e2e/connector.mjs <scratch>/build                                  
 | `src/lib/bridge/tools.ts` | The tool list shared by Ask AI, the connector and the local MCP server; the single source of tool names, descriptions and schemas |
 | `src/lib/bridge/connector.ts` | Connector wire contract and production address; shared with `connector/` |
 | `src/lib/agent/llm.ts` | Ask AI's tool-calling loop (OpenAI-compatible, Anthropic, Gemini) |
+| `src/lib/ai_provider_rules.ts` | Provider rules from the owner's ai-provider-kit: request shape, budgets, thinking, empty replies, errors, retries, retired defaults |
+| `src/components/AIToolsTabs.tsx` | The AI Tools page's tab bar (Ask AI first) shared by the AI views |
 | `src/lib/change_set/` | Change-set format, validator (simulation), export snapshot; DOM-free |
 | `src/lib/bridge/protocol.ts` | Bridge messages, errors and limits; shared with `bridge/` |
 | `src/lib/` | Shared modules; keep DOM and React out of anything the worker imports |
@@ -119,16 +121,26 @@ node scripts/e2e/connector.mjs <scratch>/build                                  
 23. **The connector Worker stores nothing it reads** (D20): no bookmark data, no request or
     response bodies in logs, no tokens beyond the 2-minute authorization codes. Deploying it,
     setting or rotating `CLIENT_ID_SECRET`, and changing `CONNECTOR_ORIGIN` need the owner.
+24. **Provider rules live in one module.** Request shape per provider, reply budgets, Gemini
+    thinking, empty-reply detection, out-of-credit errors, retries and retired default models are
+    in `src/lib/ai_provider_rules.ts`, used by Auto-Tag, Smart Search and Ask AI (D21). Gate
+    model behaviour on named sets keyed `provider:model`, never on a pattern over the id.
+25. **The Cloudflare account is shared** with the owner's other projects (13 Workers, among them
+    Reply Wizard's live API). Change only `bookmarks-thumbnails-connector` and
+    `thumbnail-bookmarks-feedback`: never the account's workers.dev name, another Worker, its
+    routes or custom domains, or DNS records you did not create (D22).
 
 ## Allowed without asking
 
 Reading code, running tests, lint and builds into scratch folders, writing tests, editing source
-and docs on a feature or release branch, local commits.
+and docs on a feature or release branch, local commits. Merging a PR to `main` once it has been
+reviewed and CI passes, then rebuilding `dist/` from `main` (owner, 2026-11-10: report afterwards).
 
 ## Ask the owner first
 
-Merging to `main`, pushing tags, uploading to the Chrome Web Store, deploying a Worker
-(`worker/` or `connector/`) or setting its secrets, changing permissions or the licence, sending email or replying to users, deleting branches or data, anything that spends
+Pushing tags, publishing to npm, uploading to the Chrome Web Store, deploying a Worker
+(`worker/` or `connector/`) or setting its secrets (the owner approved a deploy of both on
+2026-11-10; each later deploy still asks), changing permissions or the licence, sending email or replying to users, deleting branches or data, anything that spends
 money.
 
 ## Review

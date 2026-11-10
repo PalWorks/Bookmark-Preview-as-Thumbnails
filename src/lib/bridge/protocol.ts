@@ -55,10 +55,10 @@ export const EXIT_CODES: Record<ErrorCode, number> = {
 };
 
 const DEFAULTS: Record<ErrorCode, { fix: string; retry: BridgeError['retry'] }> = {
-    NOT_CONNECTED: { fix: 'In Chrome, open the extension menu > Connect Claude or ChatGPT, and turn on "Connect coding agents".', retry: 'after_user_action' },
-    NOT_PAIRED: { fix: 'Call pair with no arguments, then call pair again with the 6-digit code the extension shows (menu > Connect Claude or ChatGPT).', retry: 'after_user_action' },
-    PAIRING_PENDING: { fix: 'Read the 6-digit code in the extension (menu > Connect Claude or ChatGPT) and call pair with it.', retry: 'after_user_action' },
-    READ_ONLY: { fix: 'This connection may read only. The user can allow changes in the extension: menu > Connect Claude or ChatGPT.', retry: 'after_user_action' },
+    NOT_CONNECTED: { fix: 'In Chrome, open the extension menu > AI Tools > Connect Claude or ChatGPT, and turn on "Connect coding agents".', retry: 'after_user_action' },
+    NOT_PAIRED: { fix: 'Call pair with no arguments, then call pair again with the 6-digit code the extension shows (menu > AI Tools > Connect Claude or ChatGPT).', retry: 'after_user_action' },
+    PAIRING_PENDING: { fix: 'Read the 6-digit code in the extension (menu > AI Tools > Connect Claude or ChatGPT) and call pair with it.', retry: 'after_user_action' },
+    READ_ONLY: { fix: 'This connection may read only. The user can allow changes in the extension: menu > AI Tools > Connect Claude or ChatGPT.', retry: 'after_user_action' },
     INVALID_REQUEST: { fix: 'Check the request against the tool description and try again.', retry: 'never' },
     TOO_LARGE: { fix: 'Send less at once.', retry: 'never' },
     RATE_LIMITED: { fix: 'Wait, then try again.', retry: 'after_seconds' },

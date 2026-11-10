@@ -318,7 +318,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         // user can type it on the sign-in page without the app asking first.
         if (transport === 'remote' && invite && invite.expiresAt <= t) { invite = null; changed(); }
         if (transport === 'remote' && invite && !(prompt && prompt.pairingId === pairingId)) {
-            if (!code) return fail(id, bridgeError('PAIRING_PENDING', 'A code shows in the extension: menu > Connect Claude or ChatGPT.', { context: { expiresInSeconds: Math.ceil((invite.expiresAt - t) / 1000) } }));
+            if (!code) return fail(id, bridgeError('PAIRING_PENDING', 'A code shows in the extension: menu > AI Tools > Connect Claude or ChatGPT.', { context: { expiresInSeconds: Math.ceil((invite.expiresAt - t) / 1000) } }));
             if (code !== invite.code) {
                 invite.tries++;
                 if (invite.tries >= INVITE_MAX_TRIES) { invite = null; changed(); return fail(id, bridgeError('NOT_PAIRED', 'Wrong code too many times. The extension shows a new code; try again with it.')); }
@@ -366,7 +366,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         map[client.id] = client;
         await saveClients(map);
         changed();
-        return ok(id, { token, clientId: client.id, folders: client.folderIds.length, mode: client.mode, message: client.folderIds.length ? 'Paired.' : 'Paired. No folders are shared yet: the user chooses them in the extension: menu > Connect Claude or ChatGPT.' });
+        return ok(id, { token, clientId: client.id, folders: client.folderIds.length, mode: client.mode, message: client.folderIds.length ? 'Paired.' : 'Paired. No folders are shared yet: the user chooses them in the extension: menu > AI Tools > Connect Claude or ChatGPT.' });
     }
 
     // ── Reads ───────────────────────────────────────────────────────────────
@@ -490,7 +490,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         const offset = decodeCursor(body.cursor, 'list_folders');
         if (typeof offset !== 'number') return fail(id, offset);
         const p = page(folders, offset, limitOf(body), 'list_folders');
-        return ok(id, { folders: p.items, total: p.total, ...(p.cursor ? { cursor: p.cursor } : {}), ...(scope.granted.length ? {} : { note: 'No folders are shared with this agent yet. The user chooses them in the extension: menu > Connect Claude or ChatGPT.' }) });
+        return ok(id, { folders: p.items, total: p.total, ...(p.cursor ? { cursor: p.cursor } : {}), ...(scope.granted.length ? {} : { note: 'No folders are shared with this agent yet. The user chooses them in the extension: menu > AI Tools > Connect Claude or ChatGPT.' }) });
     }
 
     async function listFolder(id: ClientRequest['id'], client: BridgeClient, body: Record<string, unknown>): Promise<ClientResponse> {

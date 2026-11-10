@@ -26,6 +26,10 @@ and addresses 2026-11-10T11:23:53+00:00.
   `claude-haiku-4-5`, OpenRouter `openai/gpt-4o-mini`, xAI `grok-4.6`. A saved model that is exactly
   an old retired default is upgraded on load; a model you chose yourself is never changed.
 
+- Error fixes and helper messages that name a menu path now say **AI Tools > Connect Claude or
+  ChatGPT** (extension now; the `bookmarks-thumbnails-mcp` helper with its next npm release).
+- The privacy policy (and the website copy) names the two relay addresses.
+
 ### Fixed
 
 Provider rules ported from the owner's ai-provider-kit (`src/lib/ai_provider_rules.ts`):
