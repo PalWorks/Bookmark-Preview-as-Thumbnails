@@ -1,11 +1,38 @@
 # Decisions
 
-_Last updated: 2026-11-10T11:40:58+00:00 (D21: provider rules from ai-provider-kit; D22: own addresses on a shared Cloudflare account; D23: one AI Tools page)._
+_Last updated: 2026-11-10T17:21:42+00:00 (D24: Ask AI beside the bookmarks, chats kept on the device, Trash needs the user's OK, Undo and Redo)._
 
 Architecture decision records: why things are the way they are. Newest first. Each ends with
 the rule it imposes. Detailed reasoning is in
 [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) and
 [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md).
+
+## D24. Ask AI beside the bookmarks; Trash needs the user's OK (owner, 2026-11-10)
+
+The owner reviewed Ask AI in the test browser and asked for:
+
+- **A side panel**, like an assistant docked in the browser: the top bar's icon opens Ask AI next
+  to the folders and tiles, so the user sees the real bookmarks change. The AI Tools page keeps
+  the full view, with previews of what changed.
+- **Chats like ChatGPT and Claude**: bubbles on both sides, a time on every message, past chats to
+  go back to, and a model picker that lists the models the key can reach.
+- **Apply by default, except destructive actions.** Renames, moves, tags, ratings and new folders
+  apply at once. Sending to Trash waits for an Apply card. Undo and Redo are prominent.
+
+Choices made:
+
+- **Chats stay on this device** in `chrome.storage.local`, at most 50, never synced or backed up.
+  1.7.0 kept one chat for the browser session; that chat moves into the history once.
+- **The Ask AI model is separate** from the Provider Settings model, per provider, so a large chat
+  model does not make Auto-Tag expensive.
+- **The Trash gate is in code**, not in the instructions: `sendsToTrash` in `agent_bridge.ts` stores
+  such a set as pending for the built-in Ask AI client. This is also the fix for the security
+  review's main finding (F1, a bookmark title steering the AI). Claude and ChatGPT keep D20's
+  "apply now": their users may be on a phone, away from the Apply card.
+- **Redo** replays an undone set as a new set, mapping ids a Trash restore changed, once.
+
+**Rule:** in Ask AI, nothing goes to Trash without the user's click; model text is rendered as
+plain text, and links from AI rows are http(s) only.
 
 ## D23. One AI Tools page (owner, 2026-11-10)
 

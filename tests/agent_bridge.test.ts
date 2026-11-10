@@ -293,6 +293,41 @@ describe('agent bridge', () => {
         expect((await s.bridge.askAI('apply_changes', { changeSet: { ops: [{ op: 'rename', id: h.id, title: 'x' }] } }) as unknown as { body: { accepted: boolean } }).body.accepted).toBe(false);
     });
 
+    it('D24: Ask AI never sends to Trash on its own; the set waits for the user, and Redo replays an undone set', async () => {
+        const s = setup();
+        const a = fakeBookmarks.seed('1', 'Old', 'https://old.example/');
+        const r = await s.bridge.askAI('apply_changes', { changeSet: { title: 'Clean', ops: [{ op: 'trash', id: a.id }] } }) as unknown as { body: { applied: boolean; needsApproval: boolean; changeSetId: string } };
+        expect(r.body).toMatchObject({ applied: false, needsApproval: true });
+        expect(fakeBookmarks.titlesIn('1')).toContain('Old');
+        const got = await s.changeSets.get(r.body.changeSetId);
+        expect(got.ok && got.set.state).toBe('pending');
+        // A rename alone still applies at once.
+        const b = fakeBookmarks.seed('1', 'B', 'https://b.example/');
+        const ren = await s.bridge.askAI('apply_changes', { changeSet: { ops: [{ op: 'rename', id: b.id, title: 'B2' }] } }) as unknown as { body: { applied: boolean; changeSetId: string } };
+        expect(ren.body.applied).toBe(true);
+        expect((await s.changeSets.undo(ren.body.changeSetId)).ok).toBe(true);
+        expect(fakeBookmarks.titlesIn('1')).toContain('B');
+        const redo = await s.changeSets.redo(ren.body.changeSetId);
+        expect(redo.ok).toBe(true);
+        expect(fakeBookmarks.titlesIn('1')).toContain('B2');
+        expect((await s.changeSets.redo(ren.body.changeSetId)).ok).toBe(false);
+    });
+
+    it('security: a token works only on the transport it was issued for, and remote connections strip query strings by default', async () => {
+        const s = setup();
+        const f = fakeBookmarks.seed('1', 'Work');
+        await s.bridge.cancelPrompt(false);
+        await s.bridge.openInvite();
+        expect((await s.bridge.state()).invite!.stripQuery).toBe(true);
+        const code = (await s.bridge.state()).invite!.code;
+        const done = await s.remote('pair', { pairingId: 'q'.repeat(20), client: 'Claude', code });
+        expect(done.ok).toBe(true);
+        const token = done.body!.token as string;
+        expect((await s.remote('list_folders', {}, token)).ok).toBe(true);
+        expect((await s.req(1, 'list_folders', {}, token)).error?.code).toBe('NOT_PAIRED');
+        void f;
+    });
+
     it('D20: the online connector pairs with the standing code on the Connect page, with the folders and mode chosen there', async () => {
         const s = setup();
         const f = fakeBookmarks.seed('1', 'Work');

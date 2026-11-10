@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-11-10T11:40:58+00:00 (rule 24: provider rules in one module; rule 25: the shared Cloudflare account; merging no longer needs the owner)._
+_Last updated: 2026-11-10T17:21:42+00:00 (rule 26: AI output is data; Trash needs the user's click in Ask AI)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,
@@ -129,6 +129,10 @@ node scripts/e2e/connector.mjs <scratch>/build                                  
     Reply Wizard's live API). Change only `bookmarks-thumbnails-connector` and
     `thumbnail-bookmarks-feedback`: never the account's workers.dev name, another Worker, its
     routes or custom domains, or DNS records you did not create (D22).
+26. **AI output is data, never markup** (D24): render model text as plain text; links from AI rows
+    only when http(s), in a new tab with `noopener`; no AI change sets a URL or opens a page; in
+    Ask AI nothing goes to Trash without the user's click (`sendsToTrash`). The worker answers only
+    the extension's own pages (`src/lib/sender.ts`).
 
 ## Allowed without asking
 

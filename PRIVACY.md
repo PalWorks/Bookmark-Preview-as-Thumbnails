@@ -1,6 +1,6 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-10T11:40:58+00:00
+**Last Updated:** 2026-11-10T17:21:42+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
@@ -76,8 +76,10 @@ order to screenshot them).
   chose in Provider Settings (AI Tools; AI Settings in 1.7.0 and earlier), only**, under your own key, so it can answer and make the changes
   you ask for. It can read every folder except those hidden from search. The panel names
   the provider and model before you send. The provider handles this data under its own
-  policy. The conversation is kept in the browser's session storage and is gone when the
-  browser closes. We never receive it.
+  policy. Your chats are kept on this device so you can return to them (at most 50; in 1.7.0
+  only until the browser closed). They are never synced and never in backups. Delete one
+  chat, or all of them, from the Chats list; uninstalling removes them. We never receive
+  them. Ask AI asks for your OK before it sends anything to Trash.
 - **Claude and ChatGPT (online connector).** If you turn on "Let Claude and ChatGPT
   organise my bookmarks" (menu > AI Tools > Connect Claude or ChatGPT; in 1.7.0, menu > Connect Claude or ChatGPT), the extension keeps a
   connection to our relay (a Cloudflare Worker run by us at bookmarks-connector.palworks.ai; 1.7.0 reaches the same Worker at its workers.dev address) while Chrome is open. When you

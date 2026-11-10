@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Ask AI (D20) in the real App: a message, the model's tool call, the change applied at once, Undo.
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup, configure, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, configure, waitFor, within } from '@testing-library/react';
 import App from '../../src/popup/App';
 import { fakeBookmarks } from '../fakes/chrome_bookmarks';
 import { connectTrash } from '../sw_bridge';
@@ -58,8 +58,75 @@ describe('Ask AI in the App', { timeout: 20000 }, () => {
         // The second call carried the tool result back to the model.
         const msgs = bodies[1].messages as Array<{ role: string; content: string }>;
         expect(msgs.find(m => m.role === 'tool')?.content).toContain('"applied":true');
-        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+        // Ask AI opened as a side panel beside the bookmarks.
+        const dock = screen.getByRole('complementary', { name: 'Ask AI' });
+        const [headerUndo] = within(dock).getAllByRole('button', { name: 'Undo' });
+        fireEvent.click(headerUndo);
         await waitFor(() => expect(fakeBookmarks.titlesIn('1')).toContain('Alpha'));
         await screen.findByText(/Undone: Clear names/);
+        // Redo puts the change back, as a new change set, and Undo is offered again.
+        fireEvent.click(within(dock).getAllByRole('button', { name: 'Redo' })[0]);
+        await waitFor(() => expect(fakeBookmarks.titlesIn('1')).toContain('Alpha docs'));
+        await waitFor(() => expect(within(dock).queryByText(/Undone: Clear names/)).toBeNull());
+        fireEvent.click(within(dock).getAllByRole('button', { name: 'Undo' })[0]);
+        await waitFor(() => expect(fakeBookmarks.titlesIn('1')).toContain('Alpha'));
+
+        // Both sides are bubbles with a time; the system prompt names the real model.
+        const reply = screen.getByText('Renamed Alpha to Alpha docs.');
+        expect(reply.className).toContain('ask-bubble--ai');
+        expect(screen.getByText('Give Alpha a clearer name').className).toContain('ask-bubble--user');
+        expect(document.querySelectorAll('time.ask-time').length).toBeGreaterThanOrEqual(2);
+        expect(within(dock).getByRole('separator').textContent).toBe('Today');
+        const sys = (bodies[0].messages as Array<{ role: string; content: string }>)[0];
+        expect(sys.content).toContain('"gpt-4o-mini" served by OpenAI');
+
+        // The chat is kept and can be reopened.
+        fireEvent.click(within(dock).getByRole('button', { name: 'Chats' }));
+        await within(dock).findByRole('button', { name: /^Give Alpha a clearer name/ });
+        fireEvent.click(within(dock).getByRole('button', { name: 'Chats' }));
+        fireEvent.click(within(dock).getByRole('button', { name: 'New chat' }));
+        await within(dock).findByText('What should change?');
+        fireEvent.click(within(dock).getByRole('button', { name: 'Chats' }));
+        fireEvent.click(await within(dock).findByRole('button', { name: /^Give Alpha a clearer name/ }));
+        await within(dock).findByText('Renamed Alpha to Alpha docs.');
+
+        // The full AI Tools page shows the same chat with previews of what changed.
+        fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /AI Tools/ }));
+        await screen.findByRole('tab', { name: 'Ask AI', selected: true });
+        await waitFor(() => expect(document.querySelector('.ask-prev-title')?.textContent).toBe('Alpha'));
+    });
+
+    it('sending to Trash waits for the user\'s OK in the chat; Apply then makes it, Don\'t changes nothing', async () => {
+        connectTrash();
+        const a = fakeBookmarks.seed('1', 'Old one', 'https://old.example/');
+        const b = fakeBookmarks.seed('1', 'Old two', 'https://old2.example/');
+        await saveAISettings({ mode: 'cloud', cloud: { provider: 'openai', model: 'gpt-4o-mini' } }, 'sk-test-key');
+        const bodies: Array<Record<string, unknown>> = [];
+        const trashCall = (id: string, cid: string) => openAIReply({ content: null, tool_calls: [{ id: cid, type: 'function', function: { name: 'apply_changes', arguments: JSON.stringify({ changeSet: { title: `Remove ${id}`, ops: [{ op: 'trash', id }] } }) } }] });
+        const replies = [trashCall(a.id, 'c1'), openAIReply({ content: 'Waiting for your OK.' }), trashCall(b.id, 'c2'), openAIReply({ content: 'Waiting again.' })];
+        vi.stubGlobal('fetch', vi.fn(async (_url: string, init: { body: string }) => { bodies.push(JSON.parse(init.body)); return replies.shift()!; }));
+        render(<App />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Ask AI' }));
+        await screen.findByText(/go to OpenAI/);
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Remove old one' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await screen.findByText('Waiting for your OK.');
+        // Nothing moved yet, and the model was told it needs the user's OK.
+        expect(fakeBookmarks.titlesIn('1')).toContain('Old one');
+        const toolMsg = (bodies[1].messages as Array<{ role: string; content: string }>).find(m => m.role === 'tool')!;
+        expect(toolMsg.content).toContain('needsApproval');
+        const card = screen.getByRole('group', { name: /Waiting for your OK: Remove/ });
+        fireEvent.click(within(card).getByRole('button', { name: /Apply/ }));
+        await waitFor(() => expect(fakeBookmarks.titlesIn('1')).not.toContain('Old one'));
+        expect((await screen.findAllByRole('button', { name: 'Undo' })).length).toBeGreaterThan(0);
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Remove old two' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await screen.findByText('Waiting again.');
+        const card2 = screen.getByRole('group', { name: new RegExp(`Waiting for your OK: Remove ${b.id}`) });
+        fireEvent.click(within(card2).getByRole('button', { name: /Don't/ }));
+        await screen.findByText(/Not done: Remove/);
+        expect(fakeBookmarks.titlesIn('1')).toContain('Old two');
     });
 });

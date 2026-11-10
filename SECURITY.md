@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-10T11:40:58+00:00 (OpenRouter key check, provider errors without request text, palworks.ai addresses, the shared Cloudflare account)._
+_Last updated: 2026-11-10T17:21:42+00:00 (review of every AI surface: what is fixed, what is open; Trash needs the user's OK in Ask AI)._
 
 ## Reporting a vulnerability
 
@@ -39,7 +39,8 @@ working exploits or keys publicly.
 
 | Boundary | Rule |
 |---|---|
-| Content script (runs inside third-party pages) | Cannot call `META_PATCH`, `FOLDER_PREFS_SET` or any `TRASH_*` message: the worker rejects senders whose URL is not an extension page. |
+| Content script (runs inside third-party pages) | Cannot send the worker any message: the worker answers only this extension's own pages (`src/lib/sender.ts`, F5). The content script is injected only for a capture and never sends messages. No `externally_connectable` and no `web_accessible_resources`, so sites and other extensions cannot reach the worker or frame its pages. |
+| What an AI reads (bookmark titles, links, folder names) | Untrusted: a title can carry instructions (prompt injection). Model replies are shown as plain text only (no HTML, no markdown, no images), links shown from AI rows are http(s) only and open in a new tab without the opener, no AI change can set a bookmark's URL, and nothing an AI does opens or captures a page. In Ask AI, sending to Trash waits for the user's OK (D24); everything else applies with Undo and Redo. |
 | Extension pages writing metadata | `META_PATCH` keeps only allowlisted fields with valid values (rating 1 to 5, times not in the future, tags capped at 20 of 50 characters, known capture statuses); ids at most 2,048 characters. |
 | Folder prefs | Only the worker writes them; ids must be existing, non-root folders; colours from a fixed list. |
 | Deletes made outside the extension | Recorded from Chrome's own `onRemoved` events only (no message can create an external entry); policy-managed bookmarks are not kept. |
@@ -100,3 +101,26 @@ from the service worker under the existing `<all_urls>` host permission.
 | 5 | The worker start and the retry alarm could open two sockets; switching off mid-connect left one serving | One connect at a time; a switch-off cancels it |
 | 6 | A batch of 20 tool calls counted as one request against the 60 a minute limit | One tool call per request |
 | 7 | A replaced socket could be chosen for a relay while closing [Unverified that the runtime lists it] | Marked as not live before it closes |
+
+## Review of every AI surface (2026-11-10)
+
+Read-only review (OWASP, STRIDE, LLM and agent risks, supply chain) of Ask AI, the shared tools,
+the online connector, the coding-agent helper, the content script and the manifest. No path was
+found from model output, tool results, bookmark titles or URLs to running code or opening a page.
+
+**Table S3: Findings and their state**
+
+| # | Severity | Finding | State |
+|---|---|---|---|
+| F1 | Medium | A bookmark title can steer Ask AI (prompt injection); "ask before more than 50 to Trash" was only an instruction to the model | **Fixed** (D24): any change set that sends to Trash waits for the user's OK in the chat; the rest applies with Undo and Redo |
+| F2 | Medium | Connector defaults: full links with query strings, tokens that never expire | **Part fixed**: new remote connections hide query strings by default. Open: token expiry after long idle (ROADMAP row 24) |
+| F3 | Medium | Whoever controls the Cloudflare account can capture connector tokens | **Open, owner decision** (ROADMAP row 25): a dedicated account with 2FA and scoped API tokens, or accept and document |
+| F4 | Low | A shared backup file could set AI mode, provider and server when no key was saved | **Fixed**: those three are never taken from a file; the panel names a custom server's address |
+| F5 | Low | The worker answered some messages (Auto-Tag, Smart Search, batch capture) from any sender; content scripts could read stored data | **Fixed**: only the extension's own pages are answered; storage access set to trusted contexts [Unverified that every supported Chrome applies it to storage.local] |
+| F6 | Low | Someone who knows a link id can use up its per-minute budget or the sign-in tries | **Open** (ROADMAP row 24): count failed tokens separately in the Durable Object |
+| F7 | Low | The helper installer trusts any unpacked extension with the product's name | **Open, owner decision** (ROADMAP row 25): the owner asked for automatic detection (Table E2); option: ask before adding an unpacked id |
+| F8 | Low | A token worked on either transport | **Fixed**: bound to the transport it was issued on |
+| F9 | Low | A custom server over plain http to the internet would send the key in clear text | **Fixed**: http only for this computer and the local network |
+| F10 | Info | Ask AI sends full links (with query strings) to the user's provider | **Open, by design**: disclosed in the panel; the AI uses links to sort |
+| F11 | Info | The helper's update instruction used `@latest` | **Fixed**: pinned to the package version |
+

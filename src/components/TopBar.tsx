@@ -68,6 +68,8 @@ interface TopBarProps {
     /** AI Tools (D20): opens on the Ask AI tab; the menu's single AI entry. */
     onAskAI?: () => void;
     isAskAIActive?: boolean;
+    /** The menu's AI Tools item (the top bar icon opens the Ask AI side panel instead). */
+    onAITools?: () => void;
     aiPendingCount?: number;
 }
 
@@ -113,6 +115,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     onOpenFeedback,
     onAskAI,
     isAskAIActive = false,
+    onAITools,
     aiPendingCount = 0,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -228,7 +231,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     type="button"
                     className={`icon-btn topbar-ai-btn topbar-ask-btn ${isAskAIActive ? 'topbar-ai-btn--active' : ''}`}
                     onClick={onAskAI ?? onAISettings}
-                    title="Ask AI to organise your bookmarks"
+                    title={isAskAIActive ? 'Close Ask AI' : 'Ask AI to organise your bookmarks'}
                     aria-label="Ask AI"
                     aria-pressed={isAskAIActive}
                 >
@@ -533,7 +536,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <div className="menu-divider"></div>
 
                         <button type="button" role="menuitem" className="menu-item" onClick={() => {
-                            (onAskAI ?? onAISettings)();
+                            (onAITools ?? onAskAI ?? onAISettings)();
                             setIsMenuOpen(false);
                         }}>
                             <Sparkles size={16} className="menu-icon menu-icon--ai" aria-hidden="true" />

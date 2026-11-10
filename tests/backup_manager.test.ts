@@ -389,15 +389,18 @@ describe('BackupManager', () => {
                     ai_custom_url: `https://${'user'}:${'secret'}@evil.example/v1`, evil: true, ai_mode: 'cloud',
                 },
             }));
-            expect(r).toMatchObject({ success: true, kind: 'settings', settingsApplied: 2, settingsSkipped: 5, aiProviderHeld: false });
-            expect(syncStore).toEqual({ sidebarHidden: false, ai_mode: 'cloud' });
+            // ai_mode is valid but held: a file never decides where AI requests go (F4).
+            expect(r).toMatchObject({ success: true, kind: 'settings', settingsSkipped: 5, aiProviderHeld: true });
+            expect(syncStore).toEqual({ sidebarHidden: false });
         });
 
         it('rejects an endpoint with a query string, accepts a clean one', async () => {
             await manager.importBackup(fileOf({ settings: { ai_custom_url: 'https://llm.example/v1?key=abc' } }));
             expect(syncStore.ai_custom_url).toBeUndefined();
-            await manager.importBackup(fileOf({ settings: { ai_custom_url: 'https://llm.example/v1/chat/completions' } }));
-            expect(syncStore.ai_custom_url).toBe('https://llm.example/v1/chat/completions');
+            const r = await manager.importBackup(fileOf({ settings: { ai_custom_url: 'https://llm.example/v1/chat/completions' } }));
+            // Valid, but where AI requests go is never taken from a file.
+            expect(r.aiProviderHeld).toBe(true);
+            expect(syncStore.ai_custom_url).toBeUndefined();
         });
 
         it('never changes the AI provider or endpoint while an API key is saved', async () => {
@@ -412,10 +415,16 @@ describe('BackupManager', () => {
             expect(syncStore.theme).toBe('dark');
         });
 
-        it('applies the provider when no key is saved', async () => {
-            const r = await manager.importBackup(fileOf({ settings: { ai_provider: 'groq' } }));
-            expect(r.aiProviderHeld).toBe(false);
-            expect(syncStore.ai_provider).toBe('groq');
+        it('never applies the AI mode, provider or server from a file, even with no key saved (F4)', async () => {
+            const r = await manager.importBackup(fileOf({ settings: { ai_mode: 'cloud', ai_provider: 'custom', ai_custom_url: 'https://attacker.example/v1', theme: 'dark' } }));
+            expect(r.aiProviderHeld).toBe(true);
+            expect(syncStore.ai_mode).toBeUndefined();
+            expect(syncStore.ai_provider).toBeUndefined();
+            expect(syncStore.ai_custom_url).toBeUndefined();
+            expect(syncStore.theme).toBe('dark');
+            // The same values as now are not reported.
+            Object.assign(syncStore, { ai_provider: 'groq' });
+            expect((await manager.importBackup(fileOf({ settings: { ai_provider: 'groq' } }))).aiProviderHeld).toBe(false);
         });
 
         it('a JSON file that is not a backup is refused with a clear message', async () => {

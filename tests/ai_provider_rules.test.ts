@@ -5,8 +5,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
     openAIBody, replyBudget, geminiThinkingConfig, isOutOfCredit, providerError, wasCutAtBudget,
     retryAfterMs, fetchWithRetry, upgradeRetiredModel, MIN_REPLY_TOKENS, THINKING_HEADROOM_TOKENS,
-    OUT_OF_CREDIT_MESSAGE, EMPTY_REPLY_MESSAGE,
+    OUT_OF_CREDIT_MESSAGE, EMPTY_REPLY_MESSAGE, endpointProblem,
 } from '../src/lib/ai_provider_rules';
+import { isOwnPage } from '../src/lib/sender';
+import { sendsToTrash } from '../src/sw/agent_bridge';
 import { friendlyError, isFatalAIError, validateProviderKey } from '../src/lib/ai_tagger';
 import { callModel } from '../src/lib/agent/llm';
 
@@ -134,5 +136,33 @@ describe('Ask AI requests', () => {
         expect(body.max_completion_tokens).toBeGreaterThan(0);
         expect(body).not.toHaveProperty('max_tokens');
         expect(body).not.toHaveProperty('temperature');
+    });
+});
+
+describe('security checks', () => {
+    it('plain http only on this computer or the local network (F9)', () => {
+        for (const ok of ['https://llm.example/v1', 'http://localhost:11434', 'http://127.0.0.1:8080/v1', 'http://192.168.1.20:11434', 'http://10.0.0.5', 'http://172.20.1.1', 'http://gpu-box.local:11434', 'http://gpubox:11434']) {
+            expect(endpointProblem(ok)).toBe('');
+        }
+        expect(endpointProblem('http://llm.example/v1')).toMatch(/https/);
+        expect(endpointProblem('http://172.32.0.1')).toMatch(/https/);
+        expect(endpointProblem('javascript:alert(1)')).not.toBe('');
+        expect(endpointProblem('file:///etc/passwd')).not.toBe('');
+        expect(endpointProblem(`https://${'u'}:${'p'}@llm.example`)).toMatch(/user name/);
+    });
+
+    it('only the extension\'s own pages may message the worker (F5)', () => {
+        const own = chrome.runtime.getURL('index.html');
+        expect(isOwnPage({ id: chrome.runtime.id, url: own })).toBe(true);
+        expect(isOwnPage({ id: chrome.runtime.id, url: 'https://evil.example/' })).toBe(false);
+        expect(isOwnPage({ id: 'otherextension', url: own })).toBe(false);
+        expect(isOwnPage({ id: chrome.runtime.id })).toBe(false);
+    });
+
+    it('a change set that sends anything to Trash is recognised in either form', () => {
+        expect(sendsToTrash({ ops: [{ op: 'rename', id: '1', title: 'x' }, { op: 'trash', id: '2' }] })).toBe(true);
+        expect(sendsToTrash(JSON.stringify({ ops: [{ op: 'trash', id: '2' }] }))).toBe(true);
+        expect(sendsToTrash({ ops: [{ op: 'move', id: '1', parentId: '2' }] })).toBe(false);
+        expect(sendsToTrash('not json')).toBe(false);
     });
 });

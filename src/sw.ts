@@ -6,6 +6,7 @@ import { thumbnailStorage } from './lib/thumbnail_storage';
 import { storageIndex } from './lib/storage_index';
 import { fsAccess } from './lib/fsaccess';
 import { generateErrorImage } from './lib/error_generator';
+import { isOwnPage } from './lib/sender';
 import { checkAIAvailability, tagBookmark, invalidateAITemplate, searchBookmarks, friendlyError, isFatalAIError } from './lib/ai_tagger';
 import { loadAISettings, bindLegacyApiKey } from './lib/ai_settings_storage';
 import { migrateStorageSchema, markFreshInstall, repairMisMigratedKeys } from './lib/storage_migration';
@@ -84,8 +85,13 @@ chrome.action.onClicked.addListener(() => {
     });
 });
 
-// Listen for messages from popup or content scripts
+// Keep stored data (the API key, the connector secret, chats) away from content scripts.
+// [Unverified] that every supported Chrome applies this to storage.local; it is harmless where not.
+try { void (chrome.storage.local as unknown as { setAccessLevel?: (o: { accessLevel: string }) => Promise<void> }).setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' })?.catch(() => undefined); } catch { /* not supported */ }
+
+// Messages from the extension's own pages (popup tab, options).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || typeof message !== 'object' || !isOwnPage(_sender)) return false;
     if (message.type === 'CAPTURE_THUMBNAIL') {
         captureActiveTab()
             .then(sendResponse)

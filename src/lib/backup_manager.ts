@@ -195,8 +195,13 @@ export const SETTINGS_SCHEMA: Readonly<Record<string, Validator>> = {
     ai_custom_url: endpoint,
 };
 
-/** Changing either of these could redirect a saved API key; held when a key exists. */
-const KEY_ROUTING_SETTINGS = ['ai_provider', 'ai_custom_url'] as const;
+/**
+ * Where AI requests go. A shared or hostile file must never choose that: with a key saved it
+ * could redirect the key, and without one it could point Ask AI and Auto-Tag at a server that
+ * reads every title and link and answers with changes (security review 2026-11-10, F4). Held
+ * whenever they differ; the user sets them in Provider Settings.
+ */
+const KEY_ROUTING_SETTINGS = ['ai_mode', 'ai_provider', 'ai_custom_url'] as const;
 
 /** Keep only allowlisted settings with valid values. */
 export function sanitizeSettings(raw: unknown): { settings: Record<string, unknown>; skipped: string[] } {
@@ -311,14 +316,12 @@ export class BackupManager {
 
         const { settings, skipped } = sanitizeSettings(data.settings);
         let aiProviderHeld = false;
-        const local = await chrome.storage.local.get('ai_api_key_encrypted');
-        if (local.ai_api_key_encrypted) {
-            const current = await chrome.storage.sync.get([...KEY_ROUTING_SETTINGS]);
-            for (const key of KEY_ROUTING_SETTINGS) {
-                if (!(key in settings)) continue;
-                if ((current[key] ?? '') !== settings[key]) aiProviderHeld = true;
-                delete settings[key];
-            }
+        const current = await chrome.storage.sync.get([...KEY_ROUTING_SETTINGS]);
+        const defaults: Record<string, string> = { ai_mode: 'builtin', ai_provider: 'openai', ai_custom_url: '' };
+        for (const key of KEY_ROUTING_SETTINGS) {
+            if (!(key in settings)) continue;
+            if ((current[key] ?? defaults[key]) !== settings[key]) aiProviderHeld = true;
+            delete settings[key];
         }
         if (Object.keys(settings).length > 0) await chrome.storage.sync.set(settings);
 

@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-10T11:40:58+00:00 (459 Vitest tests, 11 bridge tests, 36 connector tests, three e2e scripts; provider rules tests; wrangler dev pinned to its local origin)._
+_Last updated: 2026-11-10T17:21:42+00:00 (475 Vitest tests; chats, model list, previews, Trash approval, Redo, security checks)._
 
 ## Commands
 
@@ -81,7 +81,9 @@ storage and bookmarks to test crash recovery.
 | D20 bridge: `apply_changes` applies at once and `undo_changes` reverts it, retries never apply twice, one bad change refuses the whole call, review mode only proposes, read mode refuses, a connection cannot undo another's set, Ask AI scope (every non-hidden folder, never paired), the connector's standing code with its folders and mode, five wrong codes end it | `agent_bridge.test.ts` |
 | Ask AI: shared tool list mapping, the three provider adapters (OpenAI-compatible, Anthropic, Gemini), key in a header never the URL, providers without tool calling refused, the tool loop and its cap, tool errors, change cards with Undo | `ask_ai.test.ts` |
 | Provider rules (ai-provider-kit, D21): OpenAI `max_completion_tokens` and no temperature, the 300-token floor and thinking headroom by named set, Gemini thinking switch, empty replies cut at the limit in all three shapes, out of credit before rate limits, xAI 400 and 403, retries (5xx yes; 401, out-of-credit 429 and our own abort no; `Retry-After` clamped), retired defaults upgraded only on an exact match, OpenRouter checked at `/key` with management keys refused | `ai_provider_rules.test.ts` |
-| Ask AI in the App: what to set up without a provider, a change applied at once with a card and Undo | `components/AskAI.test.tsx` |
+| Ask AI chats and safety (D24): save, list, load, delete, the 50 cap, malformed rows; model list filtering and the key in a header; the per-provider Ask AI model; the system prompt names the model and strips odd characters; preview rows keep only http(s) links; changed before looked-at | `ask_ai_chats.test.ts` |
+| Security checks: plain http only on the local network, only the extension's own pages may message the worker, Trash detection; a token works only on its own transport; remote connections strip query strings by default; Ask AI Trash waits as pending; Redo once | `ai_provider_rules.test.ts`, `agent_bridge.test.ts` |
+| Ask AI in the App: what to set up without a provider; the side panel; a change applied at once with Undo and Redo from the header; bubbles, times and the day divider; chats reopened; the AI Tools page with previews; Trash waits for Apply, Don't changes nothing | `components/AskAI.test.tsx` |
 | Online connector, browser side: off until switched on, hello with id and secret, relay by request id, pings, reconnect, a new address, only a local development origin may override | `remote_link.test.ts` |
 | Connect Claude or ChatGPT page: switch, address with Copy, standing code with folders and mode, connected apps | `components/Connect.test.tsx` |
 | Connector Worker: link hello and secret hash, relay and offline, one-time codes and their 2-minute life, limits per link and per network, signed client ids and page state, redirect URI rules, PKCE, metadata, MCP JSON-RPC edges, the full OAuth flow, fail closed without `CLIENT_ID_SECRET` | `connector/test/*.test.ts` (Node test runner, not in the Vitest count) |
