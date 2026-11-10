@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadAISettings, getBoundApiKey, PROVIDERS, type AICloudConfig } from '../../lib/ai_settings_storage';
 import { callModel, runAgent, NO_TOOLS, type Msg, type ToolCall } from '../../lib/agent/llm';
+import { friendlyError } from '../../lib/ai_tagger';
 import type { ClientResponse } from '../../lib/bridge/protocol';
 
 const SESSION_KEY = 'ask_ai_chat';
@@ -190,7 +191,7 @@ export function useAskAI(enabled = true): AskAIApi {
                 history.current = trimHistory([...history.current, ...added]);
             } catch (err) {
                 const aborted = ctl.signal.aborted;
-                add([{ kind: 'error', text: aborted ? 'Stopped.' : (err instanceof Error ? err.message : String(err)) }]);
+                add([{ kind: 'error', text: aborted ? 'Stopped.' : friendlyError(err) }]);
                 // Keep the transcript valid for every provider (no tool call left without its result).
                 history.current = trimHistory([...history.current, { role: 'user' as const, text },
                     { role: 'assistant' as const, text: 'That request stopped before it finished. Changes already made, if any, are listed above with Undo.', calls: [] }]);

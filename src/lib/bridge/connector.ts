@@ -13,8 +13,8 @@
 
 import type { ClientRequest, ClientResponse } from './protocol.ts';
 
-/** Production address (workers.dev, PalWorks account). Deploying it needs the owner. */
-export const CONNECTOR_ORIGIN = 'https://bookmarks-thumbnails-connector.sunmooncal.workers.dev';
+/** Production address: a custom domain on palworks.ai (the workers.dev address stays on for 1.7.0 copies). Deploying it needs the owner. */
+export const CONNECTOR_ORIGIN = 'https://bookmarks-connector.palworks.ai';
 
 /** Link ids: 16 random bytes, base64url (22 chars). Secrets: 32 bytes (43 chars). */
 export const LINK_ID_RE = /^[A-Za-z0-9_-]{22}$/;

@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser).
+Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser); provider fixes
+and addresses 2026-11-10T11:23:53+00:00.
 
 ### Changed
 
@@ -17,6 +18,29 @@ Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser).
   changes (with the count waiting for review). The tabs scroll sideways on phones.
 - The **Ask AI** button in the top bar is the icon alone (named "Ask AI" for screen readers). It
   opens AI Tools on the Ask AI tab.
+- **Our own addresses.** The connector is now `https://bookmarks-connector.palworks.ai` and the
+  feedback form posts to `https://bookmarks-feedback.palworks.ai`. The old workers.dev addresses
+  stay on, so connections made with them keep working.
+- **Current default models** where the old one stopped working: Groq `openai/gpt-oss-120b`,
+  DeepSeek `deepseek-v4-flash`, Gemini `gemini-3.1-flash-lite`, Cerebras `gpt-oss-120b`, Anthropic
+  `claude-haiku-4-5`, OpenRouter `openai/gpt-4o-mini`, xAI `grok-4.6`. A saved model that is exactly
+  an old retired default is upgraded on load; a model you chose yourself is never changed.
+
+### Fixed
+
+Provider rules ported from the owner's ai-provider-kit (`src/lib/ai_provider_rules.ts`):
+
+- Newer OpenAI models work: OpenAI gets `max_completion_tokens` and no temperature.
+- Reasoning models no longer return empty tags: a 300-token floor, headroom for models that think
+  anyway, and Gemini thinking switched off by a named list rather than a name pattern.
+- An empty answer cut at the token limit is reported ("the model used its whole reply budget
+  thinking") and stops a tagging batch, instead of tagging every bookmark "Other".
+- An OpenRouter key is checked at `/key`. Before, any text passed, because the model list is public.
+  A management key is refused.
+- Out of credit is named as such, even when the provider sends 429, and stops a tagging batch.
+  xAI's 400 for a bad key and 403 for an unfunded team point at the right fix.
+- Calls retry 429 (unless out of credit), 5xx and network errors up to twice, honouring
+  `Retry-After` (at most 10 s). Our own Stop and timeouts are never retried.
 
 ## [Helper 1.7.1] - 2026-11-10 (`bookmarks-thumbnails-mcp` on npm only; the extension is unchanged)
 

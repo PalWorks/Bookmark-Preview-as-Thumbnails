@@ -90,8 +90,9 @@ npm test && npm run typecheck && npm run smoke
 npx wrangler deploy
 ```
 
-The Worker is `bookmarks-thumbnails-connector` on workers.dev, so its address matches
-`CONNECTOR_ORIGIN` in `src/lib/bridge/connector.ts`. Preview URLs are off. Without
+The Worker is `bookmarks-thumbnails-connector`, served on `bookmarks-connector.palworks.ai`
+(matching `CONNECTOR_ORIGIN` in `src/lib/bridge/connector.ts`) and on workers.dev for 1.7.0 copies.
+Both addresses reach the same Durable Objects, so a link works on either. Preview URLs are off. Without
 `CLIENT_ID_SECRET` every OAuth and MCP endpoint answers `503`. Rotating the secret invalidates every
 registered client id, so each app registers and connects again; tokens already issued keep working.
 

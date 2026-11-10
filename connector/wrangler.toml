@@ -3,10 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2026-09-01"
 account_id = "96ec2a311affbd387b884673c0e84eb8"
 
-# Served on workers.dev, so the address matches CONNECTOR_ORIGIN in
-# src/lib/bridge/connector.ts. Preview URLs are off: one public endpoint.
+# Served on bookmarks-connector.palworks.ai (CONNECTOR_ORIGIN in src/lib/bridge/connector.ts)
+# and on workers.dev. Preview URLs are off.
 workers_dev = true
 preview_urls = false
+
+# Custom domain on palworks.ai (attached 2026-11-10). It adds one hostname to this Worker and
+# touches no other Worker or DNS record on the account. workers.dev stays on so copies of the
+# extension that still use the old address keep working.
+routes = [{ pattern = "bookmarks-connector.palworks.ai", custom_domain = true }]
 
 # Secret, never in this file: CLIENT_ID_SECRET (wrangler secret put CLIENT_ID_SECRET).
 # It signs client ids and authorize page state, and keys the HMAC that names a

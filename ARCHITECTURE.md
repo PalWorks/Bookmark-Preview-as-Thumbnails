@@ -201,9 +201,9 @@ bottom-aligned dialogs. Colours for new components come from tokens in
 ## External dependencies
 
 React 19, lucide-react, html2canvas-pro 2.5.2 (capture; replaced html2canvas 1.4.1 in 1.6.0). Two network services of our own. The
-online connector (`connector/`, `https://bookmarks-thumbnails-connector.sunmooncal.workers.dev`,
-not deployed yet) is described under "Online connector" below. The
-feedback relay in `worker/` (Cloudflare Worker, `https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev`),
+online connector (`connector/`, `https://bookmarks-connector.palworks.ai`; the old
+`bookmarks-thumbnails-connector.sunmooncal.workers.dev` address stays on for 1.7.0) is described under "Online connector" below. The
+feedback relay in `worker/` (Cloudflare Worker, `https://bookmarks-feedback.palworks.ai`; the old workers.dev address stays on for 1.6.0 and 1.7.0),
 called only when the user sends the feedback form (`src/lib/feedback.ts`, D16). It emails
 support@palworks.ai through Resend. Optional AI calls (Auto-Tag, Smart Search, Ask AI) go only
 to the provider the user configures (see PRIVACY.md).

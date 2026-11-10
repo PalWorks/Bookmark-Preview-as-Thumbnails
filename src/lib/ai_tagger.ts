@@ -6,6 +6,10 @@
 //                 Together / Cerebras / Perplexity / OpenRouter / Ollama / Custom
 
 import { loadAISettings, getBoundApiKey, type AIProvider, type AICloudConfig } from './ai_settings_storage';
+import {
+    fetchWithRetry, providerError, openAIBody, replyBudget, geminiThinkingConfig, wasCutAtBudget,
+    EmptyReplyError, EMPTY_REPLY_MESSAGE, OUT_OF_CREDIT_MESSAGE,
+} from './ai_provider_rules';
 
 export const AI_TAGS = [
     'Dev', 'Design', 'Finance', 'Shopping', 'News',
@@ -31,13 +35,15 @@ export function friendlyError(err: unknown): string {
     if (err instanceof DOMException && err.name === 'AbortError') return 'Request cancelled.';
     if (err instanceof DOMException && err.name === 'TimeoutError') return 'AI request timed out. The model may be busy or unreachable.';
     const msg = err instanceof Error ? err.message : String(err);
+    // Named causes first: an out-of-credit 429 must not read as "wait and retry".
+    if (msg === OUT_OF_CREDIT_MESSAGE || msg === EMPTY_REPLY_MESSAGE || msg.startsWith('Access denied by xAI')) return msg;
     if (/abort/i.test(msg)) return 'Request cancelled.';
     if (/timed? ?out|timeout/i.test(msg)) return 'AI request timed out. The model may be busy or unreachable.';
     if (/\b401\b|invalid.*api.*key|unauthor|invalid_api_key/i.test(msg)) return 'Invalid or missing API key — check Provider Settings.';
     if (/\b403\b|permission|forbidden/i.test(msg)) return 'Access denied by the provider (key lacks permission or wrong region).';
     if (/\b404\b|not found|no longer available|does not exist/i.test(msg)) return 'Model not found — update the model name in Provider Settings.';
+    if (/quota|billing|insufficient|exceeded your current|credit/i.test(msg)) return 'Quota or billing issue with your provider account.';
     if (/\b429\b|rate.?limit|too many requests/i.test(msg)) return 'Rate limited by the provider — wait a moment and retry.';
-    if (/quota|billing|insufficient|exceeded your current/i.test(msg)) return 'Quota or billing issue with your provider account.';
     if (/failed to fetch|networkerror|load failed|err_connection|fetch failed/i.test(msg)) return 'Network error — provider unreachable. Check the URL, your connection, and (for local servers) CORS.';
     if (/\b5\d\d\b|internal server|service unavailable|bad gateway/i.test(msg)) return 'Provider server error — try again shortly.';
     return msg.length > 220 ? msg.slice(0, 220) + '…' : msg;
@@ -49,7 +55,7 @@ export function friendlyError(err: unknown): string {
 // rate-limit, a single odd response, a transient network blip) is per-item and
 // safe to skip-and-continue. Classifies the normalised friendlyError() text.
 export function isFatalAIError(friendlyMessage: string): boolean {
-    return /invalid or missing api key|access denied|model not found|quota or billing|no api key configured|no model name configured|custom endpoint url not configured|different provider or endpoint|not available|chrome 138/i.test(friendlyMessage);
+    return /invalid or missing api key|access denied|model not found|quota or billing|out of credit|whole reply budget thinking|no api key configured|no model name configured|custom endpoint url not configured|different provider or endpoint|not available|chrome 138/i.test(friendlyMessage);
 }
 
 // The curated list is now a STEER, not a hard whitelist: the model is encouraged
@@ -133,74 +139,71 @@ async function callBuiltInRaw(systemPrompt: string, userMessage: string, signal?
 
 // ─── Cloud API helpers ────────────────────────────────────────────────────────
 
-async function callOpenAICompat(
-    apiKey: string, model: string, systemPrompt: string, userContent: string, endpoint: string,
-    signal?: AbortSignal, maxTokens = 150
-): Promise<string> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-    const resp = await fetch(endpoint, {
+// One POST with retries; a failure becomes a provider-aware error (ai_provider_rules).
+async function postProvider(
+    provider: AIProvider, url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal,
+): Promise<unknown> {
+    const resp = await fetchWithRetry(url, {
         method: 'POST',
-        headers,
-        signal: withTimeout(signal, AI_CALL_TIMEOUT_MS),
-        body: JSON.stringify({
-            model,
-            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
-            max_tokens: maxTokens,
-            temperature: 0.2,
-        }),
-    });
-    if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`);
-    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
-    return data.choices?.[0]?.message?.content ?? '';
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+    }, { signal, timeoutMs: AI_CALL_TIMEOUT_MS });
+    if (!resp.ok) throw providerError(provider, resp.status, await resp.text().catch(() => ''));
+    return resp.json();
+}
+
+/** The answer text, or an EmptyReplyError when a 200 came back empty because the budget ran out. */
+function answerOrThrow(text: string, data: unknown): string {
+    if (!text.trim() && wasCutAtBudget(data)) throw new EmptyReplyError();
+    return text;
+}
+
+async function callOpenAICompat(
+    provider: AIProvider, apiKey: string, model: string, systemPrompt: string, userContent: string, endpoint: string,
+    signal?: AbortSignal, maxTokens = 256
+): Promise<string> {
+    const headers: Record<string, string> = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+    const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }];
+    const data = await postProvider(provider, endpoint, headers,
+        openAIBody(provider, model, messages, replyBudget(provider, model, maxTokens)), signal);
+    const text = (data as { choices?: Array<{ message?: { content?: string | null } }> }).choices?.[0]?.message?.content ?? '';
+    return answerOrThrow(text, data);
 }
 
 async function callAnthropic(
-    apiKey: string, model: string, systemPrompt: string, userContent: string, signal?: AbortSignal, maxTokens = 150
+    apiKey: string, model: string, systemPrompt: string, userContent: string, signal?: AbortSignal, maxTokens = 256
 ): Promise<string> {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        signal: withTimeout(signal, AI_CALL_TIMEOUT_MS),
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-            model, system: systemPrompt,
-            messages: [{ role: 'user', content: userContent }],
-            max_tokens: maxTokens,
-        }),
-    });
-    if (!resp.ok) throw new Error(`Anthropic error ${resp.status}: ${await resp.text()}`);
-    const data = await resp.json() as { content?: Array<{ text?: string }> };
-    return data.content?.[0]?.text ?? '';
+    const data = await postProvider('anthropic', 'https://api.anthropic.com/v1/messages', {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+    }, {
+        model, system: systemPrompt,
+        messages: [{ role: 'user', content: userContent }],
+        max_tokens: replyBudget('anthropic', model, maxTokens),
+    }, signal);
+    const blocks = (data as { content?: Array<{ type?: string; text?: string }> }).content ?? [];
+    return answerOrThrow(blocks.filter(b => b.type === 'text' || b.type === undefined).map(b => b.text ?? '').join(''), data);
 }
 
 async function callGemini(
-    apiKey: string, model: string, systemPrompt: string, userContent: string, signal?: AbortSignal, maxTokens = 150
+    apiKey: string, model: string, systemPrompt: string, userContent: string, signal?: AbortSignal, maxTokens = 256
 ): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    const generationConfig: Record<string, unknown> = { maxOutputTokens: maxTokens, temperature: 0.2 };
-    // Gemini 2.5 Flash enables "thinking" by default, drawn from the SAME output
-    // budget — so a small budget gets spent on hidden reasoning and the visible
-    // reply comes back empty/truncated. Disable it for these short structured tasks.
-    if (/2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    const resp = await fetch(url, {
-        method: 'POST',
-        signal: withTimeout(signal, AI_CALL_TIMEOUT_MS),
-        // Key goes in a header, never the URL — URLs leak into logs/proxies/timing APIs.
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
+    // Thinking draws from the same output budget, so a short structured task switches it
+    // off; models that refuse the switch get headroom instead (replyBudget).
+    const generationConfig: Record<string, unknown> = { maxOutputTokens: replyBudget('gemini', model, maxTokens), temperature: 0.2 };
+    const thinking = geminiThinkingConfig(model, false);
+    if (thinking) generationConfig.thinkingConfig = thinking;
+    // Key goes in a header, never the URL: URLs leak into logs, proxies and timing APIs.
+    const data = await postProvider('gemini',
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        { 'x-goog-api-key': apiKey }, {
             system_instruction: { parts: [{ text: systemPrompt }] },
             contents: [{ parts: [{ text: userContent }] }],
             generationConfig,
-        }),
-    });
-    if (!resp.ok) throw new Error(`Gemini error ${resp.status}: ${await resp.text()}`);
-    const data = await resp.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        }, signal);
+    const parts = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }> }).candidates?.[0]?.content?.parts ?? [];
+    return answerOrThrow(parts.filter(p => !p.thought).map(p => p.text ?? '').join(''), data);
 }
 
 const OPENAI_COMPAT_ENDPOINTS: Partial<Record<AIProvider, string>> = {
@@ -216,7 +219,7 @@ const OPENAI_COMPAT_ENDPOINTS: Partial<Record<AIProvider, string>> = {
 };
 
 async function callCloudRaw(
-    systemPrompt: string, userContent: string, cloud: AICloudConfig, signal?: AbortSignal, maxTokens = 150
+    systemPrompt: string, userContent: string, cloud: AICloudConfig, signal?: AbortSignal, maxTokens = 256
 ): Promise<string> {
     if (!cloud.model || !cloud.model.trim()) {
         throw new Error('No model name configured. Open Provider Settings to set one.');
@@ -242,7 +245,7 @@ async function callCloudRaw(
     } else {
         endpoint = OPENAI_COMPAT_ENDPOINTS[cloud.provider] ?? 'https://api.openai.com/v1/chat/completions';
     }
-    return callOpenAICompat(apiKey, cloud.model, systemPrompt, userContent, endpoint, signal, maxTokens);
+    return callOpenAICompat(cloud.provider, apiKey, cloud.model, systemPrompt, userContent, endpoint, signal, maxTokens);
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -344,8 +347,20 @@ export async function validateProviderKey(
             if (res.status === 401 || res.status === 403) return { ok: false, models: [], message: 'Invalid key.' };
             // A server error is inconclusive — don't claim the key is valid.
             if (res.status >= 500) return { ok: false, models: [], message: friendlyError(`error ${res.status}`) };
-            // Anything else (e.g. 400 for an unknown model) still proves the key authenticated.
-            return { ok: true, models: [], message: 'Key verified.' };
+            // Anything else (e.g. 400 for an unknown model) means the key was accepted, not that it works.
+            return { ok: true, models: [], message: 'Key accepted.' };
+        }
+
+        // OpenRouter: /models is a public catalogue (200 for any key or none), so it proves
+        // nothing. /key needs the key; a management key passes it but cannot generate.
+        if (provider === 'openrouter') {
+            const res = await fetch('https://openrouter.ai/api/v1/key', { headers: { Authorization: `Bearer ${apiKey}` }, signal: sig });
+            if (!res.ok) return { ok: false, models: [], message: friendlyError(`error ${res.status}`) };
+            const d = (await res.json() as { data?: { is_management_key?: boolean; is_provisioning_key?: boolean } }).data;
+            if (d?.is_management_key === true || d?.is_provisioning_key === true) {
+                return { ok: false, models: [], message: 'That is an OpenRouter management key. It manages other keys and cannot answer. Create a normal API key instead.' };
+            }
+            return { ok: true, models: [], message: 'Key accepted.' };
         }
 
         // Standard OpenAI-compatible: GET {base}/models.
