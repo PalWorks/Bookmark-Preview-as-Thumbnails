@@ -10,7 +10,7 @@ connect Claude or ChatGPT, or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0 on a branch: Ask AI, Connect Claude or ChatGPT, coding agents)._
+_Last updated: 2026-11-10T11:40:58+00:00 (1.7.0 in Web Store review; on `main` for the next release: one AI Tools page, provider fixes, palworks.ai addresses)._
 
 ## Contents
 
@@ -67,12 +67,17 @@ while you have it switched on (it relays requests and stores none of your bookma
 - **AI features, opt-in**: Auto-Tag, Smart Search (natural language), Duplicate Finder (no AI
   needed). On-device Gemini Nano by default, or OpenAI, Anthropic, Google Gemini, Groq, Mistral,
   DeepSeek, xAI, Together, Cerebras, Perplexity, OpenRouter, Ollama or any OpenAI-compatible
-  server with your own key.
+  server with your own key. Provider rules measured in the owner's ai-provider-kit (newer OpenAI
+  models, reasoning models, out-of-credit errors, retries, current default models) live in
+  `src/lib/ai_provider_rules.ts`.
+- **One AI Tools page** (next release): the menu's single **AI Tools** item and the top bar's Ask
+  AI icon open one page with tabs: Ask AI, Provider Settings, Auto-Tag, Smart Search, Duplicate
+  Finder, Connect Claude or ChatGPT, AI changes.
 - **Backup**: export everything (settings and previews) or settings only; import either. Optionally
   save previews to a folder on disk.
 - **Feedback from inside the extension** (1.6.0): Settings > Submit Feedback sends a
   message, with an optional reply address and optional counts-only technical details.
-- **Ask AI** (1.7.0): a chat panel that uses the provider and key from AI Settings to read and
+- **Ask AI** (1.7.0): a chat panel that uses the provider and key from Provider Settings to read and
   reorganise your bookmarks (folders, moves, renames, tags, ratings, Trash). Changes apply at once
   and each shows a card with Undo. Every folder except those hidden from search is in scope.
 - **Connect Claude or ChatGPT** (1.7.0): add one address as a custom connector in Claude or a
@@ -141,11 +146,11 @@ There are no environment variables. Everything is set in the extension:
 | List view columns | List view, Columns | `chrome.storage.sync` |
 | Keep deletes made outside the extension | Trash view, top switch | `chrome.storage.sync` |
 | Folder colour, hidden from search | Folder's More actions menu | `chrome.storage.local` (this device; included in exports by folder path) |
-| AI engine, provider, model, server address, preferred tags | AI Settings | `chrome.storage.sync` |
-| AI API key | AI Settings | `chrome.storage.local`, encrypted, bound to its provider |
+| AI engine, provider, model, server address, preferred tags | AI Tools → Provider Settings, Auto-Tag | `chrome.storage.sync` |
+| AI API key | AI Tools → Provider Settings | `chrome.storage.local`, encrypted, bound to its provider |
 | Storage folder for previews | Settings menu → Choose storage folder | IndexedDB (folder handle) |
-| Claude and ChatGPT switch, connector address | Menu → Connect Claude or ChatGPT | `chrome.storage.local` (`connector_link`; never in backups) |
-| Folders and mode per connection | Menu → Connect Claude or ChatGPT | `chrome.storage.local` (`bridge_clients`; never in backups) |
+| Claude and ChatGPT switch, connector address | AI Tools → Connect Claude or ChatGPT | `chrome.storage.local` (`connector_link`; never in backups) |
+| Folders and mode per connection | AI Tools → Connect Claude or ChatGPT | `chrome.storage.local` (`bridge_clients`; never in backups) |
 
 ## Usage
 
@@ -160,11 +165,12 @@ There are no environment variables. Everything is set in the extension:
 6. A folder's **More actions** menu has **Colour...** and **Hide from search**.
 7. In list view, **Columns** chooses Added, Opened, Rating, Visits and Last visited; click
    **Rate** to give a link 1 to 5 stars.
-8. **AI Settings** (settings menu) turns on Auto-Tag, Smart Search and Duplicate Finder, and
-   holds the provider and key that Ask AI uses.
-9. **Ask AI** (top bar) opens the chat: say what to change, and use **Undo** on any change card.
-   **AI changes** (menu) lists everything an AI changed or suggested, with Undo.
-10. **Connect Claude or ChatGPT** (menu): turn on "Let Claude and ChatGPT organise my bookmarks",
+8. **AI Tools** (menu, or the Ask AI icon in the top bar) opens one page with tabs. **Provider
+   Settings** holds the provider and key; **Auto-Tag**, **Smart Search** and **Duplicate Finder**
+   turn those features on.
+9. **Ask AI** (first tab) is the chat: say what to change, and use **Undo** on any change card.
+   **AI changes** (last tab) lists everything an AI changed or suggested, with Undo.
+10. **Connect Claude or ChatGPT** (AI Tools tab): turn on "Let Claude and ChatGPT organise my bookmarks",
    copy the address into Claude (Settings > Connectors > Add custom connector) or ChatGPT
    (developer mode app), and type the 6-digit code shown on that page when the app asks. The
    collapsed "Coding agents on this computer" section pairs Claude Code, Cursor or VS Code
@@ -184,9 +190,10 @@ src/
   sw/remote_link.ts     the browser side of the online connector (WebSocket)
   lib/bridge/tools.ts   the shared tool list
   lib/agent/llm.ts      Ask AI's tool-calling loop (OpenAI-compatible, Anthropic, Gemini)
+  lib/ai_provider_rules.ts  provider rules shared by Auto-Tag, Smart Search and Ask AI
   lib/                  shared modules (storage, trash_store, bookmark_tree, AI, backup, utils)
-  popup/                React app: App.tsx, hooks/, components/ (AI Settings, tiles)
-  components/           TopBar, Sidebar, MainContent, TrashView, FolderPicker, Modal, Toast, ...
+  popup/                React app: App.tsx, hooks/, components/ (Provider Settings and AI tabs, tiles)
+  components/           TopBar, Sidebar, MainContent, TrashView, AIToolsTabs, AskAIView, AgentsView, ...
   content/capture.ts    content script
 public/manifest.json    extension manifest
 tests/                  Vitest suites, fakes/, sw_bridge.ts
@@ -210,7 +217,7 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-446 tests cover migration, metadata merges and the metadata allowlist, API key binding, Trash
+459 tests cover migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
 apply, Undo, recovery), the bridge (modes, apply and undo), Ask AI, the connector link, the
@@ -218,7 +225,7 @@ reactive bookmark tree, backups, and the whole app in jsdom. `npm run e2e` check
 in a real Chrome; `scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together (18
 checks); `scripts/e2e/connector.mjs` runs Chrome, the connector Worker under `wrangler dev` and an
 MCP client through sign-in, tools, Undo and revocation (15 checks). The feedback relay has 32
-tests of its own, the helper package 9 (`bridge/test/`) and the connector 34 (`cd connector &&
+tests of its own, the helper package 11 (`bridge/test/`) and the connector 36 (`cd connector &&
 npm test`). See [TESTING.md](TESTING.md).
 
 ## Deployment
@@ -227,15 +234,19 @@ CI (`.github/workflows/extension-ci.yml`) is one job that runs lint, tests, buil
 check, the connector tests and typecheck, and the real-Chrome smoke, bridge and connector e2e
 scripts on pull requests that change code; docs-only pull requests skip it. Releases are uploaded to the Chrome Web Store by the maintainer; the
 website deploys to GitHub Pages from `main`; the feedback relay and the connector are deployed
-by hand with Wrangler by the owner ([worker/README.md](worker/README.md),
-[connector/README.md](connector/README.md)). Steps, the permission gate and rollback:
+by hand with Wrangler ([worker/README.md](worker/README.md),
+[connector/README.md](connector/README.md)) and served on `bookmarks-feedback.palworks.ai` and
+`bookmarks-connector.palworks.ai` (their workers.dev addresses stay on for older copies). The
+Cloudflare account is shared with the owner's other projects, so only these two Workers' own
+settings are ever changed. Steps, the permission gate and rollback:
 [PLAYBOOK.md](PLAYBOOK.md).
 
 ## Roadmap
 
 1.6.0 is live on the Chrome Web Store. 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents;
-[docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is built on a branch and waits for
-release; the connector Worker is not deployed yet. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
+[docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is in Web Store review, with the
+connector Worker live and `bookmarks-thumbnails-mcp@1.7.1` on npm. `main` already holds the next
+release: one AI Tools page, the provider fixes and the palworks.ai addresses. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
 changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing

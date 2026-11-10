@@ -1,6 +1,6 @@
 # Data model
 
-_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: connector_link, ask_ai_chat, client mode and transport, the invite)._
+_Last updated: 2026-11-10T11:40:58+00:00 (retired default models upgraded on read; no new keys)._
 
 All data is local to the browser profile. None of the 1.7.0 `cs*`, `bridge_*` or `connector_link`
 keys has the legacy metadata shape (`tests/change_sets.test.ts`), and backups never include them
@@ -96,7 +96,7 @@ Trash.
 | `trashExternal` | boolean | Keep deletes made outside the extension in Trash (1.4.0; default true) |
 | `ai_mode` | string | `builtin`, `cloud` |
 | `ai_provider` | string | a provider id from `PROVIDERS` |
-| `ai_model` | string | up to 200 characters |
+| `ai_model` | string | up to 200 characters. On read, an id that is exactly a retired default (for example Groq `llama-3.3-70b-versatile`, DeepSeek `deepseek-chat`, Gemini `gemini-2.5-flash`) is replaced by its successor (`RETIRED_MODELS` in `src/lib/ai_provider_rules.ts`); the stored value is rewritten only when the user saves |
 | `ai_custom_url` | string | http(s) URL without credentials, query or fragment |
 | `ai_custom_tags` | string | comma-separated, up to 2000 characters |
 

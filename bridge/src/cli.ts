@@ -94,7 +94,7 @@ async function main(): Promise<void> {
             });
             const next = [
                 '', 'Next:',
-                '  1. In Chrome, open the extension: menu > Connect Claude or ChatGPT > Coding agents > turn on "Connect coding agents".',
+                '  1. In Chrome, open the extension: menu > AI Tools > Connect Claude or ChatGPT > Coding agents > turn on "Connect coding agents".',
                 `  2. Claude Code:  ${SETUP_COMMAND}`,
                 `     Cursor / VS Code (mcp.json): {"mcpServers":{"bookmarks":{"command":"npx","args":["-y","${PACKAGE_NAME}@${VERSION}"]}}}`,
                 '  3. Ask the agent: "pair with my bookmarks", and type the code the extension shows.',

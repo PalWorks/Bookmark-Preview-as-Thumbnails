@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-10T03:52:11+00:00 (1.7.0, D20: Ask AI and the online connector threat model; security review fixes)._
+_Last updated: 2026-11-10T11:40:58+00:00 (OpenRouter key check, provider errors without request text, palworks.ai addresses, the shared Cloudflare account)._
 
 ## Reporting a vulnerability
 
@@ -24,6 +24,16 @@ working exploits or keys publicly.
   MCP endpoint answers 503.
 - Ask AI sends the user's own key only to the provider and endpoint it is bound to, in a header,
   never in the URL (`tests/ask_ai.test.ts`).
+- Key checks prove what they claim: an OpenRouter key is checked at `/key` (its `/models` list is
+  public and answers any key), and a management key, which cannot answer, is refused. A probe that
+  cannot read a model list says "Key accepted", never "Key verified" (D21).
+- A provider's error body can quote the request back (bookmark titles), so at most 300 characters
+  of it reach an error message, and it is shown only to the user who sent it; out-of-credit
+  errors are recognised from the body and then replaced by fixed text.
+- The two Workers run on a Cloudflare account shared with the owner's other projects. Their
+  custom domains (`bookmarks-connector.palworks.ai`, `bookmarks-feedback.palworks.ai`) were
+  attached as hostnames on these two Workers only; nothing else on the account changes with them
+  (D22, AGENTS rule 25).
 
 ## Trust boundaries
 
@@ -64,8 +74,8 @@ calls over a WebSocket the browser opened. What protects each step:
 | Flooding | 64 KB per request (413), 30 s per tool call, 60 MCP requests a minute per link (429). |
 | What a connected app may do | Only the folders and mode chosen on the code card (default: every top-level folder except hidden ones, mode `change`), changeable or removable at any time on the Connect page. |
 
-Not covered by tests: real Claude and ChatGPT clients against the deployed Worker [Unverified:
-the Worker is not deployed yet].
+Real Claude and ChatGPT clients against the deployed Worker are not covered by automated tests;
+they passed a manual run on 2026-11-10 (connect, read, change and Undo).
 
 ## Permissions
 

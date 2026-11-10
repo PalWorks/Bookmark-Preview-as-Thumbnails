@@ -1,6 +1,6 @@
 # bookmarks-thumbnails-mcp
 
-_Last updated: 2026-11-10T03:45:49+00:00 (apply and undo, modes per agent, new menu names)._
+_Last updated: 2026-11-10T11:40:58+00:00 (menu path is now AI Tools > Connect Claude or ChatGPT)._
 
 Let a coding agent on your computer (Claude Code, Cursor, VS Code) read the bookmark folders you
 choose in Chrome and organise them in the
@@ -15,7 +15,7 @@ Linux and macOS, Google Chrome, Node 22 or newer. Windows, Edge and Brave are pl
 
 ## Quick start
 
-1. In Chrome, open the extension menu: **Connect Claude or ChatGPT**, open **Coding agents on
+1. In Chrome, open the extension menu: **AI Tools**, then the **Connect Claude or ChatGPT** tab, open **Coding agents on
    this computer**, turn on **Connect coding agents** and allow the permission Chrome asks for.
 2. Add the helper to your agent. Claude Code:
 
@@ -62,15 +62,15 @@ OK   node: Node 22.18.0 (needs 22 or newer)
 OK   chrome: host manifest: ~/.config/google-chrome/NativeMessagingHosts/com.palworks.bookmarks_thumbnails.json
 OK   chrome: launcher: ~/.local/share/bookmarks-thumbnails/host-chrome.sh
 FAIL browser connected: no browser profile has the switch on
-     Fix: In Chrome: extension menu > Connect Claude or ChatGPT > Connect coding agents.
+     Fix: In Chrome: extension menu > AI Tools > Connect Claude or ChatGPT > Connect coding agents.
 ```
 
 | Symptom | Fix |
 |---|---|
 | The extension says "Helper app not found" | Run `npx bookmarks-thumbnails-mcp install`, then turn the switch off and on. |
-| `NOT_CONNECTED` | Turn on Connect coding agents (menu > Connect Claude or ChatGPT) in the Chrome profile you paired with. |
+| `NOT_CONNECTED` | Turn on Connect coding agents (menu > AI Tools > Connect Claude or ChatGPT) in the Chrome profile you paired with. |
 | `NOT_PAIRED` after it worked | The agent was removed in the extension, or the extension's data was cleared. Pair again. |
-| `READ_ONLY` | The agent is set to Read only; change it in menu > Connect Claude or ChatGPT. |
+| `READ_ONLY` | The agent is set to Read only; change it in menu > AI Tools > Connect Claude or ChatGPT. |
 | `AMBIGUOUS_TARGET` | Several Chrome profiles have the switch on; pass `--profile`. |
 | `doctor --last-error` | Prints the helper's last error from its log. |
 | Chrome from Flatpak or Snap | Not supported; use Chrome from google.com. |

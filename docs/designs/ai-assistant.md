@@ -1,6 +1,6 @@
 # Ask AI and the online connector
 
-_Last updated: 2026-11-10T08:23:46+00:00 (AI Tools page: one menu item and one tabbed page, owner)._
+_Last updated: 2026-11-10T11:40:58+00:00 (provider rules from ai-provider-kit, D21; the connector at bookmarks-connector.palworks.ai, D22)._
 
 ## Why
 
@@ -13,7 +13,7 @@ a chat inside the extension or from the Claude and ChatGPT apps, phone included.
 | Surface | How it works | Needs |
 |---|---|---|
 | **Ask AI** (panel in the extension) | Type "move my recipe bookmarks into a Cooking folder". The model the user already set up for auto-tagging calls the bookmark tools; changes apply at once with Undo. | An API key in AI settings (OpenAI, Anthropic, Gemini, Groq, Mistral, and the other OpenAI-compatible providers) or a local Ollama |
-| **Claude and ChatGPT** (online connector) | Copy one address from the extension into Claude ("Add custom connector") or ChatGPT (developer mode app). Sign-in shows a 6-digit code in the extension. Then talk to Claude or ChatGPT anywhere, phone included. | Chrome open on the computer, with the switch on |
+| **Claude and ChatGPT** (online connector) | Copy one address (`https://bookmarks-connector.palworks.ai/mcp/<linkId>`; 1.7.0 shows the workers.dev address, which keeps working) from the extension into Claude ("Add custom connector") or ChatGPT (developer mode app). Sign-in shows a 6-digit code in the extension. Then talk to Claude or ChatGPT anywhere, phone included. | Chrome open on the computer, with the switch on |
 | **Coding agents** (local helper, from 1.7.0) | Claude Code, Cursor, VS Code through `bookmarks-thumbnails-mcp` | Node 22 |
 | Copy and paste (from 1.7.0) | Kept as "Other ways" for people without a key or connector | Nothing |
 
@@ -82,7 +82,10 @@ requests a minute per link.
   item. Both open the AI Tools page on its first tab, Ask AI. The page's tabs: Ask AI, Provider
   Settings, Auto-Tag, Smart Search, Duplicate Finder, Connect Claude or ChatGPT, AI changes.
 
-- Runs in the extension page with the provider settings and bound key from AI settings (D2).
+- Runs in the extension page with the provider settings and bound key from Provider Settings (D2).
+- Requests follow the measured provider rules in `src/lib/ai_provider_rules.ts` (D21): OpenAI's
+  newer budget field, headroom for models that think, Gemini thinking on and dynamic, an empty
+  answer cut at the limit reported as an error, out of credit named, retries for 429 and 5xx.
 - Tool calling for three API styles: OpenAI-compatible (most providers and Ollama), Anthropic
   Messages, Gemini. Chrome's built-in model has no tool calling and is not offered.
 - Each tool call goes to the service worker (`AGENT_TOOL`), which runs it through the same handler as

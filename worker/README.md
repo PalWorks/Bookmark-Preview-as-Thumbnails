@@ -61,8 +61,10 @@ npx wrangler deploy
 ## Deployed instance
 
 `https://bookmarks-feedback.palworks.ai` (custom domain, attached 2026-11-10) and
-`https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev` (kept for 1.6.0 and 1.7.0), deployed
-2026-11-09 on the PalWorks Cloudflare account, preview URLs off. Durable Object `FeedbackLimiter`
+`https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev` (kept for 1.6.0 and 1.7.0), first
+deployed 2026-11-09 and redeployed from `main` on 2026-11-10 (version `abd38be9`) on the PalWorks
+Cloudflare account, which is shared with the owner's other projects (AGENTS rule 25); preview URLs
+off. Durable Object `FeedbackLimiter`
 (SQLite-backed, migration `v1`, redeployed 2026-11-09); rate-limit namespace `2003` (2001 and 2002 belong to
 other PalWorks workers on the same account). Sender `feedback.ThumbnailBookmarks@palworks.ai`,
 recipient `support@palworks.ai`. The Resend key is a sending-only key named
