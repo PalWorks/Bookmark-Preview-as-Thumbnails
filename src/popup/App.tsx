@@ -37,6 +37,14 @@ import { moveNodes, undoMoves, type MoveResult } from '../lib/bulk_move';
 import { undoRename, type RenameResult } from '../lib/rename';
 import { buildDiagnostics, type FeedbackDiagnostics } from '../lib/feedback';
 import { FeedbackDialog } from '../components/FeedbackDialog';
+import { AIOrganiseDialog } from '../components/AIOrganiseDialog';
+import { AIChangesView } from '../components/AIChangesView';
+import { useChangeSets } from './hooks/useChangeSets';
+import { AgentsView } from '../components/AgentsView';
+import { useBridge } from './hooks/useBridge';
+import { useConnector } from './hooks/useConnector';
+import { useAskAI } from './hooks/useAskAI';
+import { AskAIView } from '../components/AskAIView';
 
 /** Bookmark and folder counts for feedback diagnostics (numbers only). */
 function countTree(roots: chrome.bookmarks.BookmarkTreeNode[]): { bookmarks: number; folders: number } {
@@ -52,7 +60,7 @@ function countTree(roots: chrome.bookmarks.BookmarkTreeNode[]): { bookmarks: num
 }
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
-type Panel = 'bookmarks' | 'ai-settings' | 'trash';
+type Panel = 'bookmarks' | 'ai-settings' | 'trash' | 'ai-changes' | 'agents' | 'ask-ai';
 
 // An incognito page talks to the incognito worker, which cannot write Trash.
 const IS_INCOGNITO_PAGE = typeof chrome !== 'undefined' && chrome.extension?.inIncognitoContext === true;
@@ -163,6 +171,15 @@ function App() {
         readOnly: IS_INCOGNITO_PAGE,
     });
     const canDelete = !IS_INCOGNITO_PAGE;
+
+    // ── AI changes (D18) ──────────────────────────────────────────────────────
+    const changeSets = useChangeSets(!IS_INCOGNITO_PAGE);
+    const [aiDialog, setAIDialog] = useState<'export' | 'import' | null>(null);
+    const [aiSetId, setAISetId] = useState<string | null>(null);
+    const openAIChanges = (id: string | null = null) => { setAISetId(id); openPanel('ai-changes'); };
+    const bridgeApi = useBridge();
+    const connector = useConnector(!IS_INCOGNITO_PAGE);
+    const askAI = useAskAI(!IS_INCOGNITO_PAGE);
 
     // ── AI auto-tagging ───────────────────────────────────────────────────────
     const {
@@ -673,6 +690,11 @@ function App() {
                 onToggleFolders={toggleFolders}
                 foldersOpen={foldersOpen}
                 onOpenTrash={() => openPanel('trash')}
+                onOpenAIChanges={() => openAIChanges(null)}
+                onOpenAgents={() => openPanel('agents')}
+                onAskAI={() => openPanel('ask-ai')}
+                isAskAIActive={activePanel === 'ask-ai'}
+                aiPendingCount={changeSets.pendingCount}
                 trashCount={trash.badgeCount}
                 onToggleSelect={() => { if (selection.active) selection.clear(); else { openPanel('bookmarks'); selection.start(); } }}
                 selecting={showSelectionBar}
@@ -705,6 +727,40 @@ function App() {
                         onDeleteBookmarks={(targets) => trash.deleteItems(targets, { origin: 'duplicate-finder' })}
                         canDelete={canDelete}
                         hiddenFolderIds={hiddenIds}
+                    />
+                ) : activePanel === 'ask-ai' ? (
+                    <AskAIView
+                        api={askAI}
+                        onBack={() => openPanel('bookmarks')}
+                        onOpenSettings={() => openPanel('ai-settings')}
+                        onOpenConnect={() => openPanel('agents')}
+                        onOpenActivity={() => openAIChanges(null)}
+                        onCopyPaste={() => setAIDialog('export')}
+                        readOnly={IS_INCOGNITO_PAGE}
+                        toast={(message, tone) => toast.show({ message, tone: tone === 'error' ? 'error' : 'success' })}
+                    />
+                ) : activePanel === 'agents' ? (
+                    <AgentsView
+                        connector={connector}
+                        api={bridgeApi}
+                        roots={bookmarkTree}
+                        hiddenFolderIds={hiddenIds}
+                        onBack={() => openPanel('bookmarks')}
+                        readOnly={IS_INCOGNITO_PAGE}
+                        toast={(message, tone) => toast.show({ message, tone: tone === 'error' ? 'error' : 'success' })}
+                    />
+                ) : activePanel === 'ai-changes' ? (
+                    <AIChangesView
+                        api={changeSets}
+                        roots={bookmarkTree}
+                        selectedId={aiSetId}
+                        onSelect={setAISetId}
+                        onBack={() => openPanel('bookmarks')}
+                        onOrganise={() => setAIDialog('export')}
+                        onAskAI={() => openPanel('ask-ai')}
+                        onImport={() => setAIDialog('import')}
+                        readOnly={IS_INCOGNITO_PAGE}
+                        toast={(message, tone) => toast.show({ message, tone: tone === 'error' ? 'error' : 'success' })}
                     />
                 ) : activePanel === 'trash' ? (
                     <TrashView
@@ -814,6 +870,17 @@ function App() {
                     busy={colorBusy}
                     onCancel={() => setColorFor(null)}
                     onSave={(c) => { void saveColor(c); }}
+                />
+            )}
+
+            {aiDialog && (
+                <AIOrganiseDialog
+                    roots={bookmarkTree}
+                    hiddenFolderIds={hiddenIds}
+                    api={changeSets}
+                    startAt={aiDialog}
+                    onClose={() => setAIDialog(null)}
+                    onImported={(id) => { setAIDialog(null); openAIChanges(id); }}
                 />
             )}
 

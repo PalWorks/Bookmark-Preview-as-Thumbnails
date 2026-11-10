@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-09T05:16:27+00:00 (1.6.0: feedback relay)._
+_Last updated: 2026-11-10T03:52:11+00:00 (1.7.0, D20: Ask AI and the online connector threat model; security review fixes)._
 
 ## Reporting a vulnerability
 
@@ -18,6 +18,12 @@ working exploits or keys publicly.
   Anthropic style, GitHub, Slack, Resend, JWT, private keys, webhook URLs) and on source maps.
 - The feedback relay (`worker/`, D16) holds a send-only Resend key scoped to palworks.ai and an
   `IP_HASH_SECRET`, both as Cloudflare Worker secrets, never in the repository.
+- The online connector (`connector/`, D20) holds one secret, `CLIENT_ID_SECRET`, as a Cloudflare
+  Worker secret (`.dev.vars` locally, gitignored). It signs client ids and the authorize page's
+  form state, and keys the HMAC that names a network in the limiter. Without it every OAuth and
+  MCP endpoint answers 503.
+- Ask AI sends the user's own key only to the provider and endpoint it is bound to, in a header,
+  never in the URL (`tests/ask_ai.test.ts`).
 
 ## Trust boundaries
 
@@ -32,11 +38,55 @@ working exploits or keys publicly.
 | Restore destination | Never chosen across storage scopes (local vs synced) without the user picking it. |
 | Managed bookmarks | Never deleted; a request that includes one is rejected as a whole. |
 | Extension pages | CSP `script-src 'self'; object-src 'self'`; no remote code. |
+| AI change sets (pasted, from a file, from Ask AI, Claude, ChatGPT or a coding agent) | Untrusted input: parsed with limits (1 MB, 200 changes, 1,000 items removed), control and bidi characters stripped, rendered as text; validated in full by simulation against the live tree, and one bad change refuses the whole set; ids outside the shared folders or inside hidden ones read as unknown, and a folder that holds a hidden folder cannot be sent to Trash (review of 2026-11-10). Pasted sets and connections in `propose` mode wait for the user's Apply (Trash contents frozen at approval); Ask AI and connections in `change` mode (the default since D20) apply at once, journaled, with removals going to Trash. Undo never overwrites a newer change; a connection may undo only its own sets. |
+| Ask AI (extension page, the user's provider) | Tool calls arrive as `AGENT_TOOL` from extension pages in regular windows only; scope is every folder not hidden from search; at most 12 tool calls per message; tool results cut at 24,000 characters. Bookmark titles and links are untrusted text that could try to steer the model (prompt injection); the worst case is a change the user can undo in one click, inside the folders in scope. |
+| Online connector (public endpoint, D20) | See "Online connector threat model" below. |
+| Coding-agent bridge (local programs of the same OS user) | Optional `nativeMessaging`, requested from a click. The host listens on a 0600 Unix socket in a 0700 folder it checks with `lstat` (no links, same owner) and keeps no state. Pairing needs a 6-digit code shown only in the extension, bound to the client's random pairing id, 2-minute life, 3 tries, 5 prompts an hour, blockable per name. Tokens are 32 random bytes; only their SHA-256 is stored; they never appear in output, errors or logs. Each agent reads only the folders the user ticks (never hidden ones) and may change only in the mode the user chose (`read`, `propose` or `change`). At most 4 connections and 64 KB per request. The regular worker only. |
 | Feedback relay (public, unauthenticated endpoint) | JSON only, 16 KB body, 4,000-character message, plausible-email check, honeypot; accepts only our extension's origins (a web page from any other origin gets 403); per-network burst and hourly limits plus a daily global cap, counted atomically in a Durable Object that refuses when it cannot count (an IPv6 sender counts as its /64); a failed send gives the allowance back; generic errors that never echo the provider's response; stores only rate-limit counters keyed by an HMAC of the network, deleted within 26 hours. |
+
+## Online connector threat model (D20)
+
+Claude and ChatGPT reach the user's browser through our Worker (`connector/`), which relays MCP
+calls over a WebSocket the browser opened. What protects each step:
+
+**Table S1: Connector threats and controls**
+
+| Threat | Control |
+|---|---|
+| Someone learns the connector address `<origin>/mcp/<linkId>` | The link id is not a secret, but it is 16 random bytes and not guessable. Knowing it gives nothing without a token: MCP calls without a valid bearer token get 401. |
+| Someone guesses the sign-in code | The 6-digit code shows only in the extension, changes every 10 minutes, and ends after 5 wrong tries; the Worker allows 4 authorization attempts a minute per network (start and code entry both count). |
+| Another site posts the authorize form, or changes its OAuth fields | Posts from another origin are refused (`Origin`, `Sec-Fetch-Site`); the fields carrying the OAuth parameters are HMAC-signed page state that expires; the page has no script and a CSP of `default-src 'none'; style-src 'self'; form-action 'self' <app origin>; frame-ancestors 'none'; base-uri 'none'`. |
+| A stolen authorization code | One-time, stored under its hash, valid for 2 minutes, bound to the client id and redirect URI, and exchanged only with the PKCE S256 verifier. |
+| Forged or altered client registrations | Registration is stateless: the client id is an HMAC-signed record of the redirect URIs and client name, so it cannot be changed; redirect URIs must be https (http only on loopback) without fragments or user info. Rotating `CLIENT_ID_SECRET` invalidates every client id. |
+| A leaked token | The token lives only in the AI app (as its access token) and, as a SHA-256 hash, in the extension; the Worker holds it only inside a 2-minute authorization code. Removing the connection in the extension revokes it; "Make a new address" also replaces the link secret and removes every online connection. |
+| Someone else's browser answering for a link | The browser's first frame carries the link secret; the Durable Object stores its SHA-256 on first use and refuses a different secret later. |
+| The relay reading or keeping bookmark data | Requests and answers pass through in memory only. The Worker stores no bookmark data and never logs tokens, secrets, codes or request and response bodies; its one log line is an error name with the path, link ids masked. |
+| Flooding | 64 KB per request (413), 30 s per tool call, 60 MCP requests a minute per link (429). |
+| What a connected app may do | Only the folders and mode chosen on the code card (default: every top-level folder except hidden ones, mode `change`), changeable or removable at any time on the Connect page. |
+
+Not covered by tests: real Claude and ChatGPT clients against the deployed Worker [Unverified:
+the Worker is not deployed yet].
 
 ## Permissions
 
 See PRIVACY_DETAILS.md for the justification of each permission. New permissions must not add an
 install warning (DECISIONS.md D3). The optional `history` permission is requested only from a
 click and checked with `chrome.permissions.contains` before every use; it was verified to add
-no install warning (Chrome 156, 2026-11-08).
+no install warning (Chrome 156, 2026-11-08). The optional `nativeMessaging` permission (1.7.0)
+follows the same rule; `management.getPermissionWarningsByManifest` returned the same warnings with
+and without it (2026-11-09). The online connector (D20) adds no permission: it uses a WebSocket
+from the service worker under the existing `<all_urls>` host permission.
+
+## Review of the D20 changes (2026-11-10)
+
+**Table S2: Findings and fixes**
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | Sending a shared folder to Trash also removed a folder inside it that is hidden from search | Refused, with the same reason as an unknown id |
+| 2 | Ask AI history cut at a fixed length could split a tool call from its result, so long chats failed | History is cut only at a user message |
+| 3 | The standing sign-in code had no hourly cap, and a new code reset the folders the user chose | At most 10 new codes an hour; the choice is kept |
+| 4 | A bad authorize request redirected straight to any registered address (open redirect) | Shown on the page instead |
+| 5 | The worker start and the retry alarm could open two sockets; switching off mid-connect left one serving | One connect at a time; a switch-off cancels it |
+| 6 | A batch of 20 tool calls counted as one request against the 60 a minute limit | One tool call per request |
+| 7 | A replaced socket could be chosen for a relay while closing [Unverified that the runtime lists it] | Marked as not live before it closes |

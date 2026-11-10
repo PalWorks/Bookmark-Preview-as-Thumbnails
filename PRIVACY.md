@@ -1,15 +1,17 @@
 # Privacy Policy for Bookmarks Thumbnails
 
-**Last Updated:** 2026-11-09T16:00:59+00:00
+**Last Updated:** 2026-11-10T03:45:49+00:00
 
 Bookmarks Thumbnails is designed to be privacy-respecting. This policy explains
 exactly what data the extension handles and where it goes.
 
 ## What the extension stores (locally)
 
-All of the following stays **on your device**; it is never sent to us. The only
-server we run is the feedback relay described under "Feedback you send", and it
-receives only what you type into the feedback form:
+All of the following stays **on your device**; it is never stored by us. We run two
+small servers: the feedback relay described under "Feedback you send", which receives
+only what you type into the feedback form, and, only if you turn it on, the connector
+for Claude and ChatGPT described under "Ask AI, Claude and ChatGPT", which passes
+requests through without storing them:
 
 1. **Thumbnails & metadata.** Screenshots captured for your bookmarks, plus their
    titles, status and timestamps, are stored locally in `chrome.storage.local`.
@@ -61,9 +63,54 @@ engine:
   are sent. Your data is handled by the chosen provider under **their** privacy
   policy and terms. We do not receive, store, or sell any of it.
 
-If you never enable a cloud AI provider and never send feedback, the extension
-makes no third-party network requests (it only loads the pages you bookmark, in
+If you never enable a cloud AI provider, never use Ask AI, never turn on the Claude and
+ChatGPT connector, never send feedback and never pair a coding agent, the extension makes
+no third-party network requests (it only loads the pages you bookmark, in
 order to screenshot them).
+
+## Ask AI, Claude and ChatGPT, and coding agents (optional, from 1.7.0)
+
+- **Ask AI.** If you open Ask AI and send a message, the extension sends your message
+  and what the AI asks to read (bookmark and folder titles, links, folder paths, tags,
+  ratings and when you last opened a bookmark from the extension) to **the provider you
+  chose in AI Settings, only**, under your own key, so it can answer and make the changes
+  you ask for. It can read every folder except those hidden from search. The panel names
+  the provider and model before you send. The provider handles this data under its own
+  policy. The conversation is kept in the browser's session storage and is gone when the
+  browser closes. We never receive it.
+- **Claude and ChatGPT (online connector).** If you turn on "Let Claude and ChatGPT
+  organise my bookmarks" (menu > Connect Claude or ChatGPT), the extension keeps a
+  connection to our relay (a Cloudflare Worker run by us) while Chrome is open. When you
+  ask Claude or ChatGPT about your bookmarks, their servers send the request through our
+  relay to your browser, and your browser's answer (titles, links, folder paths, tags and
+  ratings from the folders you chose) goes back through the relay to them. The relay
+  passes this data through in memory and **stores none of it**: it keeps only a one-way
+  hash of your link's secret, a per-minute request counter, one-time sign-in codes for at
+  most 2 minutes, and short-lived per-network counters named by a keyed one-way hash of
+  the network address (never the address). It does not log what passes through. Claude
+  and ChatGPT handle what they receive under Anthropic's and OpenAI's own policies. You
+  choose which folders an app may see and whether it may read only, suggest changes for
+  you to review, or change with Undo. Removing a connection, switching off, or "Make a new
+  address" stops it.
+- **Changes an AI makes** apply at once (unless you chose review first) and can be undone
+  with one click; removed bookmarks go to the extension's Trash.
+- **Copy and paste ("Other ways").** You tick the folders to share (none are ticked at first).
+  The extension builds a text of their titles, links, tags and ratings that you copy
+  or save, and you decide which AI to give it to; that AI's provider handles it under
+  its own policy. You can remove the part of links after "?". Folders hidden from
+  search are never included. The extension itself sends nothing anywhere.
+- **Coding agents.** If you turn on "Connect coding agents" (menu > Connect Claude or
+  ChatGPT > Coding agents on this computer), Chrome asks for the
+  optional "communicate with cooperating native applications" permission. A helper
+  program on your computer then relays requests from coding agents you pair (with a
+  6-digit code shown only in the extension). A paired agent can read only the folders
+  you tick for it, and it may pass what it reads to the AI service it uses. You choose
+  whether it may read only, suggest changes for you to review, or change with Undo.
+  Pairing tokens are stored as one-way hashes. Turning the switch off removes the
+  permission.
+- **Change sets** you import or receive, and the record that lets you undo them, are
+  kept in `chrome.storage.local` for 30 days. They are not included in backups, and
+  neither are your connections or the connector address.
 
 ## Feedback you send (optional)
 
@@ -98,9 +145,12 @@ support@palworks.ai.
   of the bookmarks on screen from Chrome's history, on your device, and stores nothing.
   Turning those columns off gives the permission back; you can also remove it in
   `chrome://extensions`.
+- **nativeMessaging (optional, 1.7.0)** — asked for only when you turn on "Connect
+  coding agents", so the extension can talk to the helper program you installed for coding
+  agents. Turning the switch off gives the permission back.
 - **host permissions (`<all_urls>`)** — capture screenshots of any site you have
-  bookmarked, and (only if you enable cloud AI) send requests to your chosen
-  provider's API endpoint.
+  bookmarked, and (only if you enable cloud AI or Ask AI) send requests to your chosen
+  provider's API endpoint. The Claude and ChatGPT connector needs no extra permission.
 
 ## Data deletion
 

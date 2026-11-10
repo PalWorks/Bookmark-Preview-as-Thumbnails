@@ -31,6 +31,7 @@ function entrySummary(e: TrashEntry): string {
 
 function operationSummary(op: TrashOperation): string {
     if (op.origin === 'duplicate-finder') return `${plural(op.items.length, 'duplicate')} removed by Duplicate Finder`;
+    if (op.origin === 'ai-changes') return `${plural(op.items.length, 'item')} removed by AI changes you applied`;
     if (op.origin === 'external' && op.items.length > 1) {
         const paths = new Set(op.items.map(i => entryPath(i.entry)));
         const [only] = [...paths];

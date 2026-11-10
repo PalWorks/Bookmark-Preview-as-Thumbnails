@@ -11,6 +11,10 @@ import { loadAISettings, bindLegacyApiKey } from './lib/ai_settings_storage';
 import { migrateStorageSchema, markFreshInstall, repairMisMigratedKeys } from './lib/storage_migration';
 import { createTrashService, handleTrashMessage, isTrashMessage } from './sw/trash';
 import { createFolderPrefsService, handleFolderPrefsMessage } from './sw/folder_prefs';
+import { createChangeSetsService, handleChangeSetMessage, isChangeSetMessage } from './sw/change_sets';
+import { createAgentBridge, handleBridgeMessage, isBridgeMessage } from './sw/agent_bridge';
+import { createRemoteLink } from './sw/remote_link';
+import { findTool, pickArgs } from './lib/bridge/tools';
 import { TRASH_RESTORING_KEY } from './lib/trash_store';
 import { isValidMetaId, sanitizePagePatch, sanitizeBackupMeta, mergeImported } from './lib/metadata_sanitize';
 
@@ -21,6 +25,57 @@ const IS_INCOGNITO_WORKER = chrome.extension?.inIncognitoContext === true;
 const folderPrefs = createFolderPrefsService();
 const trash = createTrashService({ applyFolderPrefs: map => folderPrefs.applySnapshot(map) });
 const TRASH_PURGE_ALARM = 'trash-purge';
+// AI change sets (D18): applied, finished and undone here only, in the regular worker.
+const changeSets = createChangeSetsService({
+    trash,
+    broadcast: (m) => {
+        chrome.runtime.sendMessage(m).catch(() => { /* no page open */ });
+        refreshBadge();
+    },
+});
+// Coding-agent bridge (Stage 2): optional nativeMessaging, regular worker only.
+const bridge = createAgentBridge({ changeSets });
+// Online connector for Claude and ChatGPT (D20): one WebSocket to our relay, regular worker only.
+const remote = createRemoteLink({ handle: (req) => bridge.remoteRequest(req) });
+
+const AI_MESSAGE_TYPES = ['AGENT_TOOL', 'CONNECTOR_STATE', 'CONNECTOR_ENABLE', 'CONNECTOR_DISABLE', 'CONNECTOR_NEW_ADDRESS'];
+
+/** Ask AI tool calls and the connector switch. Extension pages only, regular windows only. */
+async function handleAIMessage(msg: { type: string } & Record<string, unknown>, sender: chrome.runtime.MessageSender): Promise<unknown> {
+    if (!sender.url?.startsWith(chrome.runtime.getURL(''))) return { ok: false, error: `${msg.type} rejected: not an extension page` };
+    if (IS_INCOGNITO_WORKER) return { ok: false, error: 'AI features work in regular windows only.' };
+    switch (msg.type) {
+        case 'AGENT_TOOL': {
+            const def = findTool(msg.name);
+            if (!def) return { ok: false, error: `Unknown tool ${String(msg.name).slice(0, 40)}` };
+            const args = (msg.args && typeof msg.args === 'object') ? msg.args as Record<string, unknown> : {};
+            return { ok: true, res: await bridge.askAI(def.request, pickArgs(def, args)) };
+        }
+        case 'CONNECTOR_STATE': return { ok: true, state: await remote.state() };
+        case 'CONNECTOR_ENABLE': return { ok: true, state: await remote.setEnabled(true) };
+        case 'CONNECTOR_DISABLE': return { ok: true, state: await remote.setEnabled(false) };
+        case 'CONNECTOR_NEW_ADDRESS': {
+            const state = await remote.newAddress();
+            await bridge.removeTransport('remote');
+            return { ok: true, state };
+        }
+    }
+    return { ok: false, error: 'Unknown message' };
+}
+
+/** Toolbar badge: change sets waiting for review. Nothing opens or takes focus. */
+function refreshBadge(): void {
+    if (IS_INCOGNITO_WORKER) return;
+    changeSets.list()
+        .then(sets => {
+            const n = sets.filter(x => x.state === 'pending').length;
+            return Promise.all([
+                chrome.action.setBadgeText({ text: n ? String(n) : '' }),
+                n ? chrome.action.setBadgeBackgroundColor({ color: '#1a73e8' }) : Promise.resolve(),
+            ]);
+        })
+        .catch(() => { /* badge is cosmetic */ });
+}
 
 // Listen for extension icon click
 chrome.action.onClicked.addListener(() => {
@@ -129,6 +184,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             .then(sendResponse)
             .catch((err: unknown) => {
                 console.error('[Trash] message failed', message.type, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
+    }
+
+    if (isBridgeMessage(message)) {
+        handleBridgeMessage(bridge, message, _sender, IS_INCOGNITO_WORKER)
+            .then(sendResponse)
+            .catch((err: unknown) => {
+                console.error('[Bridge] message failed', message.type, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
+    }
+
+    if (message && typeof message.type === 'string' && AI_MESSAGE_TYPES.includes(message.type)) {
+        handleAIMessage(message, _sender)
+            .then(sendResponse)
+            .catch((err: unknown) => {
+                console.error('[AI] message failed', message.type, err);
+                sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            });
+        return true; // async response
+    }
+
+    if (isChangeSetMessage(message)) {
+        handleChangeSetMessage(changeSets, message, _sender, IS_INCOGNITO_WORKER)
+            .then(sendResponse)
+            .catch((err: unknown) => {
+                console.error('[AIChanges] message failed', message.type, err);
                 sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
             });
         return true; // async response
@@ -701,6 +786,28 @@ if (!IS_INCOGNITO_WORKER) {
     // Finish anything a previous worker left half-done, then make sure the daily
     // expiry alarm exists (alarms survive worker restarts but not every update).
     trash.reconcile().catch(err => console.error('[Trash] startup reconcile failed', err));
+    // A fresh worker runs no change-set job: anything left mid-apply was interrupted.
+    changeSets.recover().catch(err => console.error('[AIChanges] recovery failed', err));
+    refreshBadge();
+    // The bridge reconnects at every worker start while its switch is on.
+    if (chrome.permissions) {
+        chrome.permissions.contains({ permissions: ['nativeMessaging'] })
+            .then(has => { if (has) return bridge.start(); })
+            .catch(err => console.error('[Bridge] start failed', err));
+        chrome.permissions.onAdded.addListener((p) => {
+            if (p.permissions?.includes('nativeMessaging')) bridge.start().catch(() => undefined);
+        });
+    }
+    chrome.alarms.onAlarm.addListener((alarm) => { bridge.onAlarm(alarm.name); remote.onAlarm(alarm.name); });
+    // The connector reconnects at every worker start while its switch is on.
+    remote.start().catch(err => console.error('[Connector] start failed', err));
+    // Anything that changes what an agent would read makes its cursors stale.
+    chrome.bookmarks.onCreated.addListener(() => bridge.invalidate());
+    chrome.bookmarks.onChanged.addListener(() => bridge.invalidate());
+    chrome.bookmarks.onMoved.addListener(() => bridge.invalidate());
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && Object.keys(changes).some(k => k.startsWith('fpref_') || k.startsWith('meta_'))) bridge.invalidate();
+    });
     chrome.alarms.get(TRASH_PURGE_ALARM)
         .then(alarm => {
             if (!alarm) return chrome.alarms.create(TRASH_PURGE_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 1 });
@@ -711,6 +818,7 @@ if (!IS_INCOGNITO_WORKER) {
         trash.purgeExpired()
             .then(n => { if (n) console.log(`[Trash] purged ${n} expired entr${n === 1 ? 'y' : 'ies'}`); })
             .catch(err => console.error('[Trash] purge failed', err));
+        changeSets.prune().catch(err => console.error('[AIChanges] prune failed', err));
         // Prefs of folders that no longer exist (Trash entries keep their own copy).
         // Buffered outside deletes are written first, so their prefs are saved.
         trash.flushExternal()
@@ -723,6 +831,7 @@ if (!IS_INCOGNITO_WORKER) {
     // worker only: both split-incognito workers receive bookmark events.
     chrome.bookmarks.onRemoved.addListener((id, info) => {
         trash.noteRemoved(id, info);
+        bridge.invalidate();
     });
 }
 

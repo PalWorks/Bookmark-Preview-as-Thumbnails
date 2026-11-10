@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-09T16:13:49+00:00 (1.6.0 live at 100%)._
+> _Last updated: 2026-11-10T03:45:49+00:00 (row 18 now D20: Ask AI and the online connector; rows 19 and 20 added for the owner's connector deploy and the Web Store privacy update)._
 
 ## 0. North star: every open item, one row each
 
@@ -19,6 +19,8 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 
 | # | Bucket | Priority | State | Size | Impact | Raised | Problem | Solution or next step |
 |---|---|---|---|---|---|---|---|---|
+| 19 | §3.1 | P1 | **Open** | S | H | 2026-11-10 | The online connector Worker (`connector/`) is built and tested but not deployed; the extension points at `https://bookmarks-thumbnails-connector.sunmooncal.workers.dev`, so "Connect Claude or ChatGPT" cannot work for users until it is live. | Owner: `cd connector && npm install`, set `CLIENT_ID_SECRET` with `wrangler secret put`, run the tests and smoke, then `npx wrangler deploy` (PLAYBOOK "Online connector"). Must be live before 1.7.0 reaches users. |
+| 20 | §3.1 | P1 | **Open** | S | H | 2026-11-10 | 1.7.0 can send bookmark titles, links and tags to the user's chosen AI provider (Ask AI) and through our relay (connector), so the Web Store Privacy tab and the hosted privacy policy must say so. | Owner, at submission: walk the Privacy tab with PRIVACY_DETAILS.md §5 (data usage boxes, certifications, `nativeMessaging` justification); confirm the website privacy page is live with the 1.7.0 text. |
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
@@ -26,7 +28,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 10 | §3.1 | P2 | **Open** | T | M | 2026-11-08 | The user who reported the parity gaps (email of 2026-11-06) has not been answered. | 1.5.0 and 1.6.0 are live; reply now, listing everything at once (their requests and rows 1 to 5). |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
-| 18 | §3.2 | P2 | **Open** | L | M | 2026-11-09 | Coding agents and other AIs cannot organise the user's Chrome bookmarks safely. Plan approved after /gstack-autoplan (owner gate 2026-11-09): [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md). Stage 1: export chosen folders for any AI, import its change set, review it in an Agent changes panel, apply as one step, Undo from Activity; no new permission. Stage 2 (coding-agent bridge over optional nativeMessaging, Chrome on Linux and macOS) only if a 90-day demand check passes; Stage 3 adds Edge, Brave and Windows. | Next: owner confirms the demand-check numbers; /plan-design-review on the Stage 1 screens; then build 1a (folders, moves, renames) and 1b (tags, ratings, Trash). |
+| 18 | §3.2 | P2 | **In progress** | L | M | 2026-11-09 | AIs could not organise the user's bookmarks without effort. 1.7.0 is built on branch `feat/agent-changes` ([docs/designs/ai-assistant.md](docs/designs/ai-assistant.md), D18 to D20): Ask AI (chat panel with the user's own provider and key; changes apply at once with Undo), Connect Claude or ChatGPT (online connector `connector/`, OAuth sign-in with a 6-digit code), coding agents through the `bookmarks-thumbnails-mcp` package, one shared tool list, modes read / review first / change, AI changes with Undo; copy and paste kept as "Other ways". 446 Vitest tests, 9 package tests, 36 connector tests; smoke, bridge (18 checks) and connector (15 checks) e2e pass (2026-11-10); install warnings unchanged. | Owner: review the PR; deploy the connector (row 19); then merge, tag v1.7.0, publish the npm package, upload and submit with the privacy update (row 20). Stage 3 (Edge, Brave, Windows for the local helper) after. |
 | 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is live on the Web Store at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00); submitted 2026-11-09T13:56:04+00:00. The Privacy tab now declares personally identifiable information (the optional reply address) and personal communications (the feedback message). | PLAYBOOK release step 8 (store install on a clean profile, update from 1.5.0), then rows 10 and 16 and the website feature list. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
@@ -127,7 +129,9 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
-| 18 | Agent changes (import, review, Undo; bridge later) | §3.2 | **Open**: plan approved, design review next | L | M |
+| 19 | Deploy the online connector Worker | §3.1 | **Open**: owner step | S | H |
+| 20 | Web Store privacy update for 1.7.0 | §3.1 | **Open**: owner step at submission | S | H |
+| 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **In progress**: built, PR for review | L | M |
 | 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **In progress**: live; release step 8 left | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
@@ -172,10 +176,12 @@ as the "Real-Chrome smoke test" job (Node 22, the runner's Chrome, `--no-sandbox
 
 ## 6. Where the detail lives
 
-2 documents:
+4 documents:
 
 | Document | Covers |
 |---|---|
+| [docs/designs/ai-assistant.md](docs/designs/ai-assistant.md) | Ask AI and the online connector (D20): rules, OAuth flow, limits (row 18) |
+| [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) | AI change sets and the coding-agent bridge (D18, D19), with its review record (row 18) |
 | [docs/designs/release-1.4.0-organise-and-recover.md](docs/designs/release-1.4.0-organise-and-recover.md) | 1.4.0 design, CEO, design and engineering reviews with both models, the final build spec |
 | [docs/designs/release-1.3.0-safe-delete-and-parity.md](docs/designs/release-1.3.0-safe-delete-and-parity.md) | 1.3.0 design, reviews, decisions, and the deferred external-capture notes (row 1) |
 

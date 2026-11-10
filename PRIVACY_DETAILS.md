@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy Details
 
-_Last updated: 2026-11-09T16:01:20+00:00 (1.6.0: PII and personal communications for the feedback form; Location unticked; planned changes)._
+_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: Ask AI and the Claude and ChatGPT connector)._
 
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
@@ -26,8 +26,9 @@ These are the permissions actually declared in the manifest:
 | **favicon** | Show a bookmark's site icon from Chrome's local favicon cache when no thumbnail exists yet. No network request. |
 | **alarms** | Run a daily local clean-up that permanently removes Trash items older than 30 days. |
 | **history** (optional) | Requested only when the user turns on the Visits or Last visited column in list view. Reads visit count and last visit time for the bookmarks on screen with `chrome.history.getVisits`; nothing is stored or sent anywhere. Optional permissions add no install warning. |
+| **nativeMessaging** (optional, 1.7.0) | Requested only when the user turns on "Connect coding agents" (menu > Connect Claude or ChatGPT > Coding agents on this computer). Lets the extension exchange messages with a helper program the user installed (`bookmarks-thumbnails-mcp`), which relays requests from coding agents the user pairs. Agents read only folders the user ticks and change bookmarks only in the mode the user chose (read only, review first, or change with one-click Undo). Optional permissions add no install warning (checked with `management.getPermissionWarningsByManifest`, Chrome, 2026-11-09). |
 | **webNavigation** | Detect when a page finishes loading during batch capture so the screenshot reflects the rendered page. |
-| **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and, only if the user enables a cloud AI provider, send requests to that provider's API endpoint. The feedback form (1.6.0) posts to our own relay; that request needs no extra permission. |
+| **Host Permissions** (`<all_urls>`) | Capture screenshots of any bookmarked site, and, only if the user enables a cloud AI provider (Auto-Tag, Smart Search, Ask AI), send requests to that provider's API endpoint. The feedback form (1.6.0) posts to our own relay, and the optional Claude and ChatGPT connector (1.7.0) keeps a WebSocket to our own connector Worker; neither needs an extra permission. |
 
 > The extension does **not** request `downloads` or `management`. (Backup export
 > uses an in-page anchor download; the in-app uninstall uses
@@ -76,11 +77,42 @@ third-party provider. Disclose this accurately:
   purpose" — OK (the transfer is for tagging/search, the stated purpose).
 - "I do not use or transfer user data to determine creditworthiness / lending" — OK.
 
-## 5. Planned changes that will need this page
+## 5. Ask AI, Claude and ChatGPT, and coding agents (1.7.0, D20)
 
-The approved Agent changes plan (docs/designs/agent-bridge.md) adds no permission in
-Stage 1. Its Stage 2 would add optional `nativeMessaging` with a justification here and a
-check of the User Data policy first. Nothing to change until that ships.
+What changes from 1.6.0:
+
+- **Ask AI** sends the user's message and the bookmark data the model asks for (titles, links,
+  folder paths, tags, ratings, last-opened times) to the user's own chosen AI provider. This is
+  the same kind of transfer as Auto-Tag and Smart Search with a cloud provider, already declared
+  under "Web history / website data" in section 4.
+- **The Claude and ChatGPT connector** sends the same kind of bookmark data, from the folders the
+  user picks, through **our own relay** (the `connector/` Worker) to Anthropic or OpenAI, at the
+  user's request in their app. The relay stores none of it and logs no bodies; it keeps only a
+  hash of the link secret, one-time sign-in codes for 2 minutes and rate counters named by an HMAC.
+- **Copy and paste** and **coding agents** are unchanged in kind: the user copies an export, or a
+  local program reads only the folders they tick.
+
+Dashboard steps before submitting 1.7.0:
+
+- **Web history / website data** stays ticked, and its description should now also name Ask AI
+  and the Claude and ChatGPT connector [Inference: bookmark titles and URLs in transit through
+  our relay are data the extension transfers, even though we store none of it; confirm against
+  the dashboard wording and the User Data policy].
+- **Website content**: ticked already for local screenshots; no screenshots are sent by these
+  features (the tools return text only) [Inference: no change needed].
+- **Personally identifiable information** and **Personal communications** stay ticked for the
+  feedback form. Ask AI messages go to the user's own provider, not to us, and connector
+  requests pass through without being stored [Inference: these do not add a new category;
+  recheck if the dashboard asks about data "handled" rather than "collected"].
+- **Certifications**: "no sale" stays true. The transfers above are to service providers the
+  user chose, for the user's own requested organising, which is within the single purpose
+  [Inference: keep the honest wording from section 4 rather than a blanket "no transfer"].
+- **Single purpose**: consider adding "and organise them with an AI assistant you choose" to the
+  optional clause in section 1 [Inference: the organising is part of the stated purpose
+  "recognize and organize saved pages"].
+- **Remote code**: still NO. The connector relays data only; no code is fetched.
+- Privacy tab: add the `nativeMessaging` justification above; host the updated PRIVACY.md
+  (website `Legal.tsx`) before submitting.
 
 ## 6. Privacy Policy
 

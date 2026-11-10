@@ -88,6 +88,12 @@ export interface DeleteRequest {
     ids: string[];
     requestId?: string;
     origin?: TrashOrigin;
+    /**
+     * Per root id, every node id its subtree had when the user approved the delete
+     * (AI change sets). A root whose subtree differs now is rejected as 'changed', and
+     * a folder that grows before removal is not removed, so nothing unapproved goes.
+     */
+    expectedSubtrees?: Record<string, string[]>;
 }
 
 export interface RestoreRequest {
@@ -95,6 +101,16 @@ export interface RestoreRequest {
     entryId?: string;
     /** Restore here instead of the original location (the "Restore to..." picker). */
     targetParentId?: string;
+}
+
+function subtreeIdsOf(node: BookmarkNode, out: string[] = []): string[] {
+    out.push(node.id);
+    for (const c of node.children ?? []) subtreeIdsOf(c, out);
+    return out;
+}
+
+function sameIds(a: string[], b: string[]): boolean {
+    return a.length === b.length && [...a].sort().join('\0') === [...b].sort().join('\0');
 }
 
 function errorMessage(err: unknown): string {
@@ -279,6 +295,8 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             const sub = node.url ? node : (await chrome.bookmarks.getSubTree(node.id))[0];
             const anyManaged = (n: BookmarkNode): boolean => isManaged(n) || (n.children ?? []).some(anyManaged);
             if (anyManaged(sub)) { rejected.push({ id: node.id, title: node.title, reason: 'managed' }); continue; }
+            const expected = req.expectedSubtrees?.[node.id];
+            if (expected && !sameIds(subtreeIdsOf(sub), expected)) { rejected.push({ id: node.id, title: node.title, reason: 'changed' }); continue; }
             subtrees.set(node.id, sub);
         }
         if (rejected.length) return { ok: false, rejected, skipped };
@@ -293,7 +311,7 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
 
         const operationId = resumedOperationId ?? uuid();
         const deletedAt = now();
-        const origin: TrashOrigin = req.origin === 'duplicate-finder' ? 'duplicate-finder' : 'manual';
+        const origin: TrashOrigin = req.origin === 'duplicate-finder' || req.origin === 'ai-changes' ? req.origin : 'manual';
         const entries: TrashEntry[] = roots.map(node => {
             const chain = chains.get(node.id) ?? [];
             const top = chain[0];
@@ -356,6 +374,8 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
                     const fresh = (await chrome.bookmarks.getSubTree(e.tree.oldId))[0];
                     const freshTree = toSavedNode(fresh);
                     if (JSON.stringify(freshTree) !== JSON.stringify(e.tree)) {
+                        // Approved contents are frozen: a folder that grew is left in place.
+                        if (req.expectedSubtrees?.[e.tree.oldId]) throw new Error('It changed after you approved it, so it was left in place.');
                         const counts = countSaved(freshTree);
                         e.tree = freshTree;
                         markSelfRemoved(freshTree);
@@ -568,6 +588,7 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
             return found;
         };
         const prefsToApply: Array<{ newId: string; pref: SavedFolderPref }> = [];
+        const idMap: Record<string, string> = {};
 
         try {
             const root = await createSubtree(entry.tree, targetId, {
@@ -587,6 +608,7 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
                     return undefined;
                 },
                 onNode: async (saved, node, wasCreated) => {
+                    idMap[saved.oldId] = node.id;
                     const pref = entry.folderPrefs?.[saved.oldId];
                     if (pref && !saved.url) prefsToApply.push({ newId: node.id, pref });
                     if (saved === entry.tree) {
@@ -600,8 +622,11 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
                 },
             });
             await applyFolderPrefs(prefsToApply).catch(err => console.warn('[Trash] could not restore folder colours', entry.entryId, err));
-            const restoredTo = { parentId: targetId, rootId: root.id, path: await pathOf(targetId) };
-            await setProgress({ ...base, state: 'restored', created, partialRootId, restoredTo, keepUntil: now() + RESTORED_KEEP_MS });
+            // The id map is only kept for AI change sets (their Undo needs it); other restores stay small.
+            const restoredTo = { parentId: targetId, rootId: root.id, path: await pathOf(targetId), ...(entry.origin === 'ai-changes' ? { idMap } : {}) };
+            // An AI change set's Undo may run days later and needs the id map, so keep it as long as its journal.
+            const keep = entry.origin === 'ai-changes' ? TRASH_RETENTION_MS : RESTORED_KEEP_MS;
+            await setProgress({ ...base, state: 'restored', created, partialRootId, restoredTo, keepUntil: now() + keep });
             return { entryId: entry.entryId, state: 'restored', restoredTo };
         } catch (err) {
             const error = `Restore stopped: ${errorMessage(err)}`;

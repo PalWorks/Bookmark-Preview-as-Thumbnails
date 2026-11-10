@@ -1,10 +1,12 @@
 # Architecture
 
-_Last updated: 2026-11-09T16:00:59+00:00 (feedback relay in the context diagram and d2, html2canvas-pro, planned Agent changes)._
+_Last updated: 2026-11-10T03:45:49+00:00 (1.7.0, D20: Ask AI, the online connector, shared tools and modes)._
 
-Bookmarks as Thumbnails is a Chrome Manifest V3 extension. Its only server is the feedback
-relay in `worker/`, used when someone sends the feedback form (1.6.0). Everything else
-runs in three browser contexts and stores data in `chrome.storage`. Storage keys and
+Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has two small servers of its own:
+the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0), and the
+online connector in `connector/`, used only while the user has "Let Claude and ChatGPT organise
+my bookmarks" on (1.7.0). Everything else runs in three browser contexts and stores data in
+`chrome.storage`. Storage keys and
 record shapes are in [DATA_MODEL.md](DATA_MODEL.md); the reasons behind the main choices
 are in [DECISIONS.md](DECISIONS.md).
 
@@ -198,21 +200,125 @@ bottom-aligned dialogs. Colours for new components come from tokens in
 
 ## External dependencies
 
-React 19, lucide-react, html2canvas-pro 2.5.2 (capture; replaced html2canvas 1.4.1 in 1.6.0). One network service of our own: the
+React 19, lucide-react, html2canvas-pro 2.5.2 (capture; replaced html2canvas 1.4.1 in 1.6.0). Two network services of our own. The
+online connector (`connector/`, `https://bookmarks-thumbnails-connector.sunmooncal.workers.dev`,
+not deployed yet) is described under "Online connector" below. The
 feedback relay in `worker/` (Cloudflare Worker, `https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev`),
 called only when the user sends the feedback form (`src/lib/feedback.ts`, D16). It emails
-support@palworks.ai through Resend. Optional AI calls go only to the provider the user
-configures (see PRIVACY.md).
+support@palworks.ai through Resend. Optional AI calls (Auto-Tag, Smart Search, Ask AI) go only
+to the provider the user configures (see PRIVACY.md).
 
-## Planned: Agent changes (approved, not built)
+## AI changes (1.7.0)
 
-The approved plan ([docs/designs/agent-bridge.md](docs/designs/agent-bridge.md), D18) adds one
-change-set format with a validator in `src/lib/change_set/`, an apply coordinator with a
-per-item journal and Undo in the regular service worker (never the incognito one), an Agent
-changes panel and an Activity view. Stage 1 takes change sets from a paste or a file; a native
-messaging bridge for coding agents (Stage 2) only follows a demand check. Nothing of it is in the
-code yet; this section changes when Stage 1 lands.
+Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
+[docs/designs/ai-assistant.md](docs/designs/ai-assistant.md); decisions D18 to D20.
+
+```
+ copy and paste (CS_IMPORT) ────────────────┐                        ┌─ chrome.bookmarks (create, move, update)
+ any client, mode propose (propose/apply) ──┴─▶ importText ─▶ pending cs_<id> ─▶ Review panel ── CS_APPLY(selected) ─┐
+ Ask AI, or a client in mode change (apply_changes) ─▶ importAndApply (validate, store, apply in one queued job) ──────┤
+                                                                                                                     ▼
+                         journal csj_<id>_<n> per item ─▶ apply ─▶ Activity (Undo, Finish) ─┼─ storageIndex.update (tags, ratings)
+                                                                                            └─ trash.deleteItems(expectedSubtrees, origin ai-changes)
+```
+
+- **One format** (`src/lib/change_set/format.ts`) and **one validator** (`validate.ts`) for every
+  source. The validator simulates the set on a working copy of the tree and refuses the whole
+  set, with a reason per change, on any problem.
+- **One coordinator** (`src/sw/change_sets.ts`) in the regular worker runs Apply, Finish and Undo
+  one at a time. Each change is journaled before it runs and re-checked against what the user
+  reviewed; a changed item is skipped, never overwritten. Trash runs last as one batch whose
+  approved contents are frozen. Undo runs in reverse and maps ids that Trash restore changed.
+  A fresh worker runs no job, so a set left mid-apply is classified item by item at start-up.
+- **Export** (`snapshot.ts`): only folders the user ticks, never hidden ones; optional query
+  stripping; the instructions tell any AI how to answer. Since D20 this copy and paste path is
+  "Other ways: copy and paste" in Ask AI and the AI changes empty state.
+- **Apply now** (D20): `importAndApply` validates the whole set, stores it and applies every
+  change in one queued job. The caps on sets waiting for review do not apply to it, because it
+  never waits. The result names the set, so the chat card, AI changes or the AI itself
+  (`undo_changes`, own sets only) can undo it.
+
+## One request handler, three ways in (1.7.0, D20)
+
+```
+ Ask AI (extension page) ── AGENT_TOOL ─────────────────────────────────────────────┐
+ Claude / ChatGPT ─HTTPS─▶ connector Worker ─WebSocket─▶ remote_link.ts ─────────────┼─▶ agent_bridge.ts handleRequest ─▶ change_sets.ts
+ coding agent ─stdio MCP─▶ bookmarks-thumbnails-mcp ─Unix socket─▶ native host ──────┘    (client, scope, mode, limits)
+```
+
+- **Shared tools** (`src/lib/bridge/tools.ts`): one list of names, descriptions, input schemas and
+  the bridge request each maps to: `list_folders`, `list_folder`, `search`, `get_bookmark`,
+  `apply_changes`, `undo_changes`, `get_change_set`. Ask AI, the connector Worker and the local MCP
+  server all read it; the local MCP server adds `pair`.
+- **Clients** carry `mode` (`read`, `propose`, `change`; `change` is the default for new pairings)
+  and `transport` (`local` or `remote`). `apply_changes` applies at once in `change` mode and
+  becomes a proposal that waits in AI changes in `propose` mode; `read` refuses it with
+  `READ_ONLY`.
+- **Ask AI** is the built-in client "Ask AI" (`ASK_AI_CLIENT`): never stored or paired, mode
+  `change`, every folder not hidden from search in scope.
+
+## Ask AI (1.7.0, D20)
+
+- `src/components/AskAIView.tsx` and `src/popup/hooks/useAskAI.ts` in the extension page;
+  `src/lib/agent/llm.ts` runs the tool-calling loop with the provider settings and the bound key
+  from AI Settings (D2). Three wire formats: OpenAI-compatible chat completions (most providers,
+  Ollama, custom servers), Anthropic Messages, Gemini. Perplexity and Chrome's built-in model
+  cannot call tools and are not offered.
+- At most 12 tool calls per message; each tool result sent back to the model is cut at 24,000
+  characters. Each call goes to the worker as `AGENT_TOOL` (extension pages in regular windows
+  only) and runs through the bridge handler as "Ask AI".
+- The conversation is kept in `chrome.storage.session` (`ask_ai_chat`, last 200 messages), so it
+  ends with the browser session. The panel names the provider and model that receive what it
+  reads.
+
+## Online connector (1.7.0, D20)
+
+```
+ Claude / ChatGPT servers ──HTTPS (MCP + OAuth 2.1)──▶ Worker /mcp/<linkId> ──▶ Durable Object LinkObject <linkId>
+                                                                                  │ WebSocket (opened by the browser)
+                                                                                  ▼
+                                                               extension service worker (remote_link.ts ─▶ agent_bridge.ts)
+```
+
+- **Browser side** (`src/sw/remote_link.ts`, regular worker only): turning the switch on creates
+  `linkId` (16 random bytes) and `secret` (32 bytes) in `connector_link`. The worker opens
+  `wss://<origin>/link?id=<linkId>` and sends `hello {linkId, secret}`; pings every 20 s keep
+  the socket and the worker alive, a socket silent for 60 s is closed, and an alarm retries every
+  minute. Each `request` frame is handed to the bridge as a `remote` request.
+- **Wire contract** (`src/lib/bridge/connector.ts`): frame types, id formats, keepalive and the
+  30 s request timeout, shared by the extension and the Worker.
+- **Sign-in**: the Connect page shows a standing 6-digit code (the invite, memory only; it changes
+  every 10 minutes and ends after 5 wrong tries) with the folders and mode it grants. The
+  Worker's authorize page sends `pair` with the typed code through the link; the extension
+  answers with a token, which the Worker wraps in a one-time authorization code (2 minutes) and
+  exchanges with PKCE S256. The app's access token is the extension token; the extension stores
+  only its SHA-256. Removing the connection in the extension revokes it.
+- **Make a new address** replaces `linkId` and `secret` and removes every `remote` client.
+- **Worker** (`connector/`): stateless client registration (HMAC-signed client ids), per-link and
+  per-network limits, no bookmark data and no long-lived tokens stored. Details:
+  [connector/README.md](connector/README.md).
+
+## Coding-agent bridge (1.7.0)
+
+```
+ agent ─stdio MCP─▶ bookmarks-thumbnails-mcp ─Unix socket─▶ native host (bridge/src/host.ts) ─native port─▶ agent_bridge.ts
+                    (bridge/src/mcp.ts, cli.ts)  0600 socket in a 0700 folder      relay only, conn-tagged        pairing, grants, reads, changes
+```
+
+- The extension owns all state; the host is stateless and replaceable. Messages and errors
+  are defined once in `src/lib/bridge/protocol.ts`, bundled into the package.
+- `nativeMessaging` is optional, requested from the switch's click; the port keeps the worker
+  alive while connected; the worker reconnects at start and from a one-minute alarm.
+- Pairing: the extension shows a 6-digit code; the client sends it with the random pairing id it
+  started with; the token goes back once and only its SHA-256 is stored.
+- Reads see only the folders granted to that agent, minus folders hidden from search; cursors
+  go stale on any change. In `change` mode `apply_changes` applies at once with Undo; in
+  `propose` mode (and for the CLI's `propose`) changes become pending change sets labelled with
+  the agent, and the toolbar badge counts them.
 
 ## Diagram
 
-`architecture.d2` / `architecture.svg` (render with `d2 architecture.d2 architecture.svg`).
+`architecture.d2` / `architecture.svg` (render with `d2 architecture.d2 architecture.svg`). The
+diagram predates 1.7.0 and shows neither the bridge nor the connector; the text diagrams above
+are current. Add both to `architecture.d2` and regenerate the SVG with `d2`; do not edit the SVG
+by hand.

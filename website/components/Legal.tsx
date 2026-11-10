@@ -5,10 +5,10 @@ export const PrivacyPolicy: React.FC = () => (
   <div className="max-w-4xl mx-auto py-24 px-4">
     <h1 className="text-4xl font-bold text-slate-900 mb-8">Privacy Policy</h1>
     <div className="prose prose-slate max-w-none text-slate-600 space-y-6">
-      <p>Last updated: 9 November 2026 (version 1.6.0)</p>
+      <p>Last updated: 10 November 2026 (version 1.7.0)</p>
 
       <h3 className="text-xl font-bold text-slate-900">1. Overview</h3>
-      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We use no analytics or telemetry and never receive your bookmarks, thumbnails or settings. The only data that can leave your device is described in sections 3 and 4: what you send to a cloud AI provider you turn on yourself, and feedback you choose to send us.</p>
+      <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We use no analytics or telemetry and never receive your bookmarks, thumbnails or settings. The only data that can leave your device is described in sections 3 to 5: what you send to a cloud AI provider you turn on yourself (including Ask AI), feedback you choose to send us, and bookmarks you choose to share with Claude, ChatGPT, another AI or a coding agent. If you turn on the Claude and ChatGPT connector, that data passes through a relay we run, which stores none of it.</p>
 
       <h3 className="text-xl font-bold text-slate-900">2. What the Extension stores on your device</h3>
       <ul className="list-disc pl-5 space-y-2">
@@ -39,7 +39,17 @@ export const PrivacyPolicy: React.FC = () => (
       </ul>
       <p>The relay stores no message content. To limit abuse it keeps short-lived counters per network, named by a keyed one-way hash of the network address and never the address itself, which expire within 26 hours. We use what you send only to answer you and improve the Extension, and never sell it. To have a message deleted, write to support@palworks.ai.</p>
 
-      <h3 className="text-xl font-bold text-slate-900">5. Permissions</h3>
+      <h3 className="text-xl font-bold text-slate-900">5. Ask AI, Claude and ChatGPT, and coding agents (optional, from version 1.7.0)</h3>
+      <ul className="list-disc pl-5 space-y-2">
+        <li><strong>Ask AI:</strong> when you send a message in Ask AI, the Extension sends your message and what the AI asks to read (bookmark and folder titles, links, folder paths, tags, ratings and last-opened times, from every folder except those hidden from search) to the provider you chose in AI Settings only, under your own key. The panel names that provider and model. The conversation stays in the browser's session storage and is gone when the browser closes. We never receive it.</li>
+        <li><strong>Claude and ChatGPT:</strong> if you turn on "Let Claude and ChatGPT organise my bookmarks", the Extension keeps a connection to our relay (a Cloudflare Worker we run) while Chrome is open. When you ask Claude or ChatGPT about your bookmarks, the request and your browser's answer (titles, links, folder paths, tags and ratings from the folders you chose) pass through the relay. The relay stores none of it and does not log it; it keeps only a one-way hash of your link's secret, one-time sign-in codes for at most 2 minutes, and short-lived counters named by a keyed one-way hash of the network address. Anthropic and OpenAI handle what they receive under their own policies. You choose the folders and whether the app may read only, suggest changes for you to review, or change with Undo; removing a connection or switching off stops it.</li>
+        <li><strong>Changes an AI makes</strong> apply at once unless you chose review first, and you can undo them with one click. Removed bookmarks go to the Extension's Trash.</li>
+        <li><strong>Copy and paste:</strong> you tick the folders to share (none are ticked at first). The Extension builds a text of their titles, links, tags and ratings that you copy or save, and you choose which AI receives it; that AI's provider handles it under its own policy. You can remove the part of links after "?". Folders hidden from search are never included. The Extension itself sends nothing.</li>
+        <li><strong>Coding agents:</strong> if you turn on Connect coding agents (menu, Connect Claude or ChatGPT, Coding agents on this computer), Chrome asks for the optional permission to communicate with a helper program on your computer. Agents you pair with a 6-digit code shown only in the Extension can read just the folders you tick for them, and may pass what they read to the AI service they use. You choose whether each may read only, suggest changes for you to review, or change with Undo.</li>
+        <li>Change sets and the record that lets you undo them stay on your device for 30 days and are not included in backups, and neither are your connections or the connector address.</li>
+      </ul>
+
+      <h3 className="text-xl font-bold text-slate-900">6. Permissions</h3>
       <ul className="list-disc pl-5 space-y-2">
         <li><strong>bookmarks:</strong> read and organise your bookmarks.</li>
         <li><strong>tabs, activeTab, scripting, webNavigation:</strong> load and capture your bookmarked pages to make thumbnails.</li>
@@ -47,13 +57,14 @@ export const PrivacyPolicy: React.FC = () => (
         <li><strong>favicon:</strong> show a site's icon from Chrome's local cache when a bookmark has no thumbnail yet.</li>
         <li><strong>alarms:</strong> run a daily local clean-up that removes Trash items older than 30 days.</li>
         <li><strong>history (optional):</strong> requested only when you turn on the Visits or Last visited column in list view. It reads the visit count and last visit of the bookmarks on screen, on your device, and stores nothing. Turning the columns off gives the permission back.</li>
-        <li><strong>Access to all sites:</strong> capture screenshots of any site you have bookmarked and, only if you turn on cloud AI, reach your chosen provider.</li>
+        <li><strong>nativeMessaging (optional):</strong> requested only when you turn on Connect coding agents, to talk to the helper program you installed. Turning the switch off gives it back.</li>
+        <li><strong>Access to all sites:</strong> capture screenshots of any site you have bookmarked and, only if you turn on cloud AI or use Ask AI, reach your chosen provider. The Claude and ChatGPT connector needs no extra permission.</li>
       </ul>
 
-      <h3 className="text-xl font-bold text-slate-900">6. Deleting your data</h3>
+      <h3 className="text-xl font-bold text-slate-900">7. Deleting your data</h3>
       <p>Empty Trash to remove deleted items at once, clear your API key in AI Settings, or uninstall the Extension to remove all of its local data.</p>
 
-      <h3 className="text-xl font-bold text-slate-900">7. Contact</h3>
+      <h3 className="text-xl font-bold text-slate-900">8. Contact</h3>
       <p>Questions: support@palworks.ai, or open an issue at github.com/PalWorks/Bookmark-Preview-as-Thumbnails.</p>
     </div>
   </div>
