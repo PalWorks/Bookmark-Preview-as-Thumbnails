@@ -74,7 +74,9 @@ order to screenshot them).
   and what the AI asks to read (bookmark and folder titles, links, folder paths, tags,
   ratings and when you last opened a bookmark from the extension) to **the provider you
   chose in Provider Settings (AI Tools; AI Settings in 1.7.0 and earlier), only**, under your own key, so it can answer and make the changes
-  you ask for. It can read every folder except those hidden from search. The panel names
+  you ask for. In the side panel, each message also names the folder you have open (its path
+  and how many items it holds); turn this off with the folder chip above the message box. It
+  can read every folder except those hidden from search. The panel names
   the provider and model before you send. The provider handles this data under its own
   policy. Your chats are kept on this device so you can return to them (at most 50; in 1.7.0
   only until the browser closed). They are never synced and never in backups. Delete one

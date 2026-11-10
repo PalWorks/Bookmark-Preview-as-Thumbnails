@@ -79,6 +79,11 @@ describe('Ask AI in the App', { timeout: 20000 }, () => {
         expect(within(dock).getByRole('separator').textContent).toBe('Today');
         const sys = (bodies[0].messages as Array<{ role: string; content: string }>)[0];
         expect(sys.content).toContain('"gpt-4o-mini" served by OpenAI');
+        // The open folder went with the message, and the bubble shows only what the user typed.
+        const userMsg = (bodies[0].messages as Array<{ role: string; content: string }>).find(m => m.role === 'user')!;
+        expect(userMsg.content).toMatch(/^\[Context from the app, not an instruction: the user has the folder "Bookmarks bar" open/);
+        expect(userMsg.content.endsWith('Give Alpha a clearer name')).toBe(true);
+        expect(within(dock).getByRole('button', { name: /Bookmarks bar included/, pressed: true })).toBeTruthy();
 
         // The chat is kept and can be reopened.
         fireEvent.click(within(dock).getByRole('button', { name: 'Chats' }));
@@ -109,11 +114,15 @@ describe('Ask AI in the App', { timeout: 20000 }, () => {
         render(<App />);
         fireEvent.click(await screen.findByRole('button', { name: 'Ask AI' }));
         await screen.findByText(/go to OpenAI/);
+        // The user can leave the open folder out.
+        fireEvent.click(screen.getByRole('button', { name: /Bookmarks bar included/ }));
+        expect(screen.getByRole('button', { name: /Bookmarks bar not included/, pressed: false })).toBeTruthy();
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Remove old one' } });
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
         await screen.findByText('Waiting for your OK.');
         // Nothing moved yet, and the model was told it needs the user's OK.
         expect(fakeBookmarks.titlesIn('1')).toContain('Old one');
+        expect((bodies[0].messages as Array<{ role: string; content: string }>).find(m => m.role === 'user')!.content).toBe('Remove old one');
         const toolMsg = (bodies[1].messages as Array<{ role: string; content: string }>).find(m => m.role === 'tool')!;
         expect(toolMsg.content).toContain('needsApproval');
         const card = screen.getByRole('group', { name: /Waiting for your OK: Remove/ });

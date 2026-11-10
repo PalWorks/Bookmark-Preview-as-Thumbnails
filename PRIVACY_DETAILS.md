@@ -82,7 +82,9 @@ third-party provider. Disclose this accurately:
 What changes from 1.6.0:
 
 - **Ask AI** sends the user's message and the bookmark data the model asks for (titles, links,
-  folder paths, tags, ratings, last-opened times) to the user's own chosen AI provider. This is
+  folder paths, tags, ratings, last-opened times) to the user's own chosen AI provider. In the
+  side panel each message also carries the open folder's path, id and item count, which the user
+  can turn off. This is
   the same kind of transfer as Auto-Tag and Smart Search with a cloud provider, already declared
   under "Web history / website data" in section 4.
 - **The Claude and ChatGPT connector** sends the same kind of bookmark data, from the folders the

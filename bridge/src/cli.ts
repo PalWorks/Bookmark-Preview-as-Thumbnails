@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { EXIT_CODES, PACKAGE_NAME, SETUP_COMMAND, bridgeError, type BridgeError } from '../../src/lib/bridge/protocol.ts';
 import { BridgeFailure, Connection, chooseTarget } from './client.ts';
-import { doctor, install, lastLogError, uninstall } from './install.ts';
+import { doctor, install, lastLogError, uninstall, untrustedCopies } from './install.ts';
+import { findChromeFolders, type UnpackedCopy } from './detect.ts';
 import { runMcp } from './mcp.ts';
 import { manifestPath } from './paths.ts';
 
@@ -21,8 +22,8 @@ Quick start (Claude Code):  ${SETUP_COMMAND}
 Then ask the agent: "pair with my bookmarks".
 
 Commands:
-  install [--dry-run] [--node <path>] [--manifest-dir <dir>] [--extension-id <id>]
-                  (finds unpacked copies and Chrome data folders by itself)
+  install [--dry-run] [--node <path>] [--manifest-dir <dir>] [--extension-id <id>[,<id>]]
+                  (finds Chrome data folders by itself; asks before allowing an unpacked copy)
   uninstall [--dry-run]
   doctor [--json] [--last-error]
   pair [--code <6 digits>]
@@ -88,9 +89,24 @@ async function main(): Promise<void> {
 
     switch (cmd) {
         case 'install': {
+            const manifestDir = str(args.flags['manifest-dir']);
+            const folders = manifestDir ? [] : findChromeFolders();
+            const confirmed: UnpackedCopy[] = [];
+            const pending = untrustedCopies(folders);
+            // Review F7: an unpacked copy is only a folder that carries our name, so the
+            // user confirms each one once. Without a terminal nothing is asked or allowed.
+            if (pending.length && process.stdin.isTTY && !json) {
+                const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+                process.stderr.write('Unpacked copies of the extension were found. Allow only copies you loaded yourself;\nan allowed copy can start this helper and talk to your coding agents.\n');
+                for (const c of pending) {
+                    const a = (await rl.question(`\n  id      ${c.id}\n  folder  ${c.path}\n  Chrome  ${c.dataDir}\nAllow this copy? [y/N] `)).trim().toLowerCase();
+                    if (a === 'y' || a === 'yes') confirmed.push({ id: c.id, path: c.path });
+                }
+                rl.close();
+            }
             const r = install({
-                version: VERSION, dryRun: args.flags['dry-run'] === true, nodePath: str(args.flags.node),
-                manifestDir: str(args.flags['manifest-dir']), extensionIds: str(args.flags['extension-id']) ? [str(args.flags['extension-id'])!] : [],
+                version: VERSION, dryRun: args.flags['dry-run'] === true, nodePath: str(args.flags.node), manifestDir, folders, confirmed,
+                extensionIds: (str(args.flags['extension-id']) ?? '').split(',').map(s => s.trim()).filter(Boolean),
             });
             const next = [
                 '', 'Next:',

@@ -45,6 +45,8 @@ import { useBridge } from './hooks/useBridge';
 import { useConnector } from './hooks/useConnector';
 import { useAskAI } from './hooks/useAskAI';
 import { AskAIView } from '../components/AskAIView';
+import { folderTitlePath } from '../lib/agent/previews';
+import type { AskContext } from './hooks/useAskAI';
 import { AIToolsTabs, type AIToolsTab, type SettingsTab } from '../components/AIToolsTabs';
 
 /** Bookmark and folder counts for feedback diagnostics (numbers only). */
@@ -302,6 +304,13 @@ function App() {
 
     // ── Selection (multi-select) ──────────────────────────────────────────────
     const displayedIds = useMemo(() => displayedNodes.map(n => n.id), [displayedNodes]);
+    // Ask AI beside the bookmarks knows which folder is open (owner, 2026-11-11); not during a search.
+    const askContext = useMemo<AskContext | null>(() => {
+        if (activePanel !== 'bookmarks' || searchQuery.length > 2 || !currentFolder?.id) return null;
+        const path = folderTitlePath(bookmarkTree, currentFolder.id);
+        return path ? { folderId: currentFolder.id, path, count: currentFolder.children?.length ?? 0 } : null;
+    }, [activePanel, searchQuery, currentFolder, bookmarkTree]);
+
     const viewKey = `${activePanel}|${selectedFolderId}|${searchQuery}|${filterType}|${sortOrder}|${activeTag ?? ''}`;
     const selection = useSelection(displayedIds, viewKey);
     const selectedNodes = displayedNodes.filter(n => selection.isSelected(n.id));
@@ -863,6 +872,7 @@ function App() {
                         onCopyPaste={() => setAIDialog('export')}
                         readOnly={IS_INCOGNITO_PAGE}
                         toast={(message, tone) => toast.show({ message, tone: tone === 'error' ? 'error' : 'success' })}
+                        context={askContext}
                     />
                 )}
             </div>

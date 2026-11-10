@@ -94,12 +94,14 @@ export async function setCurrentChatId(id: string | null): Promise<void> {
     else await chrome.storage.session?.remove(CURRENT_CHAT_KEY).catch(() => undefined);
 }
 
-/** Day label for a list group or a divider: Today, Yesterday, or the date. */
+/** Day label for a list group or a divider: Today, Yesterday, the weekday this week, or the date. */
 export function dayLabel(at: number, now = Date.now()): string {
     const day = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
     const diff = Math.round((day(now) - day(at)) / 86_400_000);
     if (diff === 0) return 'Today';
     if (diff === 1) return 'Yesterday';
+    // Like a phone chat: the weekday within the last week, then the date.
+    if (diff > 1 && diff < 7) return new Date(at).toLocaleDateString(undefined, { weekday: 'long' });
     return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 

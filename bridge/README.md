@@ -31,8 +31,10 @@ Linux and macOS, Google Chrome, Node 22 or newer. Windows, Edge and Brave are pl
 
    The first run installs the browser helper for you. To do it by hand:
    `npx bookmarks-thumbnails-mcp@1.7.1 install`, then turn the switch off and on.
-   Install finds unpacked copies of the extension and any Chrome started with its own
-   `--user-data-dir` by itself (from 1.7.1). For a Chrome that is not running, pass
+   Install finds any Chrome started with its own `--user-data-dir` by itself (from 1.7.1). It
+   also finds unpacked copies of the extension and asks before allowing each one (from 1.7.2):
+   answer yes only for a copy you loaded yourself. Without a terminal it allows none; pass
+   `--extension-id <id>` instead. For a Chrome that is not running, pass
    `--manifest-dir <its data folder>/NativeMessagingHosts` and `--extension-id <id>`.
 3. Ask the agent: **"pair with my bookmarks"**. A 6-digit code appears in the extension. Tick
    the folders it may read, choose what it may do, then give the agent the code.
