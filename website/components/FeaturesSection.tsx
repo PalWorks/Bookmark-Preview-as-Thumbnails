@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
-import { Camera, Zap, Layout, Moon, Search, FolderTree } from 'lucide-react';
+import { Camera, Zap, Layout, Moon, Search, FolderTree, MessageSquare, Undo2, Palette } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const features = [
@@ -28,6 +28,21 @@ const features = [
     icon: FolderTree,
     title: "Visual Navigation",
     description: "Navigate complex folder hierarchies with ease using our clean, recursive sidebar interface."
+  },
+  {
+    icon: MessageSquare,
+    title: "Ask AI to Organise",
+    description: "Chat with the AI of your choice beside your bookmarks, or connect Claude or ChatGPT. Every change it makes has Undo, and nothing goes to Trash without your OK."
+  },
+  {
+    icon: Undo2,
+    title: "Trash with Undo",
+    description: "Deleted bookmarks wait in Trash for 30 days, even ones removed in Chrome's own manager. Restore them to where they were with one click."
+  },
+  {
+    icon: Palette,
+    title: "Organise in Bulk",
+    description: "Select a range, then move, open or delete it at once. Colour your folders and hide the ones you never want in search."
   },
   {
     icon: Zap,

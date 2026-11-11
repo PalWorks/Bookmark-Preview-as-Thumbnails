@@ -91,6 +91,8 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
     const [detail, setDetail] = useState<{ set: ChangeSetRecord; items: JournalItem[] } | null>(null);
     const [ticked, setTicked] = useState<Set<number>>(new Set());
     const [loadedFor, setLoadedFor] = useState<string | null>(null);
+    // The id that came back empty (purged, stale link, or the worker did not answer).
+    const [missingId, setMissingId] = useState<string | null>(null);
     const idx = useMemo(() => nodeIndex(roots), [roots]);
 
     useEffect(() => {
@@ -99,6 +101,7 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
         void api.get(selectedId).then(d => {
             if (!live) return;
             setDetail(d);
+            setMissingId(d ? null : selectedId);
             // Keep the user's ticks across refreshes of the same set.
             if (d && loadedFor !== selectedId) {
                 setTicked(new Set(d.set.verdicts.filter(v => v.ok).map(v => v.n)));
@@ -169,6 +172,16 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
     );
 
     if (selectedId) {
+        if (missingId === selectedId) {
+            return (
+                <div className="main-content trash-view">{header}
+                    <div className="empty-state">
+                        <p>This change set is no longer available.</p>
+                        <p className="sub-text"><button type="button" className="link-btn" onClick={() => onSelect(null)}>See all AI changes</button></p>
+                    </div>
+                </div>
+            );
+        }
         if (!detail || detail.set.id !== selectedId) {
             return <div className="main-content trash-view">{header}<div className="trash-scroll" aria-busy="true"><div className="trash-row trash-row--skeleton"><span /><span /></div></div></div>;
         }

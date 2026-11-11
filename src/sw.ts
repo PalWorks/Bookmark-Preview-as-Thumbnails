@@ -95,21 +95,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || typeof message !== 'object' || !isOwnPage(_sender)) return false;
     const usage = eventForMessage(message);
     if (usage) track(usage.name, usage.params);
-    if (message.type === 'CAPTURE_THUMBNAIL') {
-        captureActiveTab()
-            .then(sendResponse)
-            .catch((err) => {
-                console.error('Capture failed:', err);
-                const msg = err instanceof Error
-                    ? err.message
-                    : (typeof err === 'object' && err !== null && 'message' in err)
-                        ? String((err as { message: unknown }).message)
-                        : 'Capture Failed';
-                sendResponse({ error: msg });
-            });
-        return true; // synchronous return true — holds channel open for async response
-    }
-
     if (message.type === 'BATCH_CAPTURE') {
         // Reject re-entrant batches (e.g. rapid stop→start while the previous batch
         // is still tearing down). Responding 'busy' lets the popup release the URLs
@@ -228,11 +213,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return true; // async response
     }
 
-    if (message.type === 'PING') {
-        sendResponse({ status: 'ok' });
-        return false;
-    }
-
     if (message.type === 'CHECK_AI_AVAILABILITY') {
         checkAIAvailability()
             .then(available => sendResponse({ available }))
@@ -342,175 +322,191 @@ async function processBatchCapture(
         return;
     }
 
-    // If using active tab capture, serialise (concurrency 1) to avoid focus conflicts
-    const CONCURRENCY = useActiveTabCapture ? 1 : 5;
-    const tabIds: number[] = [];
+    const windowId = captureWindow.id;
+    // The user closing the capture window stops the batch; without this every remaining
+    // URL would fail and overwrite its preview with an error image.
+    const onWindowRemoved = (id: number) => {
+        if (id !== windowId) return;
+        stopBatchCapture = true;
+        batchController?.abort();
+    };
+    chrome.windows.onRemoved.addListener(onWindowRemoved);
+    // Timers alone do not keep an MV3 worker alive; an extension call every 20 s does,
+    // so a long load wait or capture delay cannot strand the batch half-way.
+    const keepAlive = setInterval(() => { chrome.runtime.getPlatformInfo?.().catch(() => { }); }, 20_000);
 
-    const tabs = await chrome.tabs.query({ windowId: captureWindow.id });
-    if (tabs.length > 0 && tabs[0].id) tabIds.push(tabs[0].id);
+    try {
+        // If using active tab capture, serialise (concurrency 1) to avoid focus conflicts
+        const CONCURRENCY = useActiveTabCapture ? 1 : 5;
+        const tabIds: number[] = [];
 
-    for (let i = tabIds.length; i < CONCURRENCY; i++) {
-        try {
-            const tab = await chrome.tabs.create({ windowId: captureWindow.id, active: false });
-            if (tab.id) tabIds.push(tab.id);
-        } catch (e) {
-            console.warn('Failed to create additional capture tab', e);
+        const tabs = await chrome.tabs.query({ windowId });
+        if (tabs.length > 0 && tabs[0].id) tabIds.push(tabs[0].id);
+
+        for (let i = tabIds.length; i < CONCURRENCY; i++) {
+            try {
+                const tab = await chrome.tabs.create({ windowId, active: false });
+                if (tab.id) tabIds.push(tab.id);
+            } catch (e) {
+                console.warn('Failed to create additional capture tab', e);
+            }
         }
-    }
 
-    if (tabIds.length === 0) {
-        console.error('No tabs available for capture');
-        await chrome.windows.remove(captureWindow.id);
-        resetBatchState();
-        return;
-    }
-
-    // Read captureDelay once for the entire batch (not per-URL)
-    const stored = await chrome.storage.sync.get(['captureDelay']);
-    const captureDelay = Math.max(100, Number(stored.captureDelay || 500));
-
-    let currentIndex = 0;
-
-    const captureSingleUrl = async (tabId: number, url: string) => {
-        // Skip non-http(s) URLs (chrome://, file://, javascript:, etc.)
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Unsupported URL scheme' }).catch(() => { });
+        if (tabIds.length === 0) {
+            console.error('No tabs available for capture');
             return;
         }
 
-        let navError: string | null = null;
+        // Read captureDelay once for the entire batch (not per-URL)
+        const stored = await chrome.storage.sync.get(['captureDelay']);
+        const captureDelay = Math.max(100, Number(stored.captureDelay || 500));
 
-        const errorListener = (details: chrome.webNavigation.WebNavigationFramedErrorCallbackDetails) => {
-            if (details.tabId === tabId && details.frameId === 0
-                && details.error !== 'net::ERR_ABORTED'
-                && details.url === url) {
-                navError = details.error;
+        let currentIndex = 0;
+
+        const captureSingleUrl = async (tabId: number, url: string) => {
+            // Skip non-http(s) URLs (chrome://, file://, javascript:, etc.)
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Unsupported URL scheme' }).catch(() => { });
+                return;
             }
-        };
-        chrome.webNavigation.onErrorOccurred.addListener(errorListener);
 
-        try {
-            chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED', url }).catch(() => { });
+            let navError: string | null = null;
 
-            await chrome.tabs.update(tabId, { url, muted: true });
+            const errorListener = (details: chrome.webNavigation.WebNavigationFramedErrorCallbackDetails) => {
+                if (details.tabId === tabId && details.frameId === 0
+                    && details.error !== 'net::ERR_ABORTED'
+                    && details.url === url) {
+                    navError = details.error;
+                }
+            };
+            chrome.webNavigation.onErrorOccurred.addListener(errorListener);
 
-            // Wait for tab to finish loading (cancellable on stop).
-            // A single settled-guarded cleanup() owns teardown so the three exit
-            // paths (load complete / stop / timeout) can never double-resolve or
-            // leave a listener or timer dangling.
-            await new Promise<void>((resolve) => {
-                let settled = false;
-                const cleanup = () => {
-                    if (settled) return;
-                    settled = true;
-                    chrome.tabs.onUpdated.removeListener(listener);
-                    clearInterval(stopPoll);
-                    clearTimeout(timeout);
-                    resolve();
-                };
-                const listener = (tid: number, changeInfo: { status?: string }) => {
-                    if (tid === tabId && changeInfo.status === 'complete') cleanup();
-                };
-                // Poll for a stop request, or for a navigation error that already
-                // fired — a failed main-frame load never reaches 'complete', so
-                // without this it would block the worker for the full 30s timeout.
-                const stopPoll = setInterval(() => {
-                    if (stopBatchCapture || navError) cleanup();
-                }, 200);
-                const timeout = setTimeout(cleanup, LOAD_TIMEOUT_MS);
-                chrome.tabs.onUpdated.addListener(listener);
-            });
+            try {
+                chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED', url }).catch(() => { });
 
-            chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
+                await chrome.tabs.update(tabId, { url, muted: true });
 
-            if (stopBatchCapture) return;
+                // Wait for tab to finish loading (cancellable on stop).
+                // A single settled-guarded cleanup() owns teardown so the three exit
+                // paths (load complete / stop / timeout) can never double-resolve or
+                // leave a listener or timer dangling.
+                await new Promise<void>((resolve) => {
+                    let settled = false;
+                    const cleanup = () => {
+                        if (settled) return;
+                        settled = true;
+                        chrome.tabs.onUpdated.removeListener(listener);
+                        clearInterval(stopPoll);
+                        clearTimeout(timeout);
+                        resolve();
+                    };
+                    const listener = (tid: number, changeInfo: { status?: string }) => {
+                        if (tid === tabId && changeInfo.status === 'complete') cleanup();
+                    };
+                    // Poll for a stop request, or for a navigation error that already
+                    // fired — a failed main-frame load never reaches 'complete', so
+                    // without this it would block the worker for the full 30s timeout.
+                    const stopPoll = setInterval(() => {
+                        if (stopBatchCapture || navError) cleanup();
+                    }, 200);
+                    const timeout = setTimeout(cleanup, LOAD_TIMEOUT_MS);
+                    chrome.tabs.onUpdated.addListener(listener);
+                });
 
-            // Wait for render settling (cancellable on stop). Same settled-guarded
-            // cleanup pattern as the load wait — no double-resolve, no dangling timer.
-            await new Promise<void>((resolve) => {
-                let settled = false;
-                const cleanup = () => {
-                    if (settled) return;
-                    settled = true;
-                    clearTimeout(timeout);
-                    clearInterval(stopPoll);
-                    resolve();
-                };
-                const timeout = setTimeout(cleanup, captureDelay);
-                const stopPoll = setInterval(() => {
-                    if (stopBatchCapture) cleanup();
-                }, 200);
-            });
+                chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
 
-            if (navError) {
-                // Deleted while this capture ran: write nothing.
+                if (stopBatchCapture) return;
+
+                // Wait for render settling (cancellable on stop). Same settled-guarded
+                // cleanup pattern as the load wait — no double-resolve, no dangling timer.
+                await new Promise<void>((resolve) => {
+                    let settled = false;
+                    const cleanup = () => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timeout);
+                        clearInterval(stopPoll);
+                        resolve();
+                    };
+                    const timeout = setTimeout(cleanup, captureDelay);
+                    const stopPoll = setInterval(() => {
+                        if (stopBatchCapture) cleanup();
+                    }, 200);
+                });
+
+                if (navError) {
+                    // Deleted while this capture ran: write nothing.
+                    if (await isNoLongerBookmarked(url)) {
+                        chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
+                        return;
+                    }
+                    const dataUrl = await generateErrorImage(navError, url);
+                    const res = await fetch(dataUrl);
+                    const blob = await res.blob();
+                    await thumbnailStorage.putThumbnail({
+                        id: url, url, mime: 'image/jpeg', blob,
+                        updatedAt: Date.now(), width: 600, height: 400, sizeBytes: blob.size
+                    });
+                    await storageIndex.patch(url, {
+                        title: 'Navigation Error', status: 'error', lastCaptureAt: Date.now()
+                    });
+                    chrome.runtime.sendMessage({ type: 'THUMBNAIL_UPDATED', url, id: url }).catch(() => { });
+                } else {
+                    // Retry transient capture failures (navigation already succeeded, so
+                    // a failure here is usually a flaky capture, not a dead page).
+                    await captureTabWithRetry(tabId, url, useActiveTabCapture, captureDelay, signal);
+                }
+            } catch (rawError: unknown) {
+                chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
+                // A stop request (flag or abort) shouldn't leave behind an error thumbnail.
+                if (stopBatchCapture || signal.aborted) return;
+                // Nor should a capture tab that no longer exists (window closed): the page was
+                // never the problem.
+                if (await chrome.tabs.get(tabId).then(() => false, () => true)) return;
+                const errMsg = rawError instanceof Error
+                    ? rawError.message
+                    : (typeof rawError === 'object' && rawError !== null && 'message' in rawError)
+                        ? String((rawError as { message: unknown }).message)
+                        : 'Capture Failed';
+                // Expected for some sites (bot walls, blocked frames); recorded as an error
+                // thumbnail below, so a warning rather than an error.
+                console.warn('Failed to capture', url, rawError);
                 if (await isNoLongerBookmarked(url)) {
                     chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
                     return;
                 }
-                const dataUrl = await generateErrorImage(navError, url);
-                const res = await fetch(dataUrl);
-                const blob = await res.blob();
-                await thumbnailStorage.putThumbnail({
-                    id: url, url, mime: 'image/jpeg', blob,
-                    updatedAt: Date.now(), width: 600, height: 400, sizeBytes: blob.size
-                });
-                await storageIndex.patch(url, {
-                    title: 'Navigation Error', status: 'error', lastCaptureAt: Date.now()
-                });
-                chrome.runtime.sendMessage({ type: 'THUMBNAIL_UPDATED', url, id: url }).catch(() => { });
-            } else {
-                // Retry transient capture failures (navigation already succeeded, so
-                // a failure here is usually a flaky capture, not a dead page).
-                await captureTabWithRetry(tabId, url, useActiveTabCapture, captureDelay, signal);
+                try {
+                    const dataUrl = await generateErrorImage(errMsg, url, 'Capture Failed');
+                    const res = await fetch(dataUrl);
+                    const blob = await res.blob();
+                    await thumbnailStorage.putThumbnail({
+                        id: url, url, mime: 'image/jpeg', blob,
+                        updatedAt: Date.now(), width: 600, height: 400, sizeBytes: blob.size
+                    });
+                    await storageIndex.patch(url, {
+                        title: 'Capture Error', status: 'error', lastCaptureAt: Date.now()
+                    });
+                    chrome.runtime.sendMessage({ type: 'THUMBNAIL_UPDATED', url, id: url }).catch(() => { });
+                } catch (e) {
+                    console.error('Failed to generate error fallback', e);
+                    chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: errMsg }).catch(() => { });
+                }
             }
-        } catch (rawError: unknown) {
-            chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
-            // A stop request (flag or abort) shouldn't leave behind an error thumbnail.
-            if (stopBatchCapture || signal.aborted) return;
-            const errMsg = rawError instanceof Error
-                ? rawError.message
-                : (typeof rawError === 'object' && rawError !== null && 'message' in rawError)
-                    ? String((rawError as { message: unknown }).message)
-                    : 'Capture Failed';
-            // Expected for some sites (bot walls, blocked frames); recorded as an error
-            // thumbnail below, so a warning rather than an error.
-            console.warn('Failed to capture', url, rawError);
-            if (await isNoLongerBookmarked(url)) {
-                chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: 'Bookmark was deleted' }).catch(() => { });
-                return;
-            }
-            try {
-                const dataUrl = await generateErrorImage(errMsg, url, 'Capture Failed');
-                const res = await fetch(dataUrl);
-                const blob = await res.blob();
-                await thumbnailStorage.putThumbnail({
-                    id: url, url, mime: 'image/jpeg', blob,
-                    updatedAt: Date.now(), width: 600, height: 400, sizeBytes: blob.size
-                });
-                await storageIndex.patch(url, {
-                    title: 'Capture Error', status: 'error', lastCaptureAt: Date.now()
-                });
-                chrome.runtime.sendMessage({ type: 'THUMBNAIL_UPDATED', url, id: url }).catch(() => { });
-            } catch (e) {
-                console.error('Failed to generate error fallback', e);
-                chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url, error: errMsg }).catch(() => { });
-            }
-        }
-    };
+        };
 
-    const worker = async (tabId: number) => {
-        while (currentIndex < urls.length && !stopBatchCapture) {
-            const url = urls[currentIndex++];
-            await captureSingleUrl(tabId, url);
-        }
-    };
+        const worker = async (tabId: number) => {
+            while (currentIndex < urls.length && !stopBatchCapture) {
+                const url = urls[currentIndex++];
+                await captureSingleUrl(tabId, url);
+            }
+        };
 
-    try {
         await Promise.all(tabIds.map(id => worker(id)));
     } finally {
+        clearInterval(keepAlive);
+        chrome.windows.onRemoved.removeListener(onWindowRemoved);
         try {
-            if (captureWindow?.id) await chrome.windows.remove(captureWindow.id);
+            await chrome.windows.remove(windowId);
         } catch (_) { /* window already closed */ }
         resetBatchState();
     }
@@ -568,8 +564,6 @@ async function persistCapture(
     useActiveTabCapture: boolean,
     renderDelay?: number,
     signal?: AbortSignal,
-    /** Bookmark captures skip the write if the bookmark was deleted meanwhile. */
-    requireBookmark = true,
 ): Promise<{ success: boolean; id: string; dataUrl: string }> {
     const tab = await chrome.tabs.get(tabId);
     if (!tab.url) throw new Error('Tab has no URL');
@@ -597,7 +591,7 @@ async function persistCapture(
 
     // Checked as late as possible: the bookmark may have been deleted during the
     // capture, resize or disk write above.
-    if (requireBookmark && await isNoLongerBookmarked(id)) {
+    if (await isNoLongerBookmarked(id)) {
         chrome.runtime.sendMessage({ type: 'CAPTURE_FAILED', url: id, error: 'Bookmark was deleted' }).catch(() => { });
         return { success: false, id, dataUrl: '' };
     }
@@ -626,16 +620,6 @@ async function persistCapture(
     chrome.runtime.sendMessage({ type: 'THUMBNAIL_UPDATED', url: id, id }).catch(() => { });
 
     return { success: true, id, dataUrl: result.dataUrl };
-}
-
-// Capture the currently active tab (CAPTURE_THUMBNAIL message path)
-async function captureActiveTab(): Promise<{ success: boolean; id: string; dataUrl: string }> {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const tab = tabs[0];
-    if (!tab?.id) throw new Error('No active tab found');
-    if (!tab.url) throw new Error('Tab has no URL');
-    // The active tab need not be bookmarked.
-    return persistCapture(tab.id, tab.url, false, undefined, undefined, false);
 }
 
 // Capture a specific tab with an explicit target URL (batch capture + auto-capture path)

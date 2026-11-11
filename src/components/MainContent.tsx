@@ -54,6 +54,8 @@ interface MainContentProps {
     onOpened?: (url: string) => void;
     hiddenResultCount?: number;
     onShowHidden?: () => void;
+    /** A type or tag filter is on; an empty view then offers to clear it. */
+    onClearFilters?: () => void;
 }
 
 const isPermanent = (n: Node) => !n.parentId || n.parentId === '0';
@@ -92,6 +94,7 @@ export const MainContent: React.FC<MainContentProps> = ({
     onOpened,
     hiddenResultCount = 0,
     onShowHidden,
+    onClearFilters,
 }) => {
     // Use displayedNodes if provided, otherwise fallback to folder.children (or empty)
     const nodesToDisplay = displayedNodes || folder?.children || [];
@@ -282,8 +285,8 @@ export const MainContent: React.FC<MainContentProps> = ({
                                         {columnCells(node)}
                                     </div>
                                     <div className="list-item-status">
-                                        {loadingUrls.has(node.url) && <span className="status-loading">Loading...</span>}
-                                        {queuedUrls.has(node.url) && <span className="status-queued">Waiting...</span>}
+                                        {loadingUrls.has(node.url) && <span className="status-loading">Loading…</span>}
+                                        {queuedUrls.has(node.url) && <span className="status-queued">Waiting…</span>}
                                     </div>
                                     <div className="row-actions">
                                         {moreButton(node)}
@@ -387,6 +390,13 @@ export const MainContent: React.FC<MainContentProps> = ({
                                     : `All ${hiddenResultCount} matches are in folders hidden from search.`}</p>
                                 <p className="sub-text">
                                     <button type="button" className="link-btn" onClick={onShowHidden}>Show them</button>
+                                </p>
+                            </>
+                        ) : onClearFilters ? (
+                            <>
+                                <p>Nothing here matches the filter.</p>
+                                <p className="sub-text">
+                                    <button type="button" className="link-btn" onClick={onClearFilters}>Show all</button>
                                 </p>
                             </>
                         ) : isSearching ? (

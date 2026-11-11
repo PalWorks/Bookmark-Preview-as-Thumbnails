@@ -76,7 +76,7 @@ export function openAIEndpoint(cloud: AICloudConfig): string {
     }
     if (cloud.provider === 'ollama') return (cloud.customUrl?.replace(/\/$/, '') || 'http://localhost:11434') + '/v1/chat/completions';
     if (cloud.provider === 'custom') {
-        if (!cloud.customUrl) throw new Error('Custom endpoint URL not configured. Open AI settings.');
+        if (!cloud.customUrl) throw new Error('No server address set for the custom provider. Add it in AI Tools > Provider Settings.');
         return cloud.customUrl.replace(/\/$/, '') + '/chat/completions';
     }
     const meta = PROVIDERS.find(p => p.id === cloud.provider);
@@ -182,7 +182,7 @@ export function fromGemini(data: unknown): ModelReply {
 
 export async function callModel(cloud: AICloudConfig, apiKey: string, msgs: Msg[], signal?: AbortSignal): Promise<ModelReply> {
     const system = systemPrompt(cloud);
-    if (NO_TOOLS.has(cloud.provider)) throw new Error('This provider cannot use tools. Choose another provider in AI settings to use Ask AI.');
+    if (NO_TOOLS.has(cloud.provider)) throw new Error('This provider cannot use tools. Choose another provider in AI Tools > Provider Settings to use Ask AI.');
     if (cloud.provider === 'anthropic') {
         const data = await postJson('anthropic', 'https://api.anthropic.com/v1/messages', {
             'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',

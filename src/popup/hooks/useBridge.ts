@@ -18,18 +18,20 @@ export interface BridgeApi {
     /** Must be called from a click: requests the optional permission first. */
     setEnabled: (on: boolean) => Promise<{ ok: boolean; error?: string }>;
     removePermission: () => Promise<void>;
-    setPromptGrant: (folderIds: string[], stripQuery: boolean, mode?: ConnectionMode) => Promise<void>;
+    setPromptGrant: (folderIds: string[], stripQuery: boolean, mode?: ConnectionMode) => Promise<boolean>;
     /** Standing code for the online connector's sign-in page, while the Connect page is open. */
-    openInvite: () => Promise<void>;
-    setInviteGrant: (folderIds: string[], stripQuery: boolean, mode: ConnectionMode) => Promise<void>;
-    closeInvite: () => Promise<void>;
-    cancelPrompt: (block: boolean) => Promise<void>;
-    updateClient: (id: string, patch: { folderIds?: string[]; stripQuery?: boolean; mode?: ConnectionMode }) => Promise<void>;
-    removeClient: (id: string) => Promise<void>;
-    removeAll: () => Promise<void>;
+    openInvite: () => Promise<boolean>;
+    setInviteGrant: (folderIds: string[], stripQuery: boolean, mode: ConnectionMode) => Promise<boolean>;
+    closeInvite: () => Promise<boolean>;
+    cancelPrompt: (block: boolean) => Promise<boolean>;
+    /** These three resolve to whether the worker did it, so the page never reports a false success. */
+    updateClient: (id: string, patch: { folderIds?: string[]; stripQuery?: boolean; mode?: ConnectionMode }) => Promise<boolean>;
+    removeClient: (id: string) => Promise<boolean>;
+    removeAll: () => Promise<boolean>;
 }
 
-export function useBridge(): BridgeApi {
+/** `active`: poll and listen only while the Connect page is open, so the worker can sleep otherwise. */
+export function useBridge(active = true): BridgeApi {
     const [state, setState] = useState<BridgeState | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -39,17 +41,19 @@ export function useBridge(): BridgeApi {
     }, []);
 
     useEffect(() => {
+        if (!active) return;
         void load();
         const onMessage = (m: unknown) => { if ((m as { type?: string })?.type === 'BRIDGE_CHANGED') void load(); };
         chrome.runtime.onMessage.addListener(onMessage);
         // The pairing countdown and "connecting" settle without a broadcast too.
         const timer = setInterval(() => { void load(); }, 5000);
         return () => { chrome.runtime.onMessage.removeListener(onMessage); clearInterval(timer); };
-    }, [load]);
+    }, [active, load]);
 
-    const call = async (message: Record<string, unknown>) => {
-        await send(message);
+    const call = async (message: Record<string, unknown>): Promise<boolean> => {
+        const res = await send<{ ok?: boolean }>(message);
         await load();
+        return res?.ok === true;
     };
 
     return {

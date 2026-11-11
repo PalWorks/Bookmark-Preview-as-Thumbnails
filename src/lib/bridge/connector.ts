@@ -42,7 +42,7 @@ export type LinkFromWorker =
     | { type: 'ready' }
     /** The hello was refused (bad secret, bad id); the socket closes after this. */
     | { type: 'refused'; reason: string }
-    /** One bridge request. `via` names the AI app, from its OAuth registration (shown in the extension). */
+    /** One bridge request. `via` is a fixed label ("AI app"); the extension does not read it yet, the client name comes from the token. */
     | { type: 'request'; rid: string; via: string; req: ClientRequest }
     | { type: 'ping' }
     | { type: 'pong' };

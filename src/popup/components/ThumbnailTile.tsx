@@ -64,7 +64,7 @@ const ThumbnailTile: React.FC<ThumbnailTileProps> = ({
                 )}
                 {isQueued && !isLoading && (
                     <div className="queued-overlay">
-                        <span className="queued-text">Waiting...</span>
+                        <span className="queued-text">Waiting…</span>
                     </div>
                 )}
             </div>

@@ -107,6 +107,8 @@ function App() {
 
     // ── Layout: docked folder panel on desktop, drawer on phones ─────────────
     const isNarrow = useMediaQuery(NARROW_QUERY);
+    // Below 900px the Ask AI panel covers the page (shared.css), so a link out of it closes it.
+    const askCoversPage = useMediaQuery('(max-width: 899px)');
     const [drawerOpen, setDrawerOpen] = useState(false); // session only, never synced
     const foldersOpen = isNarrow ? drawerOpen : !sidebarHidden;
     const toggleFolders = () => {
@@ -138,7 +140,6 @@ function App() {
     // ── Panel routing ─────────────────────────────────────────────────────────
     const [activePanel, setActivePanel] = useState<Panel>('bookmarks');
     // Incrementing this causes useAITagger to re-check availability after settings save
-    const [aiSettingsVersion, setAISettingsVersion] = useState(0);
     // AI Tools (owner, 2026-11-10): one page whose tabs are Ask AI, the settings tabs,
     // Connect Claude or ChatGPT and AI changes. The settings tabs share one panel.
     const [settingsTab, setSettingsTab] = useState<SettingsTab>('settings');
@@ -186,8 +187,9 @@ function App() {
     const [aiDialog, setAIDialog] = useState<'export' | 'import' | null>(null);
     const [aiSetId, setAISetId] = useState<string | null>(null);
     const openAIChanges = (id: string | null = null) => { setAISetId(id); openPanel('ai-changes'); };
-    const bridgeApi = useBridge();
-    const connector = useConnector(!IS_INCOGNITO_PAGE);
+    // Both poll the worker every 5 s, so only while the Connect page is open.
+    const bridgeApi = useBridge(activePanel === 'agents');
+    const connector = useConnector(!IS_INCOGNITO_PAGE && activePanel === 'agents');
     const askAI = useAskAI(!IS_INCOGNITO_PAGE);
     // The Ask AI side panel beside the bookmarks (owner, 2026-11-10), remembered for this session.
     const [askDock, setAskDock] = useState(() => { try { return sessionStorage.getItem('ask_dock') === '1'; } catch { return false; } });
@@ -208,7 +210,7 @@ function App() {
     const {
         isTagging, taggingProgress,
         tags: aiTags,
-    } = useAITagger(currentFolder, aiSettingsVersion);
+    } = useAITagger(currentFolder);
     const storageWarning = useStorageWarning(isCapturing);
 
     // ── Folder connect ────────────────────────────────────────────────────────
@@ -232,7 +234,7 @@ function App() {
             toast.show({
                 message: 'Storage is full. Connect a folder to keep capturing previews.',
                 tone: 'error',
-                actions: [{ label: 'Connect folder', onClick: () => { void handleConnectFolder(); } }],
+                actions: [{ label: 'Connect a Folder', onClick: () => { void handleConnectFolder(); } }],
             });
             return;
         }
@@ -243,6 +245,9 @@ function App() {
     const { clipboard, handleCut, handleCopy, handlePaste } = useClipboard(
         selectedFolderId, refreshTree, refreshCurrentFolder,
         (result) => showMoveResult(result),
+        (ok, title) => toast.show(ok
+            ? { message: `Pasted a copy of "${title}".`, tone: 'success' }
+            : { message: `Couldn't paste all of "${title}". Check the folder; anything copied stays there.`, tone: 'error' }),
     );
 
     // ── View / display state (pure UI, no effects) ────────────────────────────
@@ -250,6 +255,12 @@ function App() {
     const [filterType, setFilterType] = useState<'all' | 'folders' | 'bookmarks'>('all');
     const [sortOrder, setSortOrder] = useState<SortOrder>('name-asc');
     const [activeTag, setActiveTag] = useState<string | null>(null);
+    // Tags are loaded per folder, so a tag filter does not follow the user to another folder.
+    const [tagFolderId, setTagFolderId] = useState(selectedFolderId);
+    if (tagFolderId !== selectedFolderId) {
+        setTagFolderId(selectedFolderId);
+        if (activeTag) setActiveTag(null);
+    }
 
     // Items in view before sorting (sorting by rating or visits needs their data).
     const filteredNodes = useMemo(() => {
@@ -605,13 +616,13 @@ function App() {
     };
 
     const handleImportBackup = () => {
-        track('backup_import');
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json,application/json';
         input.onchange = async (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];
             if (!file) return;
+            track('backup_import');
             const id = toast.show({ message: 'Importing…', busy: true, autoHideMs: 0 });
             try {
                 const r = await backupManager.importBackup(file);
@@ -631,7 +642,7 @@ function App() {
                 reloadSettings();
                 reloadThumbnails();
                 refreshTree();
-                setAISettingsVersion(v => v + 1);
+                askAI.reloadProvider();
             } catch (err) {
                 console.error('Import failed:', err);
                 const message = err instanceof BackupFormatError || (err instanceof Error && /Unsupported backup version/.test(err.message))
@@ -698,7 +709,7 @@ function App() {
                 useIncognito={useIncognito}
                 onToggleIncognito={handleToggleIncognito}
                 viewMode={viewMode}
-                onViewModeChange={(mode) => { track('view_mode', { mode }); setViewMode(mode); }}
+                onViewModeChange={(mode) => { if (mode !== viewMode) track('view_mode', { mode }); setViewMode(mode); }}
                 filterType={filterType}
                 onFilterChange={setFilterType}
                 sortOrder={sortOrder}
@@ -724,7 +735,6 @@ function App() {
                 onTagChange={setActiveTag}
                 onOpenFeedback={() => setFeedbackDiagnostics(buildDiagnostics({ ...countTree(bookmarkTree), view: viewMode }))}
                 onAISettings={() => openPanel('ai-settings')}
-                isAISettingsActive={activePanel === 'ai-settings'}
                 onToggleFolders={toggleFolders}
                 foldersOpen={foldersOpen}
                 onOpenTrash={() => openPanel('trash')}
@@ -743,7 +753,7 @@ function App() {
                     {storageWarning.message}
                     {storageWarning.level === 'critical' && (
                         <button onClick={handleConnectFolder} className="connect-folder-btn-inline">
-                            Connect Folder
+                            Connect a Folder
                         </button>
                     )}
                 </div>
@@ -757,9 +767,9 @@ function App() {
                 {activePanel === 'ai-settings' ? (
                     <AISettingsPage
                         onBack={() => openPanel('bookmarks')}
-                        // Bump the version so useAITagger re-checks availability, but
-                        // stay on the page — saving shows "Saved!" without navigating.
-                        onSave={() => setAISettingsVersion(v => v + 1)}
+                        // Stay on the page (saving shows "Saved!"); the Ask AI panel beside it
+                        // reads the new provider at once.
+                        onSave={() => askAI.reloadProvider()}
                         currentFolder={currentFolder}
                         onDeleteBookmarks={(targets) => trash.deleteItems(targets, { origin: 'duplicate-finder' })}
                         canDelete={canDelete}
@@ -870,6 +880,7 @@ function App() {
                         onOpened={(url) => linkMeta.markOpened([url])}
                         hiddenResultCount={hiddenResultCount}
                         onShowHidden={showHiddenResults}
+                        onClearFilters={filterType !== 'all' || activeTag ? () => { setFilterType('all'); setActiveTag(null); } : undefined}
                     />
                 )}
                 {askDock && activePanel !== 'ask-ai' && (
@@ -877,9 +888,9 @@ function App() {
                         api={askAI}
                         variant="dock"
                         onBack={() => toggleAskDock(false)}
-                        onOpenSettings={() => openPanel('ai-settings')}
-                        onOpenConnect={() => openPanel('agents')}
-                        onOpenActivity={() => openAIChanges(null)}
+                        onOpenSettings={() => { if (askCoversPage) toggleAskDock(false); openPanel('ai-settings'); }}
+                        onOpenConnect={() => { if (askCoversPage) toggleAskDock(false); openPanel('agents'); }}
+                        onOpenActivity={() => { if (askCoversPage) toggleAskDock(false); openAIChanges(null); }}
                         onCopyPaste={() => setAIDialog('export')}
                         readOnly={IS_INCOGNITO_PAGE}
                         toast={(message, tone) => toast.show({ message, tone: tone === 'error' ? 'error' : 'success' })}

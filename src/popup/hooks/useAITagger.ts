@@ -1,33 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
 import type { MetadataRecord } from '../../lib/storage_index';
-import type { AIAvailability } from '../../lib/ai_tagger';
 
 export interface TaggingProgress {
     done: number;
     total: number;
 }
 
-export function useAITagger(currentFolder: chrome.bookmarks.BookmarkTreeNode | null, settingsVersion = 0) {
-    const [aiAvailability, setAIAvailability] = useState<AIAvailability | 'checking'>('checking');
+export function useAITagger(currentFolder: chrome.bookmarks.BookmarkTreeNode | null) {
     const [isTagging, setIsTagging] = useState(false);
     const [taggingProgress, setTaggingProgress] = useState<TaggingProgress>({ done: 0, total: 0 });
     const [tags, setTags] = useState<Record<string, string[]>>({});
-
-    // Re-check AI availability on mount and whenever settings are saved (settingsVersion bumps)
-    useEffect(() => {
-        let cancelled = false;
-        const check = async () => {
-            setAIAvailability('checking');
-            const res = await chrome.runtime.sendMessage({ type: 'CHECK_AI_AVAILABILITY' })
-                .catch(() => ({ available: 'unsupported' as AIAvailability }));
-            if (!cancelled) {
-                setAIAvailability((res as { available: AIAvailability })?.available ?? 'unsupported');
-            }
-        };
-        void check();
-        return () => { cancelled = true; };
-    }, [settingsVersion]);
 
     // Load persisted tags whenever the folder changes. Reads only this folder's
     // meta_<url> records: the folder is re-read on every bookmark change, and a
@@ -86,5 +69,5 @@ export function useAITagger(currentFolder: chrome.bookmarks.BookmarkTreeNode | n
 
     // Auto-Tag is started and stopped from the AI Settings page (1.6.0); this hook
     // only follows its progress and the tags it writes.
-    return { aiAvailability, isTagging, taggingProgress, tags };
+    return { isTagging, taggingProgress, tags };
 }

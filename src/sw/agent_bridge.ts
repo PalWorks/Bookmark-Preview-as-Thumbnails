@@ -17,6 +17,7 @@ import {
 import { hiddenFolderIds, readFolderPrefs } from '../lib/folder_prefs';
 import { listLocalKeys } from '../lib/trash_store';
 import { stripQuery } from '../lib/change_set/snapshot';
+import { parseChangeSet } from '../lib/change_set/format';
 import type { ChangeSetsService } from './change_sets';
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
@@ -55,10 +56,12 @@ export const ASK_AI_CLIENT: BridgeClient = {
  * also bounds what a prompt injected through a bookmark title can do without the user.
  */
 export function sendsToTrash(changeSet: unknown): boolean {
-    let v: unknown = changeSet;
-    if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return false; } }
-    const ops = (v as { ops?: unknown })?.ops;
-    return Array.isArray(ops) && ops.some(o => (o as { op?: unknown })?.op === 'trash');
+    // Read it exactly as the import will (code fences and text around the JSON included), so a
+    // set cannot hide a Trash change from this check and still be applied. Anything the parser
+    // cannot read is treated as needing the user's OK; the import refuses it anyway.
+    const text = typeof changeSet === 'string' ? changeSet : JSON.stringify(changeSet ?? null);
+    const parsed = parseChangeSet(text);
+    return !parsed.ok || parsed.set.ops.some(o => o.op === 'trash');
 }
 
 export interface PairingPrompt {

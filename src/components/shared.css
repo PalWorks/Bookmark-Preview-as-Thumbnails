@@ -2131,13 +2131,6 @@
     color: var(--color-muted);
 }
 
-.ask-text {
-    font-size: 14px;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-
 .ask-chip {
     display: inline-flex;
     align-items: center;
@@ -2702,8 +2695,9 @@ a.ask-prev:hover {
         position: fixed;
         inset: 0;
         width: auto;
-        /* Above the top bar (100) and its menus, below toasts. */
-        z-index: 1100;
+        /* Above the top bar (100), the drawer (1500) and the selection bar (1400);
+           below toasts (2000), menus (2500) and dialogs (3000). */
+        z-index: 1600;
         border-left: 0;
         padding-top: env(safe-area-inset-top, 0px);
     }

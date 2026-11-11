@@ -38,10 +38,12 @@ export interface SnapshotOptions {
     now?: Date;
 }
 
-/** Drop everything after ? or #, keeping the address readable. */
+/** Drop everything after ? or #, and any user name or password, keeping the address readable. */
 export function stripQuery(url: string): string {
     const cut = url.search(/[?#]/);
-    return cut < 0 ? url : url.slice(0, cut);
+    const base = cut < 0 ? url : url.slice(0, cut);
+    // https://user:token@host/... would otherwise keep its credentials.
+    return base.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]*@/i, '$1');
 }
 
 export function buildSnapshot(o: SnapshotOptions): Snapshot {
@@ -55,7 +57,12 @@ export function buildSnapshot(o: SnapshotOptions): Snapshot {
     };
     o.roots.forEach(r => walk(r, []));
 
-    const chosen = new Set(o.folderIds.filter(id => byId.has(id) && !o.hiddenFolderIds.has(id)));
+    // A folder hidden from search hides everything under it, as in the bridge's scope check.
+    const underHidden = (id: string) => {
+        for (let p: string | undefined = id; p && p !== '0'; p = byId.get(p)?.parentId) if (o.hiddenFolderIds.has(p)) return true;
+        return false;
+    };
+    const chosen = new Set(o.folderIds.filter(id => byId.has(id) && !underHidden(id)));
     // A folder inside another ticked folder is already covered.
     const isCovered = (id: string) => {
         let p = byId.get(id)?.parentId;

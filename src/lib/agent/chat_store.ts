@@ -3,7 +3,8 @@
 // Ask AI conversations, kept on this device (D24): an index of chats plus one record per
 // chat in chrome.storage.local. Never synced and never in backups (backups pick thumb_,
 // meta_ and allowlisted settings only). At most MAX_CHATS chats; the oldest goes first.
-// The open chat's id lives in chrome.storage.session so a reload continues it.
+// The open chat's id lives in this tab's sessionStorage, so a reload continues it and two
+// tabs never write the same chat over each other.
 
 export const CHAT_INDEX_KEY = 'ask_ai_chats';
 export const CHAT_PREFIX = 'ask_ai_chat_';
@@ -80,18 +81,20 @@ export async function deleteChat(id: string): Promise<ChatSummary[]> {
 export async function deleteAllChats(): Promise<void> {
     const ids = (await listChats()).map(c => CHAT_PREFIX + c.id);
     await chrome.storage.local.remove([CHAT_INDEX_KEY, ...ids]);
-    await chrome.storage.session?.remove(CURRENT_CHAT_KEY).catch(() => undefined);
+    await setCurrentChatId(null);
 }
 
+const tabStore = (): Storage | null => { try { return typeof sessionStorage === 'undefined' ? null : sessionStorage; } catch { return null; } };
+
 export async function getCurrentChatId(): Promise<string | null> {
-    const got = await chrome.storage.session?.get(CURRENT_CHAT_KEY).catch(() => undefined);
-    const id = got?.[CURRENT_CHAT_KEY];
-    return typeof id === 'string' ? id : null;
+    try { return tabStore()?.getItem(CURRENT_CHAT_KEY) ?? null; } catch { return null; }
 }
 
 export async function setCurrentChatId(id: string | null): Promise<void> {
-    if (id) await chrome.storage.session?.set({ [CURRENT_CHAT_KEY]: id }).catch(() => undefined);
-    else await chrome.storage.session?.remove(CURRENT_CHAT_KEY).catch(() => undefined);
+    try {
+        if (id) tabStore()?.setItem(CURRENT_CHAT_KEY, id);
+        else tabStore()?.removeItem(CURRENT_CHAT_KEY);
+    } catch { /* storage blocked: the chat simply starts fresh after a reload */ }
 }
 
 /** Day label for a list group or a divider: Today, Yesterday, the weekday this week, or the date. */

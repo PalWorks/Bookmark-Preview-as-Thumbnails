@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-11T02:41:14+00:00 (usage statistics relay: its secrets and its trust boundary, D27)._
+_Last updated: 2026-11-11T04:23:23+00:00 (pre-release audit of 1.8.0: F12 to F16)._
 
 ## Reporting a vulnerability
 
@@ -127,4 +127,20 @@ found from model output, tool results, bookmark titles or URLs to running code o
 | F9 | Low | A custom server over plain http to the internet would send the key in clear text | **Fixed**: http only for this computer and the local network |
 | F10 | Info | Ask AI sends full links (with query strings) to the user's provider | **Open, by design**: disclosed in the panel; the AI uses links to sort |
 | F11 | Info | The helper's update instruction used `@latest` | **Fixed**: pinned to the package version |
+
+## Pre-release audit of 1.8.0 (2026-11-11)
+
+A full read of the service worker, storage, UI, the AI stack, the helper, the connector and both
+relays before 1.8.0. Findings that touch security or trust:
+
+**Table S4: Audit findings and their state**
+
+| # | Severity | Finding | State |
+|---|---|---|---|
+| F12 | High | Ask AI's Trash check read a string change set with plain JSON parsing, while the import also accepts JSON in a code fence or after a sentence, so a prompt-injected set could reach Trash without the user's click (rule 26) | **Fixed**: the check uses the import's own parser and treats anything unreadable as needing approval; tests cover fenced and prefixed sets |
+| F13 | Low | "Hide query strings" kept a user name and password written into a link (`https://user:token@host`) | **Fixed**: they are removed too |
+| F14 | Low | The copy-and-paste export included a ticked folder whose parent was hidden from search | **Fixed**: same ancestor check as the connector's scope |
+| F15 | Low | The connector failed requests in flight on a reconnect, so an AI app could retry a change that had been applied | **Fixed** (connector deploy): requests wait 5 s for the browser to come back and are answered on the new socket |
+| F16 | Low | The connector's limiter counted every IPv4-mapped IPv6 address as one network | **Fixed** (connector deploy): counted as the IPv4 address, as in the feedback relay |
+| F17 | Info | In split incognito, the two service workers each keep their own write queue for `meta_*`, so a rating and an Auto-Tag on the same link at the same moment in both can lose one write | **Open, accepted for now** (ROADMAP row 27): rare, and no data outside that one record is affected |
 

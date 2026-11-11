@@ -162,6 +162,18 @@ describe('expiry', () => {
         await service.purgeExpired();
         expect(localStore['trash_req_req-1']).toBeUndefined();
     });
+
+    it('keeps an AI change set\'s delete record as long as its Trash entries', async () => {
+        const { soup } = seedRecipes();
+        const { service } = makeService();
+        await service.deleteItems({ ids: [soup.id], requestId: 'cs_1' });
+        clock.t += 1 * DAY;
+        await service.purgeExpired();
+        expect(localStore['trash_req_cs_1']).toBeDefined();
+        clock.t += 30 * DAY;
+        await service.purgeExpired();
+        expect(localStore['trash_req_cs_1']).toBeUndefined();
+    });
 });
 
 describe('trash_store views', () => {

@@ -163,6 +163,10 @@ describe('security checks', () => {
         expect(sendsToTrash({ ops: [{ op: 'rename', id: '1', title: 'x' }, { op: 'trash', id: '2' }] })).toBe(true);
         expect(sendsToTrash(JSON.stringify({ ops: [{ op: 'trash', id: '2' }] }))).toBe(true);
         expect(sendsToTrash({ ops: [{ op: 'move', id: '1', parentId: '2' }] })).toBe(false);
-        expect(sendsToTrash('not json')).toBe(false);
+        // A Trash change hidden in a code fence or after a sentence is still found (the import reads those too).
+        expect(sendsToTrash('Here:\n```json\n{"ops":[{"op":"trash","id":"2"}]}\n```')).toBe(true);
+        expect(sendsToTrash('Done. {"ops":[{"op":"trash","id":"2"}]}')).toBe(true);
+        // Unreadable input waits for the user's OK; the import refuses it anyway.
+        expect(sendsToTrash('not json')).toBe(true);
     });
 });
