@@ -62,6 +62,13 @@ stream "Chrome extension" (`G-Y7EQS9EYQB`, which also holds the Measurement Prot
 "bookmarks-feedback worker"); PostHog EU Cloud, project 344404 (the relay sends no client IP;
 turning on "Discard client IP data" there is a second guard). Both keys are Worker secrets, set 2026-11-11 and checked with a test event each.
 
+GA4 setup for these events (2026-11-11): a **Developer traffic** data filter, Active, so events
+from development copies (`debug_mode`) appear in DebugView and never in reports; and 11
+event-scoped custom dimensions for the parameters: `panel`, `open`, `surface`, `provider`,
+`folder`, `kind`, `mode`, `previous`, `count`, `tool`, `ext_version`. A new parameter needs its
+own custom dimension (Admin > Custom definitions) before it shows in reports. In PostHog, filter
+`dev = true` out in insights (Settings > "Filter out internal and test users").
+
 ## Setup
 
 ```bash

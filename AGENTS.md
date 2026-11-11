@@ -140,7 +140,8 @@ node scripts/e2e/connector.mjs <scratch>/build                                  
     (`/^[A-Za-z0-9_.:-]{0,40}$/`), never a link, title, folder name, search, chat text, key or
     exact library size (use `bucket()`). `track()` sends nothing when **Share Usage Statistics** is
     off (`usage_stats` false in sync) or in incognito. Adding an event: name it in snake_case, add
-    it to the event list in PRIVACY.md and DECISIONS D27 in the same pull request. The relay
+    it to the event list in PRIVACY.md and DECISIONS D27 in the same pull request; a new parameter also
+    needs a GA4 custom dimension (worker/README.md). The relay
     (`worker/src/events.ts`) checks every value again; keep both checks in step.
 
 ## Allowed without asking
