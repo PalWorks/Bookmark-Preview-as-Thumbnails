@@ -3,7 +3,7 @@
 // LinkObject: hello and secret rules, one live socket, relaying, codes, limits.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LinkObject, MCP_PER_MINUTE } from '../src/link.ts';
+import { LinkObject, MCP_PER_MINUTE, NEW_TOKEN_PER_MINUTE } from '../src/link.ts';
 import { FakeSocket, LINK_ID, LINK_SECRET, linkState } from './fakes.ts';
 
 const hello = (over: Record<string, unknown> = {}) => JSON.stringify({ type: 'hello', linkId: LINK_ID, secret: LINK_SECRET, extVersion: '1.7.0', protocolVersion: 1, ...over });
@@ -142,4 +142,38 @@ test('networkOf: IPv4 as itself, IPv4-mapped IPv6 as the IPv4, IPv6 as its /64',
     assert.equal(networkOf('203.0.113.7'), '203.0.113.7');
     assert.equal(networkOf('::ffff:203.0.113.7'), '203.0.113.7');
     assert.equal(networkOf('2001:db8:1:2:3:4:5:6'), '2001:db8:1:2::/64');
+});
+
+test('F6: guessed tokens use their own budget and a refused token stops reaching the browser', async () => {
+    const { obj, connect } = setup();
+    const ws = await connect();
+    const mcp = (token: string, method = 'tools/call') => obj.fetch(new Request('https://link/mcp', {
+        method: 'POST', headers: { 'X-Link-Id': LINK_ID },
+        body: JSON.stringify({ token, text: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: { name: 'list_folders', arguments: {} } }) }),
+    }));
+    // The browser answers: the real token works, anything else is not paired.
+    const answer = async () => {
+        for (let i = 0; i < 50; i++) {
+            const f = ws.sent.at(-1);
+            if (f?.type === 'request' && !f.answered) {
+                f.answered = true;
+                const ok = f.req.token === 'real-token-real-token-1';
+                await obj.webSocketMessage(ws as any, JSON.stringify({ type: 'response', rid: f.rid, res: ok ? { v: 1, id: f.req.id, ok: true, body: {} } : { v: 1, id: f.req.id, ok: false, error: { code: 'NOT_PAIRED', message: 'no' } } }));
+                return;
+            }
+            await new Promise((r) => setTimeout(r, 1));
+        }
+    };
+    const run = async (token: string) => { const p = mcp(token); await answer(); return (await p).json() as Promise<any>; };
+
+    assert.equal((await run('real-token-real-token-1')).status, 200);
+    // A refused guess is answered 401, then answered 401 again without asking the browser.
+    assert.equal((await run('guess-token-guess-tok-0')).status, 401);
+    const before = ws.sent.length;
+    assert.equal(((await (await mcp('guess-token-guess-tok-0')).json()) as any).status, 401);
+    assert.equal(ws.sent.length, before);
+    // New guesses use up only their own budget; the real connection keeps working.
+    for (let i = 1; i < NEW_TOKEN_PER_MINUTE; i++) await run(`guess-token-guess-tok-${i}`);
+    assert.equal((await mcp('guess-token-guess-tok-99')).status, 429);
+    assert.equal((await run('real-token-real-token-1')).status, 200);
 });

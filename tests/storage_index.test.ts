@@ -197,6 +197,17 @@ describe('StorageIndex.patch', () => {
         expect(localStore[`meta_${URL_A}`]).toMatchObject({ tags: ['Dev'], status: 'saved_indexeddb', lastCaptureAt: 9 });
     });
 
+    it('two workers (split incognito) patching one link at once keep both changes', async () => {
+        const regular = new StorageIndex();
+        const incognito = new StorageIndex();
+        await regular.set({ id: URL_A, url: URL_A, title: 'T', status: 'none' });
+        await Promise.all([
+            regular.patch(URL_A, { rating: 4 }),
+            incognito.patch(URL_A, { tags: ['Dev'] }),
+        ]);
+        expect(localStore[`meta_${URL_A}`]).toMatchObject({ rating: 4, tags: ['Dev'] });
+    });
+
     it('continues the queue after a failed write', async () => {
         const index = new StorageIndex();
         const setSpy = chrome.storage.local.set as unknown as { mockImplementationOnce: (fn: () => Promise<void>) => void };

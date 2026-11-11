@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-11T04:23:23+00:00 (1.8.0 audit: capture batch clean-up, connector reconnect grace, per-tab Ask AI chat)._
+_Last updated: 2026-11-11T05:30:59+00:00 (connector token budgets, remote token expiry, keyboard menus)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has two small servers of its own:
 the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0) and for
@@ -354,6 +354,10 @@ Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
   exchanges with PKCE S256. The app's access token is the extension token; the extension stores
   only its SHA-256. Removing the connection in the extension revokes it.
 - **Make a new address** replaces `linkId` and `secret` and removes every `remote` client.
+- **Token life and budgets** (1.8.1): the extension removes a `remote` client unused for 90 days.
+  The link's Durable Object keeps `tok:<sha256>` for tokens the browser accepted in the last day;
+  those share 60 requests a minute, any other token 20, and a token the browser refused is answered
+  401 for 10 minutes without a relay.
 - **Worker** (`connector/`): stateless client registration (HMAC-signed client ids), per-link and
   per-network limits, no bookmark data and no long-lived tokens stored. Served on
   `bookmarks-connector.palworks.ai` (`CONNECTOR_ORIGIN`, D22) and on its workers.dev address for

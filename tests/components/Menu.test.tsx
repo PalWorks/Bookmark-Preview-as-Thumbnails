@@ -33,15 +33,32 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         expect(toggle.getAttribute('title')).toMatch(/folders/i);
     });
 
-    it('capture options sit under a collapsed Generate Preview settings item', async () => {
+    it('menus work from the keyboard: focus moves in, arrows move, Escape returns to the button', async () => {
+        render(<App />);
+        const trigger = await screen.findByRole('button', { name: /^Sort:/ });
+        fireEvent.click(trigger);
+        const menu = screen.getByRole('menu', { name: 'Sort' });
+        const items = within(menu).getAllByRole('menuitemradio');
+        const checked = items.find(i => i.getAttribute('aria-checked') === 'true')!;
+        expect(document.activeElement).toBe(checked);
+        fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+        expect(document.activeElement).toBe(items[items.indexOf(checked) + 1]);
+        fireEvent.keyDown(document.activeElement!, { key: 'End' });
+        expect(document.activeElement).toBe(items[items.length - 1]);
+        fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+        expect(screen.queryByRole('menu', { name: 'Sort' })).toBeNull();
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it('capture options sit under a collapsed Generate Preview Settings item', async () => {
         render(<App />);
         const menu = await openMenu();
         expect(within(menu).queryByText('Use Incognito Window')).toBeNull();
-        const disclosure = within(menu).getByRole('menuitem', { name: /Generate Preview settings/ });
+        const disclosure = within(menu).getByRole('menuitem', { name: /Generate Preview Settings/ });
         expect(disclosure.getAttribute('aria-expanded')).toBe('false');
         fireEvent.click(disclosure);
         expect(disclosure.getAttribute('aria-expanded')).toBe('true');
-        const group = within(menu).getByRole('group', { name: 'Generate Preview settings' });
+        const group = within(menu).getByRole('group', { name: 'Generate Preview Settings' });
         expect(within(group).getByText('Use Incognito Window')).toBeTruthy();
         expect(within(group).getByText('Use Active Tab Capture')).toBeTruthy();
         expect(within(group).getByLabelText('Screen Capture Delay')).toBeTruthy();

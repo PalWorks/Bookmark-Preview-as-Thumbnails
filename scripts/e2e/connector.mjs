@@ -104,9 +104,14 @@ try {
     check('removed in the extension: the app must sign in again (401)', gone.status === 401, gone.status);
     await ev(sid, `await chrome.runtime.sendMessage({ type: 'CONNECTOR_DISABLE' }); return 1;`);
     await sleep(800);
-    const off = await fetch(mcpUrl, { method: 'POST', headers: { Authorization: `Bearer ${tok.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 100, method: 'tools/call', params: { name: 'list_folders', arguments: {} } }) });
+    // The removed token is now answered 401 by the Worker itself (refused-token cache, F6), so
+    // the offline path is checked with a token the Worker has not seen.
+    const unseen = `tok_${crypto.randomUUID().replace(/-/g, '')}`;
+    const off = await fetch(mcpUrl, { method: 'POST', headers: { Authorization: `Bearer ${unseen}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 100, method: 'tools/call', params: { name: 'list_folders', arguments: {} } }) });
     const offBody = await off.json();
     check('switched off: the app hears the browser is not connected', offBody.result?.structuredContent?.error?.code === 'NOT_CONNECTED', offBody);
+    const again = await fetch(mcpUrl, { method: 'POST', headers: { Authorization: `Bearer ${tok.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 101, method: 'tools/call', params: { name: 'list_folders', arguments: {} } }) });
+    check('a removed token stays refused while the browser is away (401)', again.status === 401, again.status);
 } catch (e) { check('run', false, String(e?.stack ?? e)); }
 finally {
     try { ws?.close(); } catch { /* */ }

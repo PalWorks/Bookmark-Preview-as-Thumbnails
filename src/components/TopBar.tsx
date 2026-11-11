@@ -5,8 +5,9 @@ import { setUsageStats, usageStatsEnabled } from '../lib/analytics';
 import './TopBar.css';
 import { SIDEBAR_ID } from './Sidebar';
 import type { SortOrder } from '../lib/list_columns';
+import { focusMenu, menuKeyDown } from './menuKeys';
 
-// Hover help for the Generate Preview settings, written for non-technical users.
+// Hover help for the Generate Preview Settings, written for non-technical users.
 const TIP_INCOGNITO =
     'Opens this bookmark manager in a private (Incognito) window, and previews are taken from there. ' +
     'Private windows do not use your sign-ins or cookies, so pages that need you to be logged in ' +
@@ -91,7 +92,7 @@ const UsageStatsToggle: React.FC = () => {
             }}>
             <BarChart3 size={16} className="menu-icon" aria-hidden="true" />
             <div className="menu-text">
-                <div className="menu-title">Share usage statistics</div>
+                <div className="menu-title">Share Usage Statistics</div>
                 <div className="menu-desc">Which features are used; never your bookmarks</div>
             </div>
             <div className={`toggle-switch ${on ? 'checked' : ''}`} aria-hidden="true"></div>
@@ -198,9 +199,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             case 'date-oldest': return 'Oldest';
             case 'domain-asc': return 'Domain (A-Z)';
             case 'domain-desc': return 'Domain (Z-A)';
-            case 'opened-newest': return 'Recently opened';
+            case 'opened-newest': return 'Recently Opened';
             case 'rating-high': return 'Rating';
-            case 'visits-high': return 'Most visited';
+            case 'visits-high': return 'Most Visited';
             default: return 'Sort';
         }
     };
@@ -211,6 +212,11 @@ export const TopBar: React.FC<TopBarProps> = ({
             case 'dark': return 'Dark Mode';
             case 'system': return 'System Theme';
         }
+    };
+
+    // Focus moves into a menu when it opens, so the arrow keys work at once (menuKeys.ts).
+    const autoFocusMenu = (el: HTMLDivElement | null) => {
+        if (el && !el.dataset.focused) { el.dataset.focused = '1'; focusMenu(el); }
     };
 
     const option = (selected: boolean, label: string, onClick: () => void) => (
@@ -296,7 +302,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <span>{getFilterLabel()}</span>
                     </button>
                     {isFilterOpen && (
-                        <div className="dropdown-menu" role="menu">
+                        <div className="dropdown-menu" role="menu" aria-label="Filter" ref={autoFocusMenu}
+                            onKeyDown={(e) => menuKeyDown(e, () => setIsFilterOpen(false), filterRef.current?.querySelector<HTMLElement>('[aria-haspopup]'))}>
                             {option(filterType === 'all' && !activeTag, 'All', () => { onFilterChange('all'); onTagChange(null); setIsFilterOpen(false); })}
                             {option(filterType === 'folders', 'Folders Only', () => { onFilterChange('folders'); onTagChange(null); setIsFilterOpen(false); })}
                             {option(filterType === 'bookmarks', 'Bookmarks Only', () => { onFilterChange('bookmarks'); onTagChange(null); setIsFilterOpen(false); })}
@@ -337,7 +344,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <span>{getSortLabel()}</span>
                     </button>
                     {isSortOpen && (
-                        <div className="dropdown-menu" role="menu">
+                        <div className="dropdown-menu" role="menu" aria-label="Sort" ref={autoFocusMenu}
+                            onKeyDown={(e) => menuKeyDown(e, () => setIsSortOpen(false), sortRef.current?.querySelector<HTMLElement>('[aria-haspopup]'))}>
                             {option(sortOrder === 'name-asc', 'Title (A-Z)', () => { onSortChange('name-asc'); setIsSortOpen(false); })}
                             {option(sortOrder === 'name-desc', 'Title (Z-A)', () => { onSortChange('name-desc'); setIsSortOpen(false); })}
                             <div className="menu-divider"></div>
@@ -347,9 +355,9 @@ export const TopBar: React.FC<TopBarProps> = ({
                             {option(sortOrder === 'date-newest', 'Date Added (Newest)', () => { onSortChange('date-newest'); setIsSortOpen(false); })}
                             {option(sortOrder === 'date-oldest', 'Date Added (Oldest)', () => { onSortChange('date-oldest'); setIsSortOpen(false); })}
                             <div className="menu-divider"></div>
-                            {option(sortOrder === 'opened-newest', 'Recently opened', () => { onSortChange('opened-newest'); setIsSortOpen(false); })}
-                            {option(sortOrder === 'rating-high', 'Rating (highest first)', () => { onSortChange('rating-high'); setIsSortOpen(false); })}
-                            {canSortByVisits && option(sortOrder === 'visits-high', 'Most visited', () => { onSortChange('visits-high'); setIsSortOpen(false); })}
+                            {option(sortOrder === 'opened-newest', 'Recently Opened', () => { onSortChange('opened-newest'); setIsSortOpen(false); })}
+                            {option(sortOrder === 'rating-high', 'Rating (Highest First)', () => { onSortChange('rating-high'); setIsSortOpen(false); })}
+                            {canSortByVisits && option(sortOrder === 'visits-high', 'Most Visited', () => { onSortChange('visits-high'); setIsSortOpen(false); })}
                         </div>
                     )}
                 </div>
@@ -413,7 +421,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                 </button>
 
                 {isMenuOpen && (
-                    <div className="settings-menu" role="menu">
+                    <div className="settings-menu" role="menu" aria-label="Settings" ref={autoFocusMenu}
+                        onKeyDown={(e) => menuKeyDown(e, () => setIsMenuOpen(false), menuRef.current?.querySelector<HTMLElement>('[aria-haspopup]'))}>
                         <button type="button" role="menuitem" className="menu-item" onClick={() => {
                             onOpenTrash();
                             setIsMenuOpen(false);
@@ -450,14 +459,14 @@ export const TopBar: React.FC<TopBarProps> = ({
                         >
                             <Camera size={16} className="menu-icon" aria-hidden="true" />
                             <div className="menu-text">
-                                <div className="menu-title">Generate Preview settings</div>
+                                <div className="menu-title">Generate Preview Settings</div>
                                 <div className="menu-desc">How previews are captured</div>
                             </div>
                             <ChevronDown size={16} className={`menu-chevron ${isCaptureSettingsOpen ? 'menu-chevron--open' : ''}`} aria-hidden="true" />
                         </button>
 
                         {isCaptureSettingsOpen && (
-                            <div id="capture-settings" className="menu-submenu" role="group" aria-label="Generate Preview settings">
+                            <div id="capture-settings" className="menu-submenu" role="group" aria-label="Generate Preview Settings">
                             <button type="button" role="menuitemcheckbox" aria-checked={useIncognito} className="menu-item toggle-item" title={TIP_INCOGNITO} onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleIncognito(!useIncognito);

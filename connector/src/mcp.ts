@@ -39,6 +39,9 @@ export const toolList = () =>
 let seq = 0;
 const nextId = () => `c${Date.now().toString(36)}${(seq++).toString(36)}`;
 
+/** The answer for a token the extension does not know (removed, expired or never issued). */
+export const UNAUTHORIZED: McpOutcome = { status: 401, unauthorized: true, body: { error: 'invalid_token', error_description: 'This connection was removed in the extension. Connect again.' } };
+
 /** One JSON-RPC message. Returns the reply, null for notifications, or 'unauthorized'. */
 async function dispatch(msg: RpcMessage, token: string, relay: Relay): Promise<unknown | null | 'unauthorized'> {
     if (!msg || typeof msg !== 'object' || typeof msg.method !== 'string') return rpcError(msg?.id, -32600, 'Invalid request');
@@ -97,7 +100,7 @@ export async function handleMcp(text: string, token: string, relay: Relay): Prom
     const replies: unknown[] = [];
     for (const m of messages) {
         const r = await dispatch(m, token, relay);
-        if (r === 'unauthorized') return { status: 401, unauthorized: true, body: { error: 'invalid_token', error_description: 'This connection was removed in the extension. Connect again.' } };
+        if (r === 'unauthorized') return UNAUTHORIZED;
         if (r !== null) replies.push(r);
     }
     if (replies.length === 0) return { status: 202 };

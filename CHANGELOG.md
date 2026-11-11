@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Ready on `main` (2026-11-11T05:30:59+00:00); ships as 1.8.1 once 1.8.0 is published (uploading now would cancel
+its review). The connector part is live already.
+
+### Added
+
+- **Keyboard support in the top bar menus** (Settings, Filter, Sort): focus moves into a menu
+  when it opens, Arrow Up and Down, Home and End move, Escape closes it and returns to its button.
+- **AI Tools tabs** are one tab stop; the Left and Right arrows, Home and End open the next tab.
+
+### Changed
+
+- Menu labels use one style (Title Case): **Share Usage Statistics**, **Generate Preview
+  Settings**, **Recently Opened**, **Rating (Highest First)**, **Most Visited**.
+
+### Security
+
+- **An online connection unused for 90 days is removed** (SECURITY F2): its token stops working
+  and Claude or ChatGPT has to connect again. Coding agents on this computer are not affected.
+- **Connector (Worker, deployed):** requests with a token the browser has not yet accepted have
+  their own budget of 20 a minute, so someone who knows a link's address cannot use up the 60 a
+  minute of the real connection; a token the browser refused is answered "sign in again" for 10
+  minutes without reaching the browser (F6).
+
+### Fixed
+
+- With split incognito, a rating and an Auto-Tag on the same link at the same moment no longer
+  lose one of the two (F17): each write is read back and merged again if the other worker wrote
+  in between.
+
 ## [1.8.0] - 2026-11-11 (release prepared 2026-11-11T02:41:14+00:00; submitted to the Web Store 2026-11-11T04:31:04+00:00, in review)
 
 ### Added

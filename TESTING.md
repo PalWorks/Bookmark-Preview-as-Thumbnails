@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-11T02:41:14+00:00 (483 Vitest tests, 34 relay, 38 connector and 12 helper tests; 1.8.0 audit fixes)._
+_Last updated: 2026-11-11T05:30:59+00:00 (487 Vitest tests, 34 relay, 39 connector and 12 helper tests; rows 24, 27, 28)._
 
 ## Commands
 
@@ -14,7 +14,7 @@ npm run e2e                              # real Chrome, headless, throwaway prof
 cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback and usage statistics relay, 34 tests
 cd bridge && node build.mjs && node --test test/*.test.ts                            # coding-agent helper, 12 tests
 node scripts/e2e/bridge.mjs <build> bridge/dist/cli.js                               # real Chrome + host + CLI, 18 checks
-cd connector && npm test && npm run typecheck                                        # online connector Worker, 38 tests
+cd connector && npm test && npm run typecheck                                        # online connector Worker, 39 tests
 cd connector && npm run smoke                                                        # Worker alone under wrangler dev
 node scripts/e2e/connector.mjs <build>                                               # real Chrome + Worker + MCP client, 15 checks
 ```
@@ -75,6 +75,10 @@ storage and bookmarks to test crash recovery.
 | 1.6.0 settings menu (Generate Preview sub-menu, backup icon row, trash-icon Delete), the single AI Tools item, the AI Tools tab order and the icon-only Ask AI button, and the feedback dialog (no details when unticked, double submit sends once, text kept after a failed send) | `components/Menu.test.tsx` |
 | Capture page copy without scripts, expected failures logged as warnings | `content_capture.test.ts` |
 | Feedback relay: origins, limits, Durable Object counters, IPv6 /64, body caps, sanitising, provider errors; `/events`: origin check, batch cleaning, GA4 and PostHog bodies | `worker/test/index.test.ts` (Node test runner, not in the Vitest count) |
+| Top bar menus from the keyboard (focus in, arrows, End, Escape back to the button); AI Tools tabs as one tab stop with arrow keys | `components/Menu.test.tsx`, `components/AIToolsTabs.test.tsx` |
+| Metadata written by two workers at once (split incognito) keeps both changes | `storage_index.test.ts` |
+| An online connection unused for 90 days is removed and its token refused | `agent_bridge.test.ts` |
+| Connector: unknown tokens use their own budget, refused tokens get 401 without reaching the browser, a request survives a reconnect | `connector/test/link.test.ts` |
 | Folder export for an AI (copy and paste, connector scope): links lose query strings and any user name or password; a ticked folder under a hidden folder is left out | `snapshot.test.ts` |
 | Ask AI Trash approval: a Trash change inside a code fence or after a sentence still waits for the user | `ai_provider_rules.test.ts` |
 | Usage statistics: value checks (`safeParams`), count buckets, message-to-event mapping, the off switch, incognito, batching and the dev flag (the real module; every other suite mocks `track` and `flush` in `tests/setup.ts`) | `analytics.test.ts` |

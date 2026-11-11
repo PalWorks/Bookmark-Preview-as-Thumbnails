@@ -46,6 +46,23 @@ export class StorageIndex {
     private queues = new Map<string, Promise<unknown>>();
 
     /**
+     * Write `merge(existing)` and read it back. With split incognito a second service worker
+     * writes the same storage with its own queue (SECURITY F17); if its write landed between
+     * our read and our write check, merge again onto what is stored, so neither change is lost.
+     */
+    private async mergeAndWrite(id: string, merge: (existing: MetadataRecord | undefined) => MetadataRecord | undefined): Promise<MetadataRecord | undefined> {
+        let existing = await this.get(id);
+        for (let attempt = 0; ; attempt++) {
+            const merged = merge(existing);
+            if (!merged) return existing;
+            await this.set(merged);
+            const stored = await this.get(id);
+            if (attempt >= 2 || JSON.stringify(stored) === JSON.stringify(merged)) return merged;
+            existing = stored;
+        }
+    }
+
+    /**
      * Merge `update` into the stored record (creating it if missing) without
      * dropping fields the caller did not mention, such as AI `tags` when a
      * preview is recaptured. Writes for the same id are serialised.
@@ -60,8 +77,7 @@ export class StorageIndex {
         const previous = this.queues.get(id) ?? Promise.resolve();
         const next = previous
             .catch(() => undefined)
-            .then(async () => {
-                const existing = await this.get(id);
+            .then(async () => (await this.mergeAndWrite(id, existing => {
                 const merged: MetadataRecord = {
                     id,
                     url: id,
@@ -71,9 +87,8 @@ export class StorageIndex {
                     ...update,
                 };
                 for (const k of remove) delete merged[k];
-                await this.set(merged);
                 return merged;
-            });
+            }))!);
         this.queues.set(id, next);
         void next.finally(() => {
             if (this.queues.get(id) === next) this.queues.delete(id);
@@ -93,14 +108,11 @@ export class StorageIndex {
         const previous = this.queues.get(id) ?? Promise.resolve();
         const next = previous
             .catch(() => undefined)
-            .then(async () => {
-                const existing = await this.get(id);
+            .then(() => this.mergeAndWrite(id, existing => {
                 const change = fn(existing);
-                if (!change || Object.keys(change).length === 0) return existing;
-                const merged: MetadataRecord = { id, url: id, title: '', status: 'none', ...(existing ?? {}), ...change };
-                await this.set(merged);
-                return merged;
-            });
+                if (!change || Object.keys(change).length === 0) return undefined;
+                return { id, url: id, title: '', status: 'none', ...(existing ?? {}), ...change };
+            }));
         this.queues.set(id, next);
         void next.finally(() => {
             if (this.queues.get(id) === next) this.queues.delete(id);
