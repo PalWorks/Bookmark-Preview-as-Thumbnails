@@ -63,7 +63,10 @@ name with the path, link ids masked.
 ## Limits
 
 64 KB per request (`413`), 30 s per tool call, 4 authorization attempts a minute per network
-(start and code entry both count), 60 MCP requests a minute per link (`429`).
+(start and code entry both count), 60 MCP requests a minute per link for tokens the browser has
+accepted in the last day and 20 for any other token (`429`). A token the browser refused is
+answered `401` for 10 minutes without reaching the browser. The browser removes an online
+connection unused for 90 days, so its token then gets `401` too.
 
 ## Run locally
 

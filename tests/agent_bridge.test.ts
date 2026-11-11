@@ -328,6 +328,20 @@ describe('agent bridge', () => {
         void f;
     });
 
+    it('F2: an online connection unused for 90 days is removed and its token stops working', async () => {
+        const s = setup();
+        fakeBookmarks.seed('1', 'Work');
+        await s.bridge.cancelPrompt(false);
+        await s.bridge.openInvite();
+        const code = (await s.bridge.state()).invite!.code;
+        const token = (await s.remote('pair', { pairingId: 'q'.repeat(20), client: 'Claude', code })).body!.token as string;
+        s.clock.t += 89 * 24 * 60 * 60 * 1000;
+        expect((await s.remote('list_folders', {}, token)).ok).toBe(true);
+        s.clock.t += 91 * 24 * 60 * 60 * 1000;
+        expect((await s.remote('list_folders', {}, token)).error?.code).toBe('NOT_PAIRED');
+        expect((await s.bridge.state()).clients.filter(c => c.name === 'Claude')).toHaveLength(0);
+    });
+
     it('D20: the online connector pairs with the standing code on the Connect page, with the folders and mode chosen there', async () => {
         const s = setup();
         const f = fakeBookmarks.seed('1', 'Work');

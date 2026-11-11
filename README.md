@@ -10,7 +10,7 @@ connect Claude or ChatGPT, or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-11T04:31:04+00:00 (1.7.1 live; 1.8.0 with usage statistics and audit fixes in Web Store review)._
+_Last updated: 2026-11-11T05:30:59+00:00 (1.8.0 in Web Store review; keyboard menus, token expiry and connector budgets on main for 1.8.1)._
 
 ## Contents
 
@@ -95,7 +95,7 @@ title, folder name, search or chat text, and which you can turn off in Settings;
   are reviewed with tick boxes and applied as one step. Without a key or connector, "Other ways:
   copy and paste" shares chosen folders as text for any AI and takes its answer back for review.
 - **Usage statistics** (1.8.0): anonymous counts of which features are used, so the product
-  follows real use. On by default; **Settings > Share usage statistics** turns them off, and
+  follows real use. On by default; **Settings > Share Usage Statistics** turns them off, and
   incognito windows never send them. They go through our relay to Google Analytics and PostHog.
 - **Light, dark and system themes**; works from 360px wide up; keyboard and screen reader support.
 
@@ -150,7 +150,7 @@ There are no environment variables. Everything is set in the extension:
 | Setting | Where | Stored in |
 |---|---|---|
 | Theme, folder panel | Top bar | `chrome.storage.sync` |
-| Capture delay, active-tab capture, incognito window | Settings menu → Generate Preview settings | `chrome.storage.sync` |
+| Capture delay, active-tab capture, incognito window | Settings menu → Generate Preview Settings | `chrome.storage.sync` |
 | List view columns | List view, Columns | `chrome.storage.sync` |
 | Keep deletes made outside the extension | Trash view, top switch | `chrome.storage.sync` |
 | Folder colour, hidden from search | Folder's More actions menu | `chrome.storage.local` (this device; included in exports by folder path) |
@@ -229,7 +229,7 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-483 tests cover usage statistics (value checks, opt-out, incognito, batching), migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
+487 tests cover keyboard menus, usage statistics (value checks, opt-out, incognito, batching), migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
 apply, Undo, recovery), the bridge (modes, apply and undo), Ask AI, the connector link, the
@@ -237,7 +237,7 @@ reactive bookmark tree, backups, and the whole app in jsdom. `npm run e2e` check
 in a real Chrome; `scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together (18
 checks); `scripts/e2e/connector.mjs` runs Chrome, the connector Worker under `wrangler dev` and an
 MCP client through sign-in, tools, Undo and revocation (15 checks). The feedback relay has 34
-tests of its own, the helper package 12 (`bridge/test/`) and the connector 38 (`cd connector &&
+tests of its own, the helper package 12 (`bridge/test/`) and the connector 39 (`cd connector &&
 npm test`). See [TESTING.md](TESTING.md).
 
 ## Deployment
@@ -259,7 +259,8 @@ settings are ever changed. Steps, the permission gate and rollback:
 [docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is live on the Chrome Web Store.
 1.7.1 (one AI Tools page, Ask AI beside the bookmarks with saved chats and the open folder as
 context, provider fixes, security fixes) is live too. 1.8.0 (anonymous usage statistics with an
-off switch, and the fixes from a full pre-release audit) is in Web Store review; coding agents
+off switch, and the fixes from a full pre-release audit) is in Web Store review, and 1.8.1
+(keyboard menus, 90-day expiry for online connections) is ready on `main` for after it; coding agents
 use `bookmarks-thumbnails-mcp@1.7.2`. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
 changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 

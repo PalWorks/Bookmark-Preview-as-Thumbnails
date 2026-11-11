@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-11T04:23:23+00:00 (pre-release audit of 1.8.0: F12 to F16)._
+_Last updated: 2026-11-11T05:30:59+00:00 (F2, F6 and F17 fixed: remote token expiry, connector token budgets, metadata writes across workers)._
 
 ## Reporting a vulnerability
 
@@ -76,7 +76,7 @@ calls over a WebSocket the browser opened. What protects each step:
 | A leaked token | The token lives only in the AI app (as its access token) and, as a SHA-256 hash, in the extension; the Worker holds it only inside a 2-minute authorization code. Removing the connection in the extension revokes it; "Make a new address" also replaces the link secret and removes every online connection. |
 | Someone else's browser answering for a link | The browser's first frame carries the link secret; the Durable Object stores its SHA-256 on first use and refuses a different secret later. |
 | The relay reading or keeping bookmark data | Requests and answers pass through in memory only. The Worker stores no bookmark data and never logs tokens, secrets, codes or request and response bodies; its one log line is an error name with the path, link ids masked. |
-| Flooding | 64 KB per request (413), 30 s per tool call, 60 MCP requests a minute per link (429). |
+| Flooding | 64 KB per request (413), 30 s per tool call, 60 MCP requests a minute per link for tokens the browser accepted and 20 for any other token (429); a refused token gets 401 for 10 minutes without reaching the browser. |
 | What a connected app may do | Only the folders and mode chosen on the code card (default: every top-level folder except hidden ones, mode `change`), changeable or removable at any time on the Connect page. |
 
 Real Claude and ChatGPT clients against the deployed Worker are not covered by automated tests;
@@ -117,11 +117,11 @@ found from model output, tool results, bookmark titles or URLs to running code o
 | # | Severity | Finding | State |
 |---|---|---|---|
 | F1 | Medium | A bookmark title can steer Ask AI (prompt injection); "ask before more than 50 to Trash" was only an instruction to the model | **Fixed** (D24): any change set that sends to Trash waits for the user's OK in the chat; the rest applies with Undo and Redo |
-| F2 | Medium | Connector defaults: full links with query strings, tokens that never expire | **Part fixed**: new remote connections hide query strings by default. Open: token expiry after long idle (ROADMAP row 24) |
+| F2 | Medium | Connector defaults: full links with query strings, tokens that never expire | **Fixed**: new remote connections hide query strings by default; a remote connection unused for 90 days is removed (1.8.1, ROADMAP row 24) |
 | F3 | Medium | Whoever controls the Cloudflare account can capture connector tokens | **Accepted** (owner, 2026-11-11): the Workers stay on the shared account. Keep two-step sign-in on it and give API tokens only the permissions a job needs |
 | F4 | Low | A shared backup file could set AI mode, provider and server when no key was saved | **Fixed**: those three are never taken from a file; the panel names a custom server's address |
 | F5 | Low | The worker answered some messages (Auto-Tag, Smart Search, batch capture) from any sender; content scripts could read stored data | **Fixed**: only the extension's own pages are answered; storage access set to trusted contexts [Unverified that every supported Chrome applies it to storage.local] |
-| F6 | Low | Someone who knows a link id can use up its per-minute budget or the sign-in tries | **Open** (ROADMAP row 24): count failed tokens separately in the Durable Object |
+| F6 | Low | Someone who knows a link id can use up its per-minute budget or the sign-in tries | **Fixed** (connector deploy, 2026-11-11): tokens not yet accepted by the browser have their own 20 a minute; refused tokens are answered 401 for 10 minutes without reaching the browser |
 | F7 | Low | The helper installer trusts any unpacked extension with the product's name | **Fixed** (D25): install asks once per copy in a terminal, allows nothing without one, and never allows a copy in a folder another user owns or can change |
 | F8 | Low | A token worked on either transport | **Fixed**: bound to the transport it was issued on |
 | F9 | Low | A custom server over plain http to the internet would send the key in clear text | **Fixed**: http only for this computer and the local network |
@@ -142,5 +142,5 @@ relays before 1.8.0. Findings that touch security or trust:
 | F14 | Low | The copy-and-paste export included a ticked folder whose parent was hidden from search | **Fixed**: same ancestor check as the connector's scope |
 | F15 | Low | The connector failed requests in flight on a reconnect, so an AI app could retry a change that had been applied | **Fixed** (connector deploy): requests wait 5 s for the browser to come back and are answered on the new socket |
 | F16 | Low | The connector's limiter counted every IPv4-mapped IPv6 address as one network | **Fixed** (connector deploy): counted as the IPv4 address, as in the feedback relay |
-| F17 | Info | In split incognito, the two service workers each keep their own write queue for `meta_*`, so a rating and an Auto-Tag on the same link at the same moment in both can lose one write | **Open, accepted for now** (ROADMAP row 27): rare, and no data outside that one record is affected |
+| F17 | Info | In split incognito, the two service workers each keep their own write queue for `meta_*`, so a rating and an Auto-Tag on the same link at the same moment in both can lose one write | **Fixed** (1.8.1): each metadata write is read back and merged again if the other worker wrote in between |
 

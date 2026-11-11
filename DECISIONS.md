@@ -22,7 +22,7 @@ switch, and the privacy texts say so plainly.
   relay both drop anything else, so no link, title, folder name, search or chat text can
   pass. Counts go as ranges. The relay sends the country, never the IP address. PostHog gets
   no person profiles.
-- **Off switch:** Settings > Share usage statistics (synced). Off means nothing is sent;
+- **Off switch:** Settings > Share Usage Statistics (synced). Off means nothing is sent;
   Incognito windows never send. Development copies are marked and kept out of GA4 reports
   (debug mode) and tagged `dev` in PostHog.
 - **Events:** feature messages the service worker already receives (previews, Auto-Tag, Smart

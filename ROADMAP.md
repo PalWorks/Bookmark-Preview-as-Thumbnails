@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-11T05:22:24+00:00 (row 10 done: the parity user got a reply)._
+> _Last updated: 2026-11-11T05:30:59+00:00 (rows 24, 27 and 28 done on main; 1.8.1 waits for 1.8.0 to be published)._
 
 ## 0. North star: every open item, one row each
 
@@ -30,9 +30,9 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 26 | §3.1 | P1 | **In progress** | S | H | 2026-11-11 | 1.8.0 adds usage statistics (D27): anonymous feature events through our relay to GA4 (stream `G-Y7EQS9EYQB`) and PostHog EU (project 344404), on by default, off in Settings. The relay is deployed with both keys and checked (204 from our origin, 403 otherwise, PostHog test event accepted). The owner tested it; a full pre-release audit (2026-11-11T04:23:23+00:00) fixed one high finding (Ask AI Trash approval, SECURITY F12) and about twenty smaller ones, and the connector Worker is redeployed with its two fixes. | Tagged `v1.8.0`, uploaded, **User activity** ticked in the store's Privacy practices, submitted 2026-11-11T04:31:04+00:00 (store API: PENDING_REVIEW, automatic publishing). After approval: PLAYBOOK step 8. |
 | 21 | §3.1 | P2 | **Done** | S | M | 2026-11-11 | 1.7.1 (AI Tools page D23, provider fixes D21, palworks.ai addresses D22, Ask AI side panel and chats D24, open-folder context D26, security fixes) is live on the Web Store at 100% (store API, 2026-11-11); helper 1.7.2 (D25) is on npm (`latest`). | PLAYBOOK step 8 together with 1.8.0 (row 26). |
 | 25 | §3.3 | P2 | **Done** | S | M | 2026-11-11 | Security review F3 and F7 decided by the owner: F3 accepted (Workers stay on the shared Cloudflare account); F7 fixed in the helper (D25). | Shipped: helper 1.7.2 is `latest` on npm (2026-11-11). |
-| 27 | §3.3 | P3 | **Open** | S | L | 2026-11-11 | 1.8.0 audit, left open: in split incognito the two workers each queue `meta_*` writes, so a rating and an Auto-Tag on one link at the same moment can lose one (SECURITY F17); only `StorageIndex.clear` and `remove` and a few exports are used by tests alone. | Route incognito `META_PATCH` to the regular worker, or document; prune test-only code when next touched. |
-| 28 | §3.2 | P3 | **Open** | M | M | 2026-11-11 | 1.8.0 audit, left open: the Settings, Filter and Sort menus and the AI Tools tabs lack arrow-key navigation; Settings menu labels mix Title Case and sentence case. | Share `ContextMenu`'s keyboard logic with the top bar menus; add tabpanel roles and arrow keys; pick one label case and update the store listing text with it. |
-| 24 | §3.3 | P3 | **Open** | S | M | 2026-11-10 | Security review F2 and F6: connector tokens never expire; failed tokens use up a link's per-minute budget. | Expire a token after 90 days unused; count failed tokens separately in the link's Durable Object. Needs a Worker deploy. |
+| 27 | §3.3 | P3 | **Done** | S | L | 2026-11-11 | 1.8.0 audit, left open: in split incognito the two workers each queue `meta_*` writes, so a rating and an Auto-Tag on one link at the same moment can lose one (SECURITY F17); only `StorageIndex.clear` and `remove` and a few exports are used by tests alone. | Fixed 2026-11-11T05:30:59+00:00: each metadata write is read back and merged again (F17; the split workers cannot message each other, so routing was not possible). Test-only helpers kept: they are small and tested. Ships in 1.8.1. |
+| 28 | §3.2 | P3 | **Done** | M | M | 2026-11-11 | 1.8.0 audit, left open: the Settings, Filter and Sort menus and the AI Tools tabs lack arrow-key navigation; Settings menu labels mix Title Case and sentence case. | Fixed 2026-11-11T05:30:59+00:00: arrow keys, Home, End and Escape in the three menus; one tab stop and arrow keys for the AI Tools tabs; Title Case labels. Ships in 1.8.1; check the store listing text for the renamed labels when 1.8.1 is uploaded. |
+| 24 | §3.3 | P3 | **Done** | S | M | 2026-11-10 | Security review F2 and F6: connector tokens never expire; failed tokens use up a link's per-minute budget. | Fixed 2026-11-11T05:30:59+00:00: remote connections unused for 90 days are removed (extension, ships in 1.8.1); the connector Worker gives unknown tokens their own budget and caches refused ones (deployed). |
 | 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is live on the Web Store at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00); submitted 2026-11-09T13:56:04+00:00. The Privacy tab now declares personally identifiable information (the optional reply address) and personal communications (the feedback message). | PLAYBOOK release step 8 (store install on a clean profile, update from 1.5.0), then rows 10 and 16 and the website feature list. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 
@@ -169,9 +169,9 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Done**: live at 100% | L | M |
 | 21 | Release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **Done**: live at 100% | S | M |
 | 25 | Security decisions: Cloudflare account (F3), helper detection (F7) | §3.3 | **Done**: F3 accepted, F7 fixed (D25) | S | M |
-| 27 | Incognito metadata write race; test-only code | §3.3 | **Open** | S | L |
-| 28 | Keyboard navigation in top bar menus and AI Tools tabs; one label case | §3.2 | **Open** | M | M |
-| 24 | Connector token expiry and failed-token budget (F2, F6) | §3.3 | **Open** | S | M |
+| 27 | Incognito metadata write race; test-only code | §3.3 | **Done** 2026-11-11 (ships in 1.8.1) | S | L |
+| 28 | Keyboard navigation in top bar menus and AI Tools tabs; one label case | §3.2 | **Done** 2026-11-11 (ships in 1.8.1) | M | M |
+| 24 | Connector token expiry and failed-token budget (F2, F6) | §3.3 | **Done** 2026-11-11 (connector deployed; extension part in 1.8.1) | S | M |
 | 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **In progress**: live; release step 8 left | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |

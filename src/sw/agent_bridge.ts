@@ -26,6 +26,12 @@ export const BRIDGE_SETTINGS_KEY = 'bridge_settings';
 export const BRIDGE_CLIENTS_KEY = 'bridge_clients';
 export const BRIDGE_IDEM_KEY = 'bridge_idem';
 const LAST_USED_EVERY_MS = 10 * 60 * 1000;
+/**
+ * An online connection (Claude, ChatGPT) unused for this long is removed: its token stops
+ * working and the AI app has to connect again (SECURITY F2). Local coding agents are on this
+ * computer and keep their tokens.
+ */
+export const REMOTE_TOKEN_IDLE_MS = 90 * 24 * 60 * 60 * 1000;
 const RETRY_ALARM = 'bridge-retry';
 
 export interface BridgeClient {
@@ -311,7 +317,15 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
     async function authenticate(token: unknown, transport: 'local' | 'remote'): Promise<BridgeClient | undefined> {
         if (typeof token !== 'string' || token.length < 20 || token.length > 200) return undefined;
         const hash = await sha256(token);
-        return Object.values(await clients()).find(c => c.tokenHash === hash && (c.transport ?? 'local') === transport);
+        const map = await clients();
+        const client = Object.values(map).find(c => c.tokenHash === hash && (c.transport ?? 'local') === transport);
+        if (client && transport === 'remote' && now() - (client.lastUsedAt ?? client.pairedAt) > REMOTE_TOKEN_IDLE_MS) {
+            delete map[client.id];
+            await saveClients(map);
+            changed();
+            return undefined;
+        }
+        return client;
     }
 
     async function touch(client: BridgeClient): Promise<void> {

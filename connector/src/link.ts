@@ -4,9 +4,10 @@
 // browser's WebSocket (hibernatable API), relays bridge requests over it, keeps
 // one-time authorization codes for 2 minutes, and counts MCP requests.
 //
-// Stored: sha256(link secret), the per-minute MCP counter, and authorization
-// codes until used or 2 minutes old (each holds the extension token, the client
-// id, redirect URI and PKCE challenge). No bookmark data, no long-lived tokens.
+// Stored: sha256(link secret), the per-minute MCP counters, the sha256 of tokens
+// the browser accepted in the last day (so they keep their own budget), and
+// authorization codes until used or 2 minutes old (each holds the extension token,
+// the client id, redirect URI and PKCE challenge). No bookmark data, no long-lived tokens.
 //
 // Internal API, reached only through the binding (the Worker passes the link id
 // in X-Link-Id):
@@ -18,11 +19,21 @@
 
 import { LINK_ID_RE, LINK_REQUEST_TIMEOUT_MS, LINK_SECRET_RE, type LinkFromBrowser, type LinkFromWorker } from '../../src/lib/bridge/connector.ts';
 import { PROTOCOL_VERSION, bridgeError, type ClientRequest, type ClientResponse } from '../../src/lib/bridge/protocol.ts';
-import { handleMcp } from './mcp.ts';
+import { handleMcp, UNAUTHORIZED } from './mcp.ts';
 import { AUTH_CODE_TTL_MS } from './oauth.ts';
 import { randomId, safeEqual, sha256 } from './util.ts';
 
 export const MCP_PER_MINUTE = 60;
+/**
+ * Requests with a token this link has not yet seen work have their own, smaller budget, so
+ * someone who knows a link id cannot use up the per-minute budget of the real connection
+ * (SECURITY F6). A token the extension refused is answered 401 here for 10 minutes without
+ * reaching the browser or any budget.
+ */
+export const NEW_TOKEN_PER_MINUTE = 20;
+const REFUSED_TOKEN_MS = 10 * 60_000;
+const KNOWN_TOKEN_MS = 24 * 60 * 60_000;
+const KNOWN_TOKEN_REFRESH_MS = 60 * 60_000;
 const MINUTE = 60_000;
 
 export const OFFLINE_MESSAGE =
@@ -83,6 +94,8 @@ const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { sta
 export class LinkObject {
     private state: LinkState;
     private pending = new Map<string, Pending>();
+    /** sha256(token) -> until when it is answered 401 without asking the browser. */
+    private refused = new Map<string, number>();
     /**
      * After the browser's socket drops, requests in flight wait this long for it to come back
      * (the extension reconnects after 2 s) and answer on the new socket. Failing them at once
@@ -120,8 +133,19 @@ export class LinkObject {
         }
         switch (path) {
             case '/mcp': {
-                if (!(await this.takeMcpSlot())) return json({ rateLimited: true, retryAfter: 60 }, 429);
-                const out = await handleMcp(String(body.text ?? ''), String(body.token ?? ''), (req, via) => this.relay(req, via));
+                const token = String(body.token ?? '');
+                const tokenHash = await sha256(token);
+                const t = this.now();
+                if ((this.refused.get(tokenHash) ?? 0) > t) return json(UNAUTHORIZED);
+                const known = await this.isKnownToken(tokenHash);
+                if (!(await (known ? this.takeMcpSlot() : this.takeNewTokenSlot()))) return json({ rateLimited: true, retryAfter: 60 }, 429);
+                const out = await handleMcp(String(body.text ?? ''), token, async (req, via) => {
+                    const res = await this.relay(req, via);
+                    // Only the browser can tell a real token from a guess: learn from its answer.
+                    if (res.ok) await this.rememberToken(tokenHash, known);
+                    else if (res.error?.code === 'NOT_PAIRED') this.refused.set(tokenHash, this.now() + REFUSED_TOKEN_MS);
+                    return res;
+                });
                 return json(out);
             }
             case '/pair': {
@@ -270,14 +294,40 @@ export class LinkObject {
 
     // ── Rate limit and codes ────────────────────────────────────────────────
 
-    /** 60 MCP requests a minute per link (design, "Limits"). */
+    /** 60 MCP requests a minute per link for tokens the browser has accepted (design, "Limits"). */
     async takeMcpSlot(): Promise<boolean> {
+        return this.takeSlot('rl:mcp', MCP_PER_MINUTE);
+    }
+
+    /** 20 a minute for tokens not yet accepted: new connections, and guesses. */
+    async takeNewTokenSlot(): Promise<boolean> {
+        return this.takeSlot('rl:new', NEW_TOKEN_PER_MINUTE);
+    }
+
+    private async takeSlot(key: string, limit: number): Promise<boolean> {
         const t = this.now();
-        const c = await this.state.storage.get<{ start: number; count: number }>('rl:mcp');
+        const c = await this.state.storage.get<{ start: number; count: number }>(key);
         const cur = c && t - c.start < MINUTE ? c : { start: t, count: 0 };
-        if (cur.count >= MCP_PER_MINUTE) return false;
-        await this.state.storage.put('rl:mcp', { start: cur.start, count: cur.count + 1 });
+        if (cur.count >= limit) return false;
+        await this.state.storage.put(key, { start: cur.start, count: cur.count + 1 });
         return true;
+    }
+
+    /** A token the browser accepted in the last day (stored as its hash only). */
+    async isKnownToken(tokenHash: string): Promise<boolean> {
+        const seen = await this.state.storage.get<number>(`tok:${tokenHash}`);
+        return typeof seen === 'number' && this.now() - seen < KNOWN_TOKEN_MS;
+    }
+
+    private async rememberToken(tokenHash: string, known: boolean): Promise<void> {
+        const t = this.now();
+        if (known) {
+            const seen = await this.state.storage.get<number>(`tok:${tokenHash}`);
+            if (typeof seen === 'number' && t - seen < KNOWN_TOKEN_REFRESH_MS) return;
+        }
+        await this.state.storage.put(`tok:${tokenHash}`, t);
+        const alarm = await this.state.storage.getAlarm();
+        if (alarm === null || alarm > t + KNOWN_TOKEN_MS + 1000) await this.state.storage.setAlarm(t + KNOWN_TOKEN_MS + 1000);
     }
 
     /** A one-time code `<linkId>.<random>`, stored under its hash for 2 minutes. */
@@ -309,8 +359,15 @@ export class LinkObject {
             if (r.exp < t) await this.state.storage.delete(key);
             else next = Math.min(next ?? Infinity, r.exp + 1000);
         }
-        const c = await this.state.storage.get<{ start: number }>('rl:mcp');
-        if (c && t - c.start >= MINUTE) await this.state.storage.delete('rl:mcp');
+        for (const [key, seen] of await this.state.storage.list<number>({ prefix: 'tok:' })) {
+            if (t - seen >= KNOWN_TOKEN_MS) await this.state.storage.delete(key);
+            else next = Math.min(next ?? Infinity, seen + KNOWN_TOKEN_MS + 1000);
+        }
+        for (const key of ['rl:mcp', 'rl:new']) {
+            const c = await this.state.storage.get<{ start: number }>(key);
+            if (c && t - c.start >= MINUTE) await this.state.storage.delete(key);
+        }
+        for (const [h, until] of this.refused) if (until <= t) this.refused.delete(h);
         if (next !== null) await this.state.storage.setAlarm(next);
     }
 }

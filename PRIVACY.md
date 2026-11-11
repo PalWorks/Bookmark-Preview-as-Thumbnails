@@ -122,7 +122,7 @@ order to screenshot them).
 To learn which features people use, the extension sends anonymous usage statistics to our
 relay (the same Cloudflare Worker as the feedback form, at bookmarks-feedback.palworks.ai),
 which passes them to **Google Analytics** and **PostHog**. They are on when you install or
-update. Turn them off at any time in **Settings > Share usage statistics**; from then on
+update. Turn them off at any time in **Settings > Share Usage Statistics**; from then on
 nothing more is sent. They are never sent from an Incognito window.
 
 What is sent:
