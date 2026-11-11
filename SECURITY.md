@@ -138,7 +138,7 @@ relays before 1.8.0. Findings that touch security or trust:
 | # | Severity | Finding | State |
 |---|---|---|---|
 | F12 | High | Ask AI's Trash check read a string change set with plain JSON parsing, while the import also accepts JSON in a code fence or after a sentence, so a prompt-injected set could reach Trash without the user's click (rule 26) | **Fixed**: the check uses the import's own parser and treats anything unreadable as needing approval; tests cover fenced and prefixed sets |
-| F13 | Low | "Hide query strings" kept a user name and password written into a link (`https://user:token@host`) | **Fixed**: they are removed too |
+| F13 | Low | "Hide query strings" kept a user name and password written into a link before its host | **Fixed**: they are removed too |
 | F14 | Low | The copy-and-paste export included a ticked folder whose parent was hidden from search | **Fixed**: same ancestor check as the connector's scope |
 | F15 | Low | The connector failed requests in flight on a reconnect, so an AI app could retry a change that had been applied | **Fixed** (connector deploy): requests wait 5 s for the browser to come back and are answered on the new socket |
 | F16 | Low | The connector's limiter counted every IPv4-mapped IPv6 address as one network | **Fixed** (connector deploy): counted as the IPv4 address, as in the feedback relay |

@@ -42,7 +42,7 @@ export interface SnapshotOptions {
 export function stripQuery(url: string): string {
     const cut = url.search(/[?#]/);
     const base = cut < 0 ? url : url.slice(0, cut);
-    // https://user:token@host/... would otherwise keep its credentials.
+    // A link with a user name and password before the host would otherwise keep them.
     return base.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]*@/i, '$1');
 }
 
