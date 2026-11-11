@@ -98,7 +98,7 @@ npx wrangler deploy
 The Worker is `bookmarks-thumbnails-connector`, served on `bookmarks-connector.palworks.ai`
 (matching `CONNECTOR_ORIGIN` in `src/lib/bridge/connector.ts`) and on workers.dev for 1.7.0 copies.
 Both addresses reach the same Durable Objects, so a link works on either. Last deployed from `main`
-on 2026-11-10 (version `e16c5e4c`). The Cloudflare account is shared with the owner's other
+on 2026-11-11 (version `7d695d11`). The Cloudflare account is shared with the owner's other
 projects: change only this Worker's own settings (AGENTS rule 25). Preview URLs are off. Without
 `CLIENT_ID_SECRET` every OAuth and MCP endpoint answers `503`. Rotating the secret invalidates every
 registered client id, so each app registers and connects again; tokens already issued keep working.
