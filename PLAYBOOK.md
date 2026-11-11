@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-11T02:41:14+00:00 (store form: User activity from 1.8.0; usage statistics relay secrets and checks)._
+_Last updated: 2026-11-11T06:01:16+00:00 (second audit: answers kept across a reconnect, docs brought in line)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -134,7 +134,8 @@ Deployed by hand, separately from extension releases; the owner approves each de
    project 344404 under Activity with `dev = true`. The relay never reports a GA4 or PostHog
    failure to the sender; check those services directly.
 
-The extension's endpoint is fixed in `src/lib/feedback.ts`; moving the relay needs an extension
+The extension's endpoints are fixed in `src/lib/feedback.ts` and `src/lib/analytics.ts`
+(`ANALYTICS_ENDPOINT`); moving the relay needs an extension
 release. Details and limits: [worker/README.md](worker/README.md).
 
 ## Online connector (`connector/`)

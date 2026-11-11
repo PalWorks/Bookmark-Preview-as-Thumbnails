@@ -6,8 +6,8 @@
  *
  * The extension cannot call Resend directly: a published CRX is a zip anyone
  * can unpack, so an API key inside it is a public key. This Worker holds the
- * key instead. It is the only server of ours the extension talks to; the
- * others are the pages it captures and, only if the user sets one up, the
+ * key instead. It is one of two servers of ours the extension talks to (the other is the
+ * online connector, only while it is on); the others are the pages it captures and, only if the user sets one up, the
  * AI provider they chose.
  *
  * It accepts one POST from our extension's own pages, validates it hard, rate

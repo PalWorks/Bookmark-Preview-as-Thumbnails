@@ -370,7 +370,7 @@ export const AskAIView: React.FC<Props> = ({ api, variant = 'page', onBack, tabB
             </div>
             <span className="ask-disclosure">
                 {p ? `Titles, links and tags it reads go to ${p.label} (${p.model})${p.host ? ` at ${p.host}` : ''}.` : ''}{' '}
-                <button type="button" className="btn-link" onClick={onOpenActivity}>All AI changes</button>
+                <button type="button" className="btn-link" onClick={onOpenActivity}>All AI Changes</button>
             </span>
         </form>
     );

@@ -153,10 +153,10 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
 
     const headerBar = (
         <header className="main-header trash-header">
-            <button className="back-button" onClick={selectedId ? () => onSelect(null) : onBack} title={selectedId ? 'Back to AI changes' : 'Back to bookmarks'} aria-label={selectedId ? 'Back to AI changes' : 'Back to bookmarks'}>
+            <button className="back-button" onClick={selectedId ? () => onSelect(null) : onBack} title={selectedId ? 'Back to AI Changes' : 'Back to bookmarks'} aria-label={selectedId ? 'Back to AI Changes' : 'Back to bookmarks'}>
                 <ArrowLeft size={18} aria-hidden="true" />
             </button>
-            <h2>{selectedId ? 'Review changes' : tabBar ? 'AI Tools' : 'AI changes'}</h2>
+            <h2>{selectedId ? 'Review Changes' : tabBar ? 'AI Tools' : 'AI Changes'}</h2>
             {!selectedId && !readOnly && (
                 <button type="button" className="btn btn--secondary trash-empty-btn" onClick={onImport}>
                     <Upload size={16} aria-hidden="true" /> Import changes
@@ -177,7 +177,7 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
                 <div className="main-content trash-view">{header}
                     <div className="empty-state">
                         <p>This change set is no longer available.</p>
-                        <p className="sub-text"><button type="button" className="link-btn" onClick={() => onSelect(null)}>See all AI changes</button></p>
+                        <p className="sub-text"><button type="button" className="link-btn" onClick={() => onSelect(null)}>See all AI Changes</button></p>
                     </div>
                 </div>
             );
@@ -196,7 +196,7 @@ export const AIChangesView: React.FC<Props> = ({ api, roots, selectedId, onSelec
         const apply = async () => {
             const res = await api.apply(set.id, [...ticked]);
             if (!res.ok) toast(res.error ?? "Couldn't apply the changes.", 'error');
-            else toast('Applied as one step. You can undo it from AI changes.');
+            else toast('Applied as one step. You can undo it from AI Changes.');
         };
         const undo = async () => {
             const res = await api.undo(set.id);

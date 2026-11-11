@@ -143,7 +143,11 @@ export class LinkObject {
                     const res = await this.relay(req, via);
                     // Only the browser can tell a real token from a guess: learn from its answer.
                     if (res.ok) await this.rememberToken(tokenHash, known);
-                    else if (res.error?.code === 'NOT_PAIRED') this.refused.set(tokenHash, this.now() + REFUSED_TOKEN_MS);
+                    else if (res.error?.code === 'NOT_PAIRED') {
+                        // Removed or expired in the extension: forget it, and answer 401 here for a while.
+                        await this.state.storage.delete(`tok:${tokenHash}`);
+                        this.rememberRefused(tokenHash);
+                    }
                     return res;
                 });
                 return json(out);
@@ -154,8 +158,13 @@ export class LinkObject {
                 const req: ClientRequest = { v: PROTOCOL_VERSION, id: randomId(9), type: 'pair', body: b };
                 return json(await this.relay(req, String(body.client ?? 'AI app')));
             }
-            case '/code/put':
-                return json({ code: await this.putCode(linkId, body as unknown as Omit<CodeRecord, 'exp'>) });
+            case '/code/put': {
+                // Only a token the browser just issued in a sign-in reaches here, so it counts as
+                // known at once: a new connection's first calls never share the budget for guesses.
+                const rec = body as unknown as Omit<CodeRecord, 'exp'>;
+                if (typeof rec.token === 'string' && rec.token) await this.rememberToken(await sha256(rec.token), false);
+                return json({ code: await this.putCode(linkId, rec) });
+            }
             case '/code/take':
                 return json(await this.takeCode(String(body.code ?? '')));
         }
@@ -310,7 +319,17 @@ export class LinkObject {
         const cur = c && t - c.start < MINUTE ? c : { start: t, count: 0 };
         if (cur.count >= limit) return false;
         await this.state.storage.put(key, { start: cur.start, count: cur.count + 1 });
+        // A new window: make sure an alarm removes the counter, so a link nobody uses keeps nothing.
+        if (cur.count === 0 && (await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(cur.start + MINUTE + 1000);
         return true;
+    }
+
+    /** Remember a refused token; the map is pruned here and capped, so a flood cannot grow it. */
+    private rememberRefused(tokenHash: string): void {
+        const t = this.now();
+        for (const [h, until] of this.refused) if (until <= t) this.refused.delete(h);
+        if (this.refused.size >= 500) this.refused.delete(this.refused.keys().next().value as string);
+        this.refused.set(tokenHash, t + REFUSED_TOKEN_MS);
     }
 
     /** A token the browser accepted in the last day (stored as its hash only). */
@@ -351,7 +370,7 @@ export class LinkObject {
         return r.exp >= this.now() ? r : null;
     }
 
-    /** Delete expired codes and a stale counter; re-arm while codes remain. */
+    /** Delete expired codes, known tokens older than a day and stale counters; re-arm while any remain. */
     async alarm(): Promise<void> {
         const t = this.now();
         let next: number | null = null;
@@ -366,6 +385,7 @@ export class LinkObject {
         for (const key of ['rl:mcp', 'rl:new']) {
             const c = await this.state.storage.get<{ start: number }>(key);
             if (c && t - c.start >= MINUTE) await this.state.storage.delete(key);
+            else if (c) next = Math.min(next ?? Infinity, c.start + MINUTE + 1000);
         }
         for (const [h, until] of this.refused) if (until <= t) this.refused.delete(h);
         if (next !== null) await this.state.storage.setAlarm(next);

@@ -35,7 +35,22 @@ The connector part is live already.
 
 - With split incognito, a rating and an Auto-Tag on the same link at the same moment no longer
   lose one of the two (F17): each write is read back and merged again if the other worker wrote
-  in between.
+  in between. The check ignores key order, so a normal write still happens once.
+- Answers finished while the Claude and ChatGPT connection was reconnecting are sent once it is
+  back, so the AI app is not told a change failed when it was applied (F15).
+- An online connection that expired is gone from the Connect page straight away, and the AI app
+  is told it was removed after 90 days without use.
+- A user name and password written into a link never reach an AI, whatever the "hide query
+  strings" choice (Ask AI, connections, copy and paste, Smart Search).
+- Alt, Ctrl or Cmd with an arrow key is left to the browser in the menus and AI Tools tabs
+  (Alt+Left goes Back again).
+- On touch screens the end of an API key is no longer hidden under the show/hide button.
+- The AI Changes tab and page titles use the same capitals as the other tabs.
+- Build and test tools updated for published security advisories (Vite, Vitest and their
+  dependencies; nothing in the extension's own code changed). The website's tools likewise.
+- **Connector (Worker):** a token issued at sign-in is known at once, so a new connection never
+  shares the smaller budget; a removed token is forgotten; rate counters are always cleaned up;
+  the "too many requests" message no longer names a fixed number.
 
 ## [1.8.0] - 2026-11-11 (release prepared 2026-11-11T02:41:14+00:00; submitted to the Web Store 2026-11-11T04:31:04+00:00, in review)
 

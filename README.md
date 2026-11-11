@@ -10,7 +10,7 @@ connect Claude or ChatGPT, or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-11T05:30:59+00:00 (1.8.0 in Web Store review; keyboard menus, token expiry and connector budgets on main for 1.8.1)._
+_Last updated: 2026-11-11T06:01:16+00:00 (1.8.0 in Web Store review; 1.8.1 on main after a second audit)._
 
 ## Contents
 
@@ -229,15 +229,15 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-487 tests cover keyboard menus, usage statistics (value checks, opt-out, incognito, batching), migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
+491 tests cover keyboard menus, usage statistics (value checks, opt-out, incognito, batching), migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
 apply, Undo, recovery), the bridge (modes, apply and undo), Ask AI, the connector link, the
 reactive bookmark tree, backups, and the whole app in jsdom. `npm run e2e` checks the core flows
 in a real Chrome; `scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together (18
 checks); `scripts/e2e/connector.mjs` runs Chrome, the connector Worker under `wrangler dev` and an
-MCP client through sign-in, tools, Undo and revocation (15 checks). The feedback relay has 34
-tests of its own, the helper package 12 (`bridge/test/`) and the connector 39 (`cd connector &&
+MCP client through sign-in, tools, Undo and revocation (16 checks). The feedback relay has 34
+tests of its own, the helper package 12 (`bridge/test/`) and the connector 40 (`cd connector &&
 npm test`). See [TESTING.md](TESTING.md).
 
 ## Deployment

@@ -59,6 +59,7 @@ describe('remote link', () => {
         const { link, handle } = make();
         await link.setEnabled(true);
         sockets[0].open();
+        sockets[0].deliver({ type: 'ready' });
         sockets[0].deliver({ type: 'request', rid: 'r1', via: 'Claude', req: { v: 1, id: 9, type: 'search', body: {} } });
         await vi.waitFor(() => expect(sockets[0].sent.find(m => m.type === 'response')).toBeTruthy());
         expect(handle).toHaveBeenCalledWith({ v: 1, id: 9, type: 'search', body: {} });
@@ -87,6 +88,25 @@ describe('remote link', () => {
         await vi.advanceTimersByTimeAsync(120_000);
         expect(sockets.length).toBe(count);
         expect((await link.state()).status).toBe('off');
+    });
+
+    it('F15: an answer finished while the link was down goes out on the next socket once it is ready', async () => {
+        let finish!: (v: unknown) => void;
+        const handle = vi.fn(() => new Promise(r => { finish = r; }));
+        const { link } = make(handle as never);
+        await link.setEnabled(true);
+        sockets[0].open();
+        sockets[0].deliver({ type: 'ready' });
+        sockets[0].deliver({ type: 'request', rid: 'r7', via: 'AI app', req: { v: 1, id: 7, type: 'apply_changes', body: {} } });
+        sockets[0].close();
+        finish({ v: 1, id: 7, ok: true, body: { applied: true } });
+        await vi.advanceTimersByTimeAsync(2_500);
+        expect(sockets).toHaveLength(2);
+        sockets[1].open();
+        expect(sockets[1].sent.find(m => m.type === 'response')).toBeUndefined();
+        sockets[1].deliver({ type: 'ready' });
+        expect(sockets[1].sent.find(m => m.type === 'response')).toMatchObject({ rid: 'r7', res: { ok: true, body: { applied: true } } });
+        await link.setEnabled(false);
     });
 
     it('only a local development server may replace the production address', () => {

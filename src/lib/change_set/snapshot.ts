@@ -38,12 +38,18 @@ export interface SnapshotOptions {
     now?: Date;
 }
 
+/**
+ * Remove a user name and password written before the host. Applied to every link an AI sees,
+ * whatever the "hide query strings" choice: they are credentials, never sorting information.
+ */
+export function withoutCredentials(url: string): string {
+    return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#@]*@/i, '$1');
+}
+
 /** Drop everything after ? or #, and any user name or password, keeping the address readable. */
 export function stripQuery(url: string): string {
     const cut = url.search(/[?#]/);
-    const base = cut < 0 ? url : url.slice(0, cut);
-    // A link with a user name and password before the host would otherwise keep them.
-    return base.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]*@/i, '$1');
+    return withoutCredentials(cut < 0 ? url : url.slice(0, cut));
 }
 
 export function buildSnapshot(o: SnapshotOptions): Snapshot {
@@ -79,7 +85,7 @@ export function buildSnapshot(o: SnapshotOptions): Snapshot {
             if (!c.url && o.hiddenFolderIds.has(c.id)) return;
             const item: SnapshotItem = { id: c.id, parentId: n.id, index, title: c.title ?? '' };
             if (c.url) {
-                item.url = o.stripQuery ? stripQuery(c.url) : c.url;
+                item.url = o.stripQuery ? stripQuery(c.url) : withoutCredentials(c.url);
                 const m = o.meta?.[c.url];
                 if (m?.tags?.length) item.tags = m.tags;
                 if (m?.rating) item.rating = m.rating;

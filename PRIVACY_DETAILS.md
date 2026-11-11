@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy Details
 
-_Last updated: 2026-11-10T11:40:58+00:00 (AI Tools menu path for the next release; 1.7.0 text as submitted is unchanged in substance)._
+_Last updated: 2026-11-11T06:01:16+00:00 (section 4a usage statistics; connector stores token hashes for a day; no em dashes)._
 
 Use the following to fill out the "Privacy" tab in the Developer Dashboard. These
 must match `public/manifest.json` exactly.
@@ -38,18 +38,18 @@ These are the permissions actually declared in the manifest:
 
 > **NO.** No code is fetched or executed remotely. All scripts are bundled; CSP is
 > `script-src 'self'; object-src 'self'`. The AI features call provider REST APIs
-> for data only — they do not download or run code.
+> for data only; they do not download or run code.
 
-## 4. Data Usage — IMPORTANT (updated for the AI features)
+## 4. Data Usage: IMPORTANT (updated for the AI features)
 
 The extension now has optional AI features that can transmit bookmark data to a
 third-party provider. Disclose this accurately:
 
 **Data collected / used:**
-- **Website content** — screenshots of bookmarked pages (stored locally only).
-- **Deleted bookmarks** — titles, URLs and folder locations of bookmarks deleted in the
+- **Website content**: screenshots of bookmarked pages (stored locally only).
+- **Deleted bookmarks**: titles, URLs and folder locations of bookmarks deleted in the
   extension, kept locally for 30 days for Restore (never transmitted).
-- **Website content (hyperlinks)** — bookmark **titles and URLs** are sent to a
+- **Website content (hyperlinks)**: bookmark **titles and URLs** are sent to a
   third-party AI provider **only when the user enables a cloud AI provider** for
   Auto-Tag or Smart Search. With the default on-device engine (Chrome Built-in AI)
   nothing is transmitted. API keys are stored locally and sent only to the user's
@@ -66,16 +66,16 @@ third-party provider. Disclose this accurately:
   [Inference: judged on 2026-11-09 when 1.6.0 was submitted; recheck if the dashboard
   wording changes].
 
-**Certifications — read carefully before checking:**
-- "I do not sell or transfer user data to third parties" — **transferring bookmark
+**Certifications: read carefully before checking:**
+- "I do not sell or transfer user data to third parties": **transferring bookmark
   titles/URLs to the user's chosen AI provider is a transfer.** It is for the
   user-requested feature and disclosed in the privacy policy, but you should
   reflect this honestly in the dashboard (i.e. do not blanket-certify "no transfer"
   if you ship the cloud AI feature; the transfer is to a service provider for the
   user's own requested functionality).
 - "I do not use or transfer user data for purposes unrelated to the single
-  purpose" — OK (the transfer is for tagging/search, the stated purpose).
-- "I do not use or transfer user data to determine creditworthiness / lending" — OK.
+  purpose": OK (the transfer is for tagging/search, the stated purpose).
+- "I do not use or transfer user data to determine creditworthiness / lending": OK.
 
 ## 4a. Usage statistics (1.8.0, D27)
 
@@ -100,7 +100,8 @@ What changes from 1.6.0:
 - **The Claude and ChatGPT connector** sends the same kind of bookmark data, from the folders the
   user picks, through **our own relay** (the `connector/` Worker) to Anthropic or OpenAI, at the
   user's request in their app. The relay stores none of it and logs no bodies; it keeps only a
-  hash of the link secret, one-time sign-in codes for 2 minutes and rate counters named by an HMAC.
+  hash of the link secret, hashes of the tokens the browser accepted in the last day, one-time
+  sign-in codes for 2 minutes and rate counters named by an HMAC.
 - **Copy and paste** and **coding agents** are unchanged in kind: the user copies an export, or a
   local program reads only the folders they tick.
 

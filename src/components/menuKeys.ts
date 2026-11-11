@@ -17,6 +17,7 @@ export function focusMenu(menu: HTMLElement | null): void {
 export function menuKeyDown(e: React.KeyboardEvent<HTMLElement>, close: () => void, trigger: HTMLElement | null | undefined): boolean {
     // Fields inside a menu (the capture delay slider) keep their own arrow keys.
     const t = e.target as HTMLElement;
+    if (e.altKey || e.ctrlKey || e.metaKey) return false;
     if (e.key !== 'Escape' && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return false;
     const items = [...e.currentTarget.querySelectorAll<HTMLElement>(ITEMS)];
     const i = items.indexOf(document.activeElement as HTMLElement);

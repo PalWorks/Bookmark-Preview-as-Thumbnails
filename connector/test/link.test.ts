@@ -177,3 +177,16 @@ test('F6: guessed tokens use their own budget and a refused token stops reaching
     assert.equal((await mcp('guess-token-guess-tok-99')).status, 429);
     assert.equal((await run('real-token-real-token-1')).status, 200);
 });
+
+test('a token issued at sign-in is known at once; a revoked one is forgotten; NOT_CONNECTED teaches nothing', async () => {
+    const { obj, st } = setup();
+    const { sha256 } = await import('../src/util.ts');
+    await obj.fetch(new Request('https://link/code/put', { method: 'POST', headers: { 'X-Link-Id': LINK_ID }, body: JSON.stringify({ token: 'issued-token-issued-tok', clientId: 'c', redirectUri: 'https://a.example/cb', codeChallenge: 'x' }) }));
+    assert.equal(await obj.isKnownToken(await sha256('issued-token-issued-tok')), true);
+    // No browser connected: the answer is NOT_CONNECTED, which proves nothing about the token.
+    const r = await obj.fetch(new Request('https://link/mcp', { method: 'POST', headers: { 'X-Link-Id': LINK_ID }, body: JSON.stringify({ token: 'other-token-other-token', text: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_folders', arguments: {} } }) }) }));
+    assert.equal(r.status, 200);
+    assert.equal(await obj.isKnownToken(await sha256('other-token-other-token')), false);
+    // Counters always get an alarm, so an unused link keeps nothing for long.
+    assert.notEqual(await st.storage.getAlarm(), null);
+});

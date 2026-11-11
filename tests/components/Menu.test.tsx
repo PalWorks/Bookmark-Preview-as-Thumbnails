@@ -87,13 +87,13 @@ describe('settings menu (1.6.0)', { timeout: 20000 }, () => {
         render(<App />);
         const menu = await openMenu();
         expect(within(menu).queryByText('Auto-Tag Bookmarks')).toBeNull();
-        for (const old of [/AI Settings/, /^Ask AI/, /AI changes/, /Connect Claude or ChatGPT/]) {
+        for (const old of [/AI Settings/, /^Ask AI/, /AI changes/i, /Connect Claude or ChatGPT/]) {
             expect(within(menu).queryByRole('menuitem', { name: old })).toBeNull();
         }
         fireEvent.click(within(menu).getByRole('menuitem', { name: /AI Tools/ }));
         await screen.findByRole('heading', { name: 'AI Tools' });
         const tabs = screen.getAllByRole('tab').map(t => t.textContent);
-        expect(tabs).toEqual(['Ask AI', 'Provider Settings', 'Auto-Tag', 'Smart Search', 'Duplicate Finder', 'Connect Claude or ChatGPT', 'AI changes']);
+        expect(tabs).toEqual(['Ask AI', 'Provider Settings', 'Auto-Tag', 'Smart Search', 'Duplicate Finder', 'Connect Claude or ChatGPT', 'AI Changes']);
         expect(screen.getByRole('tab', { name: 'Ask AI', selected: true })).toBeTruthy();
         expect(screen.queryByRole('menu')).toBeNull();
         fireEvent.click(screen.getByRole('tab', { name: 'Provider Settings' }));

@@ -25,6 +25,6 @@ describe('AI Tools tabs', () => {
         expect(document.activeElement).toBe(settings);
         fireEvent.keyDown(settings, { key: 'ArrowLeft' });
         fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' });
-        expect(document.activeElement?.textContent).toBe('AI changes');
+        expect(document.activeElement?.textContent).toBe('AI Changes');
     });
 });

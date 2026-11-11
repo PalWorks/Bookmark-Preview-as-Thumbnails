@@ -1,6 +1,6 @@
 # Testing
 
-_Last updated: 2026-11-11T05:30:59+00:00 (487 Vitest tests, 34 relay, 39 connector and 12 helper tests; rows 24, 27, 28)._
+_Last updated: 2026-11-11T06:01:16+00:00 (second audit: answers kept across a reconnect, docs brought in line)._
 
 ## Commands
 
@@ -14,9 +14,9 @@ npm run e2e                              # real Chrome, headless, throwaway prof
 cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck   # feedback and usage statistics relay, 34 tests
 cd bridge && node build.mjs && node --test test/*.test.ts                            # coding-agent helper, 12 tests
 node scripts/e2e/bridge.mjs <build> bridge/dist/cli.js                               # real Chrome + host + CLI, 18 checks
-cd connector && npm test && npm run typecheck                                        # online connector Worker, 39 tests
+cd connector && npm test && npm run typecheck                                        # online connector Worker, 40 tests
 cd connector && npm run smoke                                                        # Worker alone under wrangler dev
-node scripts/e2e/connector.mjs <build>                                               # real Chrome + Worker + MCP client, 15 checks
+node scripts/e2e/connector.mjs <build>                                               # real Chrome + Worker + MCP client, 16 checks
 ```
 
 `<build>` is a scratch build (`npx vite build --outDir <scratch>/build`), never `dist/` on a
@@ -107,7 +107,8 @@ Chrome-only behaviour (the real update path, permission warnings, the favicon ca
 propose, apply and undo. `scripts/e2e/connector.mjs` runs real Chrome with the extension, the
 real Worker under `wrangler dev --local`, and an MCP client that registers, signs in with the
 code the extension shows, exchanges it with PKCE, reads only the ticked folder, applies and
-undoes a change, and checks revocation (401 after removal) and the offline answer. Real Claude
+undoes a change, and checks revocation (401 after removal), the offline answer, and that a removed token stays
+refused while the browser is away. Real Claude
 and ChatGPT clients against the deployed Worker are not covered by any test; they passed a
 manual run on 2026-11-10.
 `npm run e2e` (`scripts/e2e/smoke.mjs`) automates the core of it locally: it starts its own

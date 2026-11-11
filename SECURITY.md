@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-11T05:30:59+00:00 (F2, F6 and F17 fixed: remote token expiry, connector token budgets, metadata writes across workers)._
+_Last updated: 2026-11-11T06:01:16+00:00 (second audit: answers kept across a reconnect, docs brought in line)._
 
 ## Reporting a vulnerability
 
@@ -140,7 +140,7 @@ relays before 1.8.0. Findings that touch security or trust:
 | F12 | High | Ask AI's Trash check read a string change set with plain JSON parsing, while the import also accepts JSON in a code fence or after a sentence, so a prompt-injected set could reach Trash without the user's click (rule 26) | **Fixed**: the check uses the import's own parser and treats anything unreadable as needing approval; tests cover fenced and prefixed sets |
 | F13 | Low | "Hide query strings" kept a user name and password written into a link before its host | **Fixed**: they are removed too |
 | F14 | Low | The copy-and-paste export included a ticked folder whose parent was hidden from search | **Fixed**: same ancestor check as the connector's scope |
-| F15 | Low | The connector failed requests in flight on a reconnect, so an AI app could retry a change that had been applied | **Fixed** (connector deploy): requests wait 5 s for the browser to come back and are answered on the new socket |
+| F15 | Low | The connector failed requests in flight on a reconnect, so an AI app could retry a change that had been applied | **Fixed**: the Worker keeps requests in flight for 5 s after a drop and answers them on the new socket, and the browser keeps an answer finished while no socket was ready and sends it once the new socket is ready (connector deploy plus 1.8.1) |
 | F16 | Low | The connector's limiter counted every IPv4-mapped IPv6 address as one network | **Fixed** (connector deploy): counted as the IPv4 address, as in the feedback relay |
 | F17 | Info | In split incognito, the two service workers each keep their own write queue for `meta_*`, so a rating and an Auto-Tag on the same link at the same moment in both can lose one write | **Fixed** (1.8.1): each metadata write is read back and merged again if the other worker wrote in between |
 

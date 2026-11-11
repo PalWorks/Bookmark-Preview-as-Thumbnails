@@ -52,7 +52,9 @@ cannot be changed; posts from another origin are refused.
 ## Privacy: what is stored
 
 Nothing about bookmarks, and no long-lived token. Per link (`LinkObject`): the SHA-256 of the link
-secret, a per-minute MCP request counter, and, for at most 2 minutes, each unused authorization
+secret, two per-minute MCP counters (`rl:mcp` for tokens the browser accepted, `rl:new` for any
+other), the SHA-256 of each token the browser accepted in the last day (`tok:<hash>`), and, for at
+most 2 minutes, each unused authorization
 code (stored under its hash, holding the extension token, client id, redirect URI and PKCE
 challenge). Per network (`AuthLimiter`): one counter for one minute, named by an HMAC of the
 address, never the address. Client registrations are not stored at all.

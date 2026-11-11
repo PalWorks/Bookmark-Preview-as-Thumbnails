@@ -16,7 +16,7 @@ import {
 } from '../lib/bridge/protocol';
 import { hiddenFolderIds, readFolderPrefs } from '../lib/folder_prefs';
 import { listLocalKeys } from '../lib/trash_store';
-import { stripQuery } from '../lib/change_set/snapshot';
+import { stripQuery, withoutCredentials } from '../lib/change_set/snapshot';
 import { parseChangeSet } from '../lib/change_set/format';
 import type { ChangeSetsService } from './change_sets';
 
@@ -292,8 +292,10 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
                 return await pair(id, c.name ?? cleanClientName(body.client), body, transport);
             }
 
-            const client = builtin ?? await authenticate(req.token, transport);
-            if (!client) return fail(id, bridgeError('NOT_PAIRED', 'This agent is not paired with this browser profile.'));
+            const auth = builtin ?? await authenticate(req.token, transport);
+            if (auth === 'expired') return fail(id, bridgeError('NOT_PAIRED', 'This connection was removed after 90 days without use. Add it again in the extension: AI Tools > Connect Claude or ChatGPT.'));
+            if (!auth) return fail(id, bridgeError('NOT_PAIRED', 'This agent is not paired with this browser profile.'));
+            const client = auth;
             if (!builtin) await touch(client);
             switch (req.type) {
                 case 'list_folders': return await listFolders(id, client, body);
@@ -314,16 +316,26 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
     }
 
     /** A token works only on the transport it was issued for: a local token is refused through the connector and the other way round. */
-    async function authenticate(token: unknown, transport: 'local' | 'remote'): Promise<BridgeClient | undefined> {
+    const isIdleRemote = (c: BridgeClient) => (c.transport ?? 'local') === 'remote' && now() - (c.lastUsedAt ?? c.pairedAt) > REMOTE_TOKEN_IDLE_MS;
+
+    /** Remove online connections unused for 90 days (F2). True when one was removed. */
+    async function dropIdleRemotes(map: Record<string, BridgeClient>): Promise<boolean> {
+        const idle = Object.values(map).filter(isIdleRemote);
+        if (!idle.length) return false;
+        for (const c of idle) delete map[c.id];
+        await saveClients(map);
+        changed();
+        return true;
+    }
+
+    async function authenticate(token: unknown, transport: 'local' | 'remote'): Promise<BridgeClient | 'expired' | undefined> {
         if (typeof token !== 'string' || token.length < 20 || token.length > 200) return undefined;
         const hash = await sha256(token);
         const map = await clients();
         const client = Object.values(map).find(c => c.tokenHash === hash && (c.transport ?? 'local') === transport);
-        if (client && transport === 'remote' && now() - (client.lastUsedAt ?? client.pairedAt) > REMOTE_TOKEN_IDLE_MS) {
-            delete map[client.id];
-            await saveClients(map);
-            changed();
-            return undefined;
+        if (client && isIdleRemote(client)) {
+            await dropIdleRemotes(map);
+            return 'expired';
         }
         return client;
     }
@@ -491,7 +503,7 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         return { items, total: all.length, ...(next < all.length ? { cursor: encodeCursor(next, key) } : {}) };
     }
 
-    const showUrl = (client: BridgeClient, url?: string) => (url && client.stripQuery ? stripQuery(url) : url);
+    const showUrl = (client: BridgeClient, url?: string) => (url ? (client.stripQuery ? stripQuery(url) : withoutCredentials(url)) : url);
 
     async function describe(client: BridgeClient, scope: Scope, nodes: Node[]): Promise<Array<Record<string, unknown>>> {
         const meta = await metaFor(nodes.filter(n => n.url).map(n => n.url!));
@@ -668,7 +680,10 @@ export function createAgentBridge(deps: AgentBridgeDeps) {
         const s = await settings();
         if (prompt && prompt.expiresAt <= now()) prompt = null;
         if (invite && invite.expiresAt <= now()) invite = null;
-        const list = Object.values(await clients()).map(({ tokenHash: _t, ...rest }) => rest).sort((a, b) => a.pairedAt - b.pairedAt);
+        // The Connect page never lists an online connection that has already expired.
+        const map = await clients();
+        await dropIdleRemotes(map);
+        const list = Object.values(map).map(({ tokenHash: _t, ...rest }) => rest).sort((a, b) => a.pairedAt - b.pairedAt);
         return {
             enabled: s.enabled, status: s.enabled ? status : 'off', error: lastError, hostVersion, socket, clients: list,
             ...(!invite && inviteRetryAt > now() ? { inviteRetryAt } : {}),

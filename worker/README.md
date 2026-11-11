@@ -6,7 +6,8 @@ PostHog. Adapted from the Gmail Labels as Tabs relay.
 
 The extension cannot call Resend directly: a published extension is a zip anyone can unpack, so
 an API key inside it is a public key. This Worker holds the key instead (D16 in
-[DECISIONS.md](../DECISIONS.md)). It is the only server of ours the extension talks to.
+[DECISIONS.md](../DECISIONS.md)). It is one of two servers of ours the extension talks to; the other is the online connector
+(`connector/`), used only while Connect Claude or ChatGPT is on.
 
 ## What it does
 
@@ -81,10 +82,11 @@ npx wrangler deploy
 
 `https://bookmarks-feedback.palworks.ai` (custom domain, attached 2026-11-10) and
 `https://thumbnail-bookmarks-feedback.sunmooncal.workers.dev` (kept for 1.6.0 and 1.7.0), first
-deployed 2026-11-09 and redeployed from `main` on 2026-11-10 (version `abd38be9`) on the PalWorks
+deployed 2026-11-09 and redeployed from `main` on 2026-11-10 (version `abd38be9`) and on 2026-11-11 with `/events` and
+its two secrets (version `c151758e`) on the PalWorks
 Cloudflare account, which is shared with the owner's other projects (AGENTS rule 25); preview URLs
 off. Durable Object `FeedbackLimiter`
-(SQLite-backed, migration `v1`, redeployed 2026-11-09); rate-limit namespace `2003` (2001 and 2002 belong to
+(SQLite-backed, migration `v1`, redeployed 2026-11-09); rate-limit namespaces `2003` (`BURST`) and `2310` (`EVENTS_BURST`) (2001 and 2002 belong to
 other PalWorks workers on the same account). Sender `feedback.ThumbnailBookmarks@palworks.ai`,
 recipient `support@palworks.ai`. The Resend key is a sending-only key named
 "thumbnail-bookmarks-feedback worker", scoped to the `palworks.ai` domain.

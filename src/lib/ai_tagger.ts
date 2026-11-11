@@ -10,6 +10,7 @@ import {
     endpointProblem, fetchWithRetry, providerError, openAIBody, replyBudget, geminiThinkingConfig, wasCutAtBudget,
     EmptyReplyError, EMPTY_REPLY_MESSAGE, OUT_OF_CREDIT_MESSAGE,
 } from './ai_provider_rules';
+import { withoutCredentials } from './change_set/snapshot';
 
 export const AI_TAGS = [
     'Dev', 'Design', 'Finance', 'Shopping', 'News',
@@ -472,7 +473,7 @@ export async function searchBookmarks(
     }
 
     const bookmarkList = capped
-        .map((b, i) => `${i + 1}. "${b.title}" — ${b.url}`)
+        .map((b, i) => `${i + 1}. "${b.title}" — ${withoutCredentials(b.url)}`)
         .join('\n');
     const userMessage = `Query: "${query}"\n\nBookmarks:\n${bookmarkList}`;
 

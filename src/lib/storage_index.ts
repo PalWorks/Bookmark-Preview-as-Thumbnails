@@ -15,6 +15,17 @@ export interface MetadataRecord {
     lastOpenedAt?: number;
 }
 
+/**
+ * Same fields and values, whatever the key order: Chrome hands stored objects back with their
+ * keys sorted, so a plain JSON comparison would never match what was just written.
+ */
+function sameRecord(a: MetadataRecord | undefined, b: MetadataRecord): boolean {
+    if (!a) return false;
+    const keys = Object.keys(b).filter(k => b[k as keyof MetadataRecord] !== undefined);
+    if (Object.keys(a).filter(k => a[k as keyof MetadataRecord] !== undefined).length !== keys.length) return false;
+    return keys.every(k => JSON.stringify(a[k as keyof MetadataRecord]) === JSON.stringify(b[k as keyof MetadataRecord]));
+}
+
 export class StorageIndex {
     private readonly PREFIX = 'meta_';
 
@@ -57,7 +68,7 @@ export class StorageIndex {
             if (!merged) return existing;
             await this.set(merged);
             const stored = await this.get(id);
-            if (attempt >= 2 || JSON.stringify(stored) === JSON.stringify(merged)) return merged;
+            if (attempt >= 2 || sameRecord(stored, merged)) return merged;
             existing = stored;
         }
     }

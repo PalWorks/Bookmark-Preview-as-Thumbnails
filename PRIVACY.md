@@ -50,7 +50,7 @@ requests through without storing them:
 The AI features (Auto-Tag and Smart Search) are **opt-in** and you choose the
 engine:
 
-- **Chrome Built-in AI (Gemini Nano) — on-device.** Runs entirely locally. **No
+- **Chrome Built-in AI (Gemini Nano), on-device.** Runs entirely locally. **No
   data leaves your device.** This is the default.
 - **A cloud provider you configure** (e.g. OpenAI, Anthropic, Google Gemini,
   Groq, Mistral, etc.) **or a local server** (Ollama / LM Studio). When you use a
@@ -90,8 +90,8 @@ order to screenshot them).
   relay to your browser, and your browser's answer (titles, links, folder paths, tags and
   ratings from the folders you chose) goes back through the relay to them. The relay
   passes this data through in memory and **stores none of it**: it keeps only a one-way
-  hash of your link's secret, a per-minute request counter, one-time sign-in codes for at
-  most 2 minutes, and short-lived per-network counters named by a keyed one-way hash of
+  hash of your link's secret, one-way hashes of the connection tokens your browser accepted
+  in the last day, per-minute request counters, one-time sign-in codes for at most 2 minutes, and short-lived per-network counters named by a keyed one-way hash of
   the network address (never the address). It does not log what passes through. Claude
   and ChatGPT handle what they receive under Anthropic's and OpenAI's own policies. You
   choose which folders an app may see and whether it may read only, suggest changes for
@@ -167,21 +167,21 @@ support@palworks.ai.
 
 ## Permissions
 
-- **bookmarks** — read your bookmarks to display them and associate thumbnails.
-- **tabs / activeTab / scripting / webNavigation** — load and capture bookmarked
+- **bookmarks**: read your bookmarks to display them and associate thumbnails.
+- **tabs / activeTab / scripting / webNavigation**: load and capture bookmarked
   pages to generate thumbnails.
-- **storage / unlimitedStorage** — store thumbnails, metadata, Trash, and settings locally.
-- **favicon** — show a bookmark's site icon from Chrome's local favicon cache when it has no preview.
-- **alarms** — run the daily clean-up that removes Trash items older than 30 days.
-- **history (optional, 1.4.0)** — asked for only when you turn on the Visits or Last
+- **storage / unlimitedStorage**: store thumbnails, metadata, Trash, and settings locally.
+- **favicon**: show a bookmark's site icon from Chrome's local favicon cache when it has no preview.
+- **alarms**: run the daily clean-up that removes Trash items older than 30 days.
+- **history (optional, 1.4.0)**: asked for only when you turn on the Visits or Last
   visited column in list view. The extension then reads the visit count and last visit
   of the bookmarks on screen from Chrome's history, on your device, and stores nothing.
   Turning those columns off gives the permission back; you can also remove it in
   `chrome://extensions`.
-- **nativeMessaging (optional, 1.7.0)** — asked for only when you turn on "Connect
+- **nativeMessaging (optional, 1.7.0)**: asked for only when you turn on "Connect
   coding agents", so the extension can talk to the helper program you installed for coding
   agents. Turning the switch off gives the permission back.
-- **host permissions (`<all_urls>`)** — capture screenshots of any site you have
+- **host permissions (`<all_urls>`)**: capture screenshots of any site you have
   bookmarked, and (only if you enable cloud AI or Ask AI) send requests to your chosen
   provider's API endpoint. The Claude and ChatGPT connector needs no extra permission.
 
@@ -197,5 +197,5 @@ and **Export Settings** files never contain the API key or its encryption key.
 
 ## Contact
 
-Questions or requests: **support@palworks.ai** — or open an issue at
+Questions or requests: **support@palworks.ai**, or open an issue at
 <https://github.com/PalWorks/Bookmark-Preview-as-Thumbnails/issues>.
