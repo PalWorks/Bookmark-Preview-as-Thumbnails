@@ -7,10 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.8.0] - 2026-11-11 (release prepared 2026-11-11T02:41:14+00:00; replaces the 1.7.1 submission in Web Store review)
-
-1.7.1 did not reach users before this release, so updating from 1.7.0 brings everything listed
-under 1.7.1 as well.
+## [1.8.0] - 2026-11-11 (release prepared 2026-11-11T02:41:14+00:00; submitted to the Web Store 2026-11-11T04:31:04+00:00, in review)
 
 ### Added
 
@@ -70,7 +67,7 @@ From a full audit before release (2026-11-11T04:23:23+00:00):
   once it reconnects, instead of failing as "not connected" for a change that was applied; IPv4
   addresses written as IPv6 are limited as IPv4.
 
-## [1.7.1] - 2026-11-10 (with helper 1.7.2 on npm; release prepared 2026-11-10T20:02:43+00:00; submitted, then replaced in review by 1.8.0)
+## [1.7.1] - 2026-11-10 (with helper 1.7.2 on npm; release prepared 2026-11-10T20:02:43+00:00; live at 100% on 2026-11-11)
 
 Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser); provider fixes
 and addresses 2026-11-10T11:23:53+00:00.
