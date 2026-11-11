@@ -1,6 +1,6 @@
 # Playbook
 
-_Last updated: 2026-11-10T11:40:58+00:00 (merging after review and CI no longer needs the owner; custom domains; the shared Cloudflare account)._
+_Last updated: 2026-11-11T02:41:14+00:00 (store form: User activity from 1.8.0; usage statistics relay secrets and checks)._
 
 Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 
@@ -44,7 +44,8 @@ Step-by-step procedures. Conventions and rules are in [AGENTS.md](AGENTS.md).
 7a. Before submitting, walk every dashboard page: Package (draft version and permissions),
    Store listing (description matches what ships), Privacy (a justification for every
    permission, data usage: since 1.6.0 the feedback form means "Personally identifiable information"
-   and "Personal communications" stay ticked; for 1.7.0 follow PRIVACY_DETAILS.md section 5), Distribution, Test instructions. The listing links the website
+   and "Personal communications" stay ticked; for 1.7.0 follow PRIVACY_DETAILS.md section 5; from
+   1.8.0 "User activity" is ticked too, PRIVACY_DETAILS.md section 4a), Distribution, Test instructions. The listing links the website
    privacy policy (`website/components/Legal.tsx`); keep it in line with PRIVACY.md. A
    submission locks the listing; "Cancel review" (menu at the top right) unlocks it.
    Never list brand, provider or site names in the description (for example the supported AI
@@ -117,14 +118,21 @@ Published by hand, after the owner approves, together with the extension release
 Deployed by hand, separately from extension releases; the owner approves each deploy.
 
 1. `cd worker && npm ci`, then `npx --yes node@22.18 --test test/index.test.ts && npm run typecheck`.
-2. `npx wrangler deploy`. Secrets (`RESEND_API_KEY`, `IP_HASH_SECRET`) are set once with
-   `npx wrangler secret put`; never in the repository or on a command line.
+2. `npx wrangler deploy`. Secrets (`RESEND_API_KEY`, `IP_HASH_SECRET`, and for usage
+   statistics `GA4_API_SECRET` and `POSTHOG_KEY`) are set once with `npx wrangler secret put`,
+   reading the value from a file or stdin; never in the repository or on a command line.
+   Changing a secret takes effect without a redeploy.
 3. Check `GET https://bookmarks-feedback.palworks.ai/health` returns `{ "ok": true }`, then
    send one message from an unpacked build. The Worker is also on its workers.dev address for
    1.6.0 and 1.7.0 copies; keep both until no supported version uses the old one. The Cloudflare
    account is shared with the owner's other projects (AGENTS rule 25).
 4. Roll back with `npx wrangler rollback` to the previous version [Unverified: not yet exercised
    on this Worker]. Live logs: `npx wrangler tail`.
+5. Usage statistics: send a batch with `"dev": true` from the unpacked build's origin to
+   `POST /events` (expect 204, and 403 from any other origin). It shows in GA4 DebugView
+   (property "Bookmarks as Thumbnails Website", stream "Chrome extension") and in PostHog EU
+   project 344404 under Activity with `dev = true`. The relay never reports a GA4 or PostHog
+   failure to the sender; check those services directly.
 
 The extension's endpoint is fixed in `src/lib/feedback.ts`; moving the relay needs an extension
 release. Details and limits: [worker/README.md](worker/README.md).

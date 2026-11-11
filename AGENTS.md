@@ -1,10 +1,10 @@
 # AGENTS.md
 
-_Last updated: 2026-11-10T17:21:42+00:00 (rule 26: AI output is data; Trash needs the user's click in Ask AI)._
+_Last updated: 2026-11-11T02:41:14+00:00 (rule 27: usage statistics carry no content and respect the off switch; 1.8.0)._
 
 The working contract for AI agents and contributors on **Bookmarks as Thumbnails**, a Chrome
 Manifest V3 extension (React 19, TypeScript, Vite) that shows bookmarks as a thumbnail grid,
-plus a marketing website in `website/`, a small feedback relay in `worker/` and the online connector
+plus a marketing website in `website/`, a small feedback and usage statistics relay in `worker/` and the online connector
 for Claude and ChatGPT in `connector/` (both Cloudflare Workers).
 
 Read next, as needed: [ARCHITECTURE.md](ARCHITECTURE.md) (contexts, Trash, data flow),
@@ -54,13 +54,14 @@ node scripts/e2e/connector.mjs <scratch>/build                                  
 | `src/components/`, `src/popup/components/` | UI components; new styles in `src/components/shared.css` on tokens from `src/popup/index.css` |
 | `src/content/capture.ts` | Content script used during capture |
 | `src/lib/feedback.ts`, `src/components/FeedbackDialog.tsx` | In-built feedback form and its client for the relay |
+| `src/lib/analytics.ts` | Usage statistics (D27): `track()`, value checks, the off switch, batching to the relay's `/events` |
 | `tests/` | Vitest; `tests/fakes/chrome_bookmarks.ts`, `tests/sw_bridge.ts` |
 | `scripts/check-bundle.mjs` | Post-build checks (CI) |
 | `scripts/e2e/smoke.mjs` | `npm run e2e`: real Chrome, headless, throwaway profile |
 | `scripts/e2e/bridge.mjs` | Real Chrome + real host + real CLI end to end (pairing, grants, propose, apply, undo) |
 | `scripts/e2e/connector.mjs` | Real Chrome + the Worker under `wrangler dev` + an MCP client (registration, code sign-in, PKCE, tools, undo, revocation, offline) |
 | `bridge/` | npm package `bookmarks-thumbnails-mcp`: native host, MCP server, CLI (Node 22, no runtime dependencies); publishing needs the owner |
-| `worker/` | Feedback relay (Cloudflare Worker, Resend, Durable Object rate limits); deployed by hand, see `worker/README.md` |
+| `worker/` | Feedback relay (Cloudflare Worker, Resend, Durable Object rate limits) and the usage statistics relay (`/events` to GA4 and PostHog); deployed by hand, see `worker/README.md` |
 | `connector/` | Online connector for Claude and ChatGPT (Cloudflare Worker: MCP, OAuth 2.1, one Durable Object per link); deployed by the owner, see `connector/README.md` |
 | `website/` | Marketing site, deployed to GitHub Pages from `main`; its privacy page is `website/components/Legal.tsx` |
 | `docs/designs/` | Design documents with review history; `agent-bridge.md` (change sets and the local bridge, built) and `ai-assistant.md` (Ask AI and the online connector, D20) |
@@ -105,7 +106,8 @@ node scripts/e2e/connector.mjs <scratch>/build                                  
     call, and every use checks `chrome.permissions.contains` first; the feature must work
     without them.
 18. **No key of ours in the extension.** Anything that needs our own key (feedback email) goes
-    through our relay; the Resend key and `IP_HASH_SECRET` live as Worker secrets (D16). Scan `dist/` before every
+    through our relay; the Resend key, `IP_HASH_SECRET`, `GA4_API_SECRET` and `POSTHOG_KEY` live
+    as Worker secrets (D16, D27). Scan `dist/` before every
     upload (`npm run check:bundle`).
 19. **Docs-only changes go in their own pull request** (no CI run) or ride with the next code
     pull request; CI runs only on pull requests that change code.
@@ -133,6 +135,13 @@ node scripts/e2e/connector.mjs <scratch>/build                                  
     only when http(s), in a new tab with `noopener`; no AI change sets a URL or opens a page; in
     Ask AI nothing goes to Trash without the user's click (`sendsToTrash`). The worker answers only
     the extension's own pages (`src/lib/sender.ts`).
+27. **Usage statistics carry no content** (D27): events go only through `track()` in
+    `src/lib/analytics.ts`; a value is a number, a boolean or a short word
+    (`/^[A-Za-z0-9_.:-]{0,40}$/`), never a link, title, folder name, search, chat text, key or
+    exact library size (use `bucket()`). `track()` sends nothing when **Share usage statistics** is
+    off (`usage_stats` false in sync) or in incognito. Adding an event: name it in snake_case, add
+    it to the event list in PRIVACY.md and DECISIONS D27 in the same pull request. The relay
+    (`worker/src/events.ts`) checks every value again; keep both checks in step.
 
 ## Allowed without asking
 

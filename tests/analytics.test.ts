@@ -41,4 +41,20 @@ describe('usage statistics', () => {
         expect(f).toHaveBeenCalledTimes(1);
         await real.setUsageStats(true);
     });
+
+    it('marks a development copy and sends nothing from incognito', async () => {
+        vi.useFakeTimers();
+        const f = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+        vi.stubGlobal('fetch', f);
+        real.track('app_open');
+        await vi.advanceTimersByTimeAsync(2500);
+        expect(f).toHaveBeenCalledTimes(1);
+        expect(JSON.parse((f.mock.calls[0][1] as RequestInit).body as string).dev).toBe(true);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (globalThis as any).chrome.extension.inIncognitoContext = true;
+        real.track('app_open');
+        await vi.advanceTimersByTimeAsync(2500);
+        expect(f).toHaveBeenCalledTimes(1);
+    });
 });

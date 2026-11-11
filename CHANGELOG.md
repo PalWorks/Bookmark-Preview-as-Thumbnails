@@ -7,13 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-11 (release prepared 2026-11-11T02:41:14+00:00; replaces the 1.7.1 submission in Web Store review)
+
+1.7.1 did not reach users before this release, so updating from 1.7.0 brings everything listed
+under 1.7.1 as well.
+
 ### Added
 
-- **Usage statistics** (D27, 2026-11-10T21:11:02+00:00). Anonymous counts of which features are used, sent through
-  our relay to Google Analytics and PostHog. On by default; turn them off in **Settings >
-  Share usage statistics**. Never links, titles, folder names, searches, chat text or keys.
+- **Usage statistics** (D27, 2026-11-10T21:11:02+00:00). Anonymous counts of which features are
+  used, so the product can follow real use. On by default; turn them off in **Settings > Share
+  usage statistics**, and nothing more is sent. Incognito windows never send them.
+  - What is sent: a random install id (not linked to any account), a session number, the
+    version, feature event names with numbers, on/off values or short words, and the country.
+    Never links, titles, folder names, searches, chat text, keys or exact library sizes (counts
+    go as ranges such as 11-100). The extension and the relay both drop anything else.
+  - Events go to our own relay (`https://bookmarks-feedback.palworks.ai/events`), which holds
+    the keys and passes them to Google Analytics and PostHog (EU). The extension holds no
+    analytics key and asks for no new permission.
+  - Copies loaded unpacked are marked as test traffic (GA4 DebugView, `dev` in PostHog).
 
-## [1.7.1] - 2026-11-10 (with helper 1.7.2 on npm; release prepared 2026-11-10T20:02:43+00:00)
+### Changed
+
+- Privacy policy, the website's privacy page and its "No tracking" claim describe usage
+  statistics and how to turn them off.
+
+## [1.7.1] - 2026-11-10 (with helper 1.7.2 on npm; release prepared 2026-11-10T20:02:43+00:00; submitted, then replaced in review by 1.8.0)
 
 Recorded 2026-11-10T08:23:46+00:00 (owner review of 1.7.0 in the test browser); provider fixes
 and addresses 2026-11-10T11:23:53+00:00.
@@ -113,7 +131,7 @@ Recorded 2026-11-10T08:04:16+00:00.
   cover the same folders.
 - The extension's setup command points at `@1.7.1` from its next release; 1.7.0 keeps working.
 
-## [1.7.0] - 2026-11-10 (submitted to the Web Store 2026-11-10T06:33:36+00:00, in review)
+## [1.7.0] - 2026-11-10 (submitted to the Web Store 2026-11-10T06:33:36+00:00; live at 100% on 2026-11-11)
 
 Merged in PR #16 and tagged `v1.7.0`. The connector Worker is live, `bookmarks-thumbnails-mcp@1.7.0`
 is on npm, and real Claude and ChatGPT accounts passed connect, read, change and Undo. First live
@@ -166,7 +184,7 @@ AI that organises your bookmarks for you, with one-click Undo
 - Trash labels items removed by AI changes, and keeps the restore record of those items for 30
   days so their Undo works later.
 
-## [Unreleased]
+## [Docs] - 2026-11-09 (documentation only, between 1.6.0 and 1.7.0)
 
 ### Documentation
 

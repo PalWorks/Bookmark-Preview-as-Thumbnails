@@ -1,6 +1,6 @@
 # Security
 
-_Last updated: 2026-11-10T19:21:51+00:00 (F3 accepted by the owner; F7 fixed in the helper, D25)._
+_Last updated: 2026-11-11T02:41:14+00:00 (usage statistics relay: its secrets and its trust boundary, D27)._
 
 ## Reporting a vulnerability
 
@@ -17,7 +17,10 @@ working exploits or keys publicly.
   `scripts/check-bundle.mjs` after every build: it fails on key patterns (Google, OpenAI and
   Anthropic style, GitHub, Slack, Resend, JWT, private keys, webhook URLs) and on source maps.
 - The feedback relay (`worker/`, D16) holds a send-only Resend key scoped to palworks.ai and an
-  `IP_HASH_SECRET`, both as Cloudflare Worker secrets, never in the repository.
+  `IP_HASH_SECRET`, both as Cloudflare Worker secrets, never in the repository. For usage
+  statistics (D27) it also holds `GA4_API_SECRET` (the Measurement Protocol secret of stream
+  `G-Y7EQS9EYQB`) and `POSTHOG_KEY` (PostHog EU project 344404), so the extension carries no
+  analytics key. The measurement id and the PostHog host are public settings in `wrangler.toml`.
 - The online connector (`connector/`, D20) holds one secret, `CLIENT_ID_SECRET`, as a Cloudflare
   Worker secret (`.dev.vars` locally, gitignored). It signs client ids and the authorize page's
   form state, and keys the HMAC that names a network in the limiter. Without it every OAuth and
@@ -54,6 +57,7 @@ working exploits or keys publicly.
 | Online connector (public endpoint, D20) | See "Online connector threat model" below. |
 | Coding-agent bridge (local programs of the same OS user) | Optional `nativeMessaging`, requested from a click. The host listens on a 0600 Unix socket in a 0700 folder it checks with `lstat` (no links, same owner) and keeps no state. Pairing needs a 6-digit code shown only in the extension, bound to the client's random pairing id, 2-minute life, 3 tries, 5 prompts an hour, blockable per name. Tokens are 32 random bytes; only their SHA-256 is stored; they never appear in output, errors or logs. Each agent reads only the folders the user ticks (never hidden ones) and may change only in the mode the user chose (`read`, `propose` or `change`). At most 4 connections and 64 KB per request. The regular worker only. |
 | Feedback relay (public, unauthenticated endpoint) | JSON only, 16 KB body, 4,000-character message, plausible-email check, honeypot; accepts only our extension's origins (a web page from any other origin gets 403); per-network burst and hourly limits plus a daily global cap, counted atomically in a Durable Object that refuses when it cannot count (an IPv6 sender counts as its /64); a failed send gives the allowance back; generic errors that never echo the provider's response; stores only rate-limit counters keyed by an HMAC of the network, deleted within 26 hours. |
+| Usage statistics relay (`POST /events`, same Worker, D27) | Only our extension's origins; 8 KB body, 20 events a batch, a per-network burst limit (`EVENTS_BURST`); every name, key and value checked again (identifiers, numbers, booleans, short words without spaces or slashes), anything else dropped; the install id must be a UUID. Forwards the country only, never the IP; PostHog gets no person profiles and no GeoIP. Stores nothing. A forged batch can at worst add fake counts, never read anything. |
 
 ## Online connector threat model (D20)
 

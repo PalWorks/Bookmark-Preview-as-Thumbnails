@@ -1,6 +1,6 @@
 # Contributing to Bookmarks Thumbnails
 
-_Last updated: 2026-11-09T16:00:59+00:00 (Node 22, relay tests, CI scope)._
+_Last updated: 2026-11-11T02:41:14+00:00 (usage statistics: new events follow AGENTS rule 27)._
 
 Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome contributions from everyone.
 
@@ -40,6 +40,8 @@ Thank you for your interest in contributing to Bookmarks Thumbnails! We welcome 
     npm run e2e   # real Chrome, headless, throwaway profile (CI runs it too)
     ```
 
+    To count a new feature use, call `track()` from `src/lib/analytics.ts` and follow AGENTS
+    rule 27 (no content in values; list the event in PRIVACY.md and D27).
     If you change the feedback relay in `worker/`, also run
     `cd worker && npx --yes node@22.18 --test test/index.test.ts && npm run typecheck`.
     Never add a key of ours to the extension; see rule 18 in [AGENTS.md](AGENTS.md).
