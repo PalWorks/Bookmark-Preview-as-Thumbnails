@@ -51,6 +51,9 @@ export class AuthLimiter {
 
 /** IPv6 addresses count as their /64 network; IPv4 as the address. */
 export function networkOf(ip: string): string {
+    // An IPv4 address written as IPv6 (::ffff:a.b.c.d) is that IPv4 address, as in the feedback Worker.
+    const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip.split('%')[0]);
+    if (mapped) return mapped[1];
     if (!ip.includes(':')) return ip;
     const [head] = ip.split('%');
     const parts = head.split('::');

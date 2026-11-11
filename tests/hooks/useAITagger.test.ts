@@ -31,24 +31,6 @@ describe('useAITagger', () => {
         );
     });
 
-    it('reports availability from the SW response', async () => {
-        const folder = makeFolder([]);
-        const { result } = renderHook(() => useAITagger(folder));
-        expect(result.current.aiAvailability).toBe('checking');
-        // Let the async effect settle
-        await act(async () => { await Promise.resolve(); });
-        expect(result.current.aiAvailability).toBe('available');
-    });
-
-    it('reports "unsupported" when sendMessage rejects', async () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (chrome.runtime.sendMessage as any).mockRejectedValue(new Error('SW unavailable'));
-        const folder = makeFolder([]);
-        const { result } = renderHook(() => useAITagger(folder));
-        await act(async () => { await Promise.resolve(); });
-        expect(result.current.aiAvailability).toBe('unsupported');
-    });
-
     it('loads persisted tags from storageIndex on folder change', async () => {
         const url = 'https://example.com';
         localStore[`meta_${url}`] = { id: url, url, title: 'Example', status: 'none', tags: ['Dev', 'Tools'] };

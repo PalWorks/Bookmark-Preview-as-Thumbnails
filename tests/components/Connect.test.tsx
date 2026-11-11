@@ -12,10 +12,10 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const roots = [{ id: '0', title: '', children: [{ id: '1', title: 'Bookmarks bar', children: [] }, { id: '2', title: 'Other bookmarks', children: [] }] }] as unknown as chrome.bookmarks.BookmarkTreeNode[];
 
 function bridgeApi(state: Partial<BridgeState>): BridgeApi {
-    const fn = () => vi.fn(async () => undefined);
+    const fn = () => vi.fn(async () => true);
     return {
         state: { enabled: false, status: 'off', clients: [], ...state } as BridgeState, busy: false,
-        setEnabled: vi.fn(async () => ({ ok: true })), removePermission: fn(), setPromptGrant: fn(),
+        setEnabled: vi.fn(async () => ({ ok: true })), removePermission: vi.fn(async () => undefined), setPromptGrant: fn(),
         openInvite: fn(), setInviteGrant: fn(), closeInvite: fn(), cancelPrompt: fn(), updateClient: fn(), removeClient: fn(), removeAll: fn(),
     };
 }

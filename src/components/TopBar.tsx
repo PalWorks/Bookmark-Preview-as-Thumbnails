@@ -57,7 +57,6 @@ interface TopBarProps {
     activeTag: string | null;
     onTagChange: (tag: string | null) => void;
     onAISettings: () => void;
-    isAISettingsActive?: boolean;
     /** Show or hide the folder panel (drawer on phones). */
     onToggleFolders: () => void;
     foldersOpen: boolean;
@@ -76,12 +75,20 @@ interface TopBarProps {
 
 /** Usage statistics (D27): on unless the user turns them off here. */
 const UsageStatsToggle: React.FC = () => {
-    const [on, setOn] = useState(true);
+    // null until the saved choice is read, so the switch never shows a state it does not have.
+    const [on, setOn] = useState<boolean | null>(null);
     useEffect(() => { void usageStatsEnabled().then(setOn); }, []);
     return (
-        <button type="button" role="menuitemcheckbox" aria-checked={on} className="menu-item toggle-item"
+        <button type="button" role="menuitemcheckbox" aria-checked={on === true} disabled={on === null} className="menu-item toggle-item"
             title="Counts which features are used. Never your bookmarks, links, titles, searches or chats."
-            onClick={(e) => { e.stopPropagation(); const next = !on; setOn(next); void setUsageStats(next); }}>
+            onClick={(e) => {
+                e.stopPropagation();
+                if (on === null) return;
+                const next = !on;
+                setOn(next);
+                // A failed save puts the switch back, so it always shows what is stored.
+                setUsageStats(next).catch(() => setOn(!next));
+            }}>
             <BarChart3 size={16} className="menu-icon" aria-hidden="true" />
             <div className="menu-text">
                 <div className="menu-title">Share usage statistics</div>
@@ -426,8 +433,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                         }}>
                             <FolderOpen size={16} className="menu-icon" aria-hidden="true" />
                             <div className="menu-text">
-                                <div className="menu-title">Choose storage folder</div>
-                                <div className="menu-desc">Store thumbnails locally</div>
+                                <div className="menu-title">Connect a Folder</div>
+                                <div className="menu-desc">Save previews to a folder on disk</div>
                             </div>
                         </button>
 

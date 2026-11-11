@@ -307,7 +307,11 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         const parentCache = new Map<string, BookmarkNode | undefined>();
         for (const node of found) chains.set(node.id, await getAncestors(node, parentCache));
         const roots = found.filter(n => !(chains.get(n.id) ?? []).some(a => selected.has(a.id)));
-        if (roots.length === 0) return { ok: true, removedCount: 0, removedRoots: 0, skipped };
+        // A retry after every root was already removed (the first attempt stopped before it
+        // cached its result) still names that operation, so a change set finds its entries.
+        if (roots.length === 0) {
+            return { ok: true, removedCount: 0, removedRoots: 0, skipped, ...(resumedOperationId ? { operationId: resumedOperationId } : {}) };
+        }
 
         const operationId = resumedOperationId ?? uuid();
         const deletedAt = now();
@@ -772,7 +776,10 @@ export function createTrashService(deps: TrashServiceDeps = {}) {
         const reqKeys = (await listLocalKeys()).filter(k => k.startsWith(TRASH_REQUEST_PREFIX));
         if (reqKeys.length) {
             const reqs = await chrome.storage.local.get(reqKeys);
-            const old = reqKeys.filter(k => ((reqs[k] as { at?: number } | undefined)?.at ?? 0) + REQUEST_KEEP_MS <= t);
+            // An AI change set (request id `cs_*`) may be finished days later and must still
+            // resume its own operation, so its record lives as long as the Trash entries.
+            const keepFor = (k: string) => k.startsWith(`${TRASH_REQUEST_PREFIX}cs_`) ? TRASH_RETENTION_MS : REQUEST_KEEP_MS;
+            const old = reqKeys.filter(k => ((reqs[k] as { at?: number } | undefined)?.at ?? 0) + keepFor(k) <= t);
             if (old.length) await chrome.storage.local.remove(old);
         }
 

@@ -4,7 +4,7 @@ import { patchMetadata, importMetadata as importMetaRecord } from './metadata_cl
 import type { ThumbnailStatus } from './storage_index';
 import { PROVIDERS } from './ai_settings_storage';
 import { sanitizeListColumns } from './list_columns';
-import { sanitizeBackupMeta, mergeImported, type BackupMeta } from './metadata_sanitize';
+import { sanitizeBackupMeta, mergeImported, isValidMetaId, type BackupMeta } from './metadata_sanitize';
 import { readFolderPrefs, sanitizeFolderPref, type FolderPref, type FolderPrefPatch } from './folder_prefs';
 import { storageIndex } from './storage_index';
 
@@ -330,8 +330,8 @@ export class BackupManager {
             for (const t of data.thumbnails) {
                 // Validate untrusted input: a backup file is user-supplied and could
                 // be malformed or hostile. `id` becomes a storage key, so it must be
-                // a non-empty string; `url` likewise.
-                if (!t || typeof t.id !== 'string' || !t.id || typeof t.url !== 'string') {
+                // a valid metadata id (non-empty, at most 2,048 characters); `url` a string.
+                if (!t || !isValidMetaId(t.id) || typeof t.url !== 'string') {
                     console.warn('Skipping invalid backup record', t);
                     continue;
                 }

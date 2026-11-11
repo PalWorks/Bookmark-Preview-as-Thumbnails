@@ -10,6 +10,7 @@ import { loadAISettings, getBoundApiKey, PROVIDERS, type AICloudConfig } from '.
 import { callModel, runAgent, NO_TOOLS, type Msg, type ToolCall } from '../../lib/agent/llm';
 import { friendlyError } from '../../lib/ai_tagger';
 import type { ClientResponse } from '../../lib/bridge/protocol';
+import { extractJson } from '../../lib/change_set/format';
 import {
     listChats, loadChat, saveChat, deleteChat, deleteAllChats, getCurrentChatId, setCurrentChatId,
     newChatId, chatTitle, LEGACY_SESSION_KEY, type ChatSummary,
@@ -128,6 +129,15 @@ export function toolLabel(call: ToolCall): string {
     }
 }
 
+/** The change set a tool call sent, read from an object or from text (code fence included). */
+function changeSetArg(v: unknown): { title?: unknown; ops?: unknown } | undefined {
+    if (typeof v === 'string') {
+        const json = extractJson(v);
+        try { return json ? JSON.parse(json) as { title?: unknown; ops?: unknown } : undefined; } catch { return undefined; }
+    }
+    return v && typeof v === 'object' ? v as { title?: unknown; ops?: unknown } : undefined;
+}
+
 /** Turn finished tool calls into rows: change cards, refusals, chips. */
 export function itemsForTool(call: ToolCall, result: unknown): ChatItem[] {
     const res = (result as { res?: ClientResponse; ok?: boolean; error?: string } | undefined);
@@ -136,7 +146,7 @@ export function itemsForTool(call: ToolCall, result: unknown): ChatItem[] {
     if (!r.ok) return [{ kind: 'tool', label: `${toolLabel(call)}: ${r.error.message}`, failed: true }];
     if (call.name === 'apply_changes') {
         const b = r.body as { applied?: boolean; accepted?: boolean; changeSetId?: string; skipped?: unknown[]; message?: string; results?: Array<{ ok: boolean; reason?: string; change: number }> };
-        const cs = call.args.changeSet as { title?: unknown; ops?: unknown } | undefined;
+        const cs = changeSetArg(call.args.changeSet);
         const title = str(cs?.title, 80) || 'Changes';
         if (b.applied && b.changeSetId) {
             return [{ kind: 'changes', changeSetId: b.changeSetId, title, summary: summarizeOps(cs?.ops), skipped: Array.isArray(b.skipped) ? b.skipped.length : 0, targets: changeTargets(cs?.ops) }];

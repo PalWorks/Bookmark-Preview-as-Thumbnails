@@ -149,11 +149,8 @@ export function useContextMenu({
         chrome.bookmarks.get(targetId, (results) => {
             if (!results?.length) return;
             const node = results[0];
-            if (node.url) {
-                onTriggerCapture([node.url]);
-            } else {
-                alert('Regeneration is currently only supported for individual bookmarks.');
-            }
+            // The menu item is disabled for folders, so only bookmarks reach here.
+            if (node.url) onTriggerCapture([node.url]);
         });
         closeContextMenu();
     };

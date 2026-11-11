@@ -147,6 +147,18 @@ describe('TRASH_DELETE', () => {
         expect(new Set(entries().map(e => e.operationId)).size).toBe(1);
     });
 
+    it('a retry after every item was already removed still names the first operation', async () => {
+        const { soup, cake } = seedRecipes();
+        const { service } = makeService();
+        const first = await service.deleteItems({ ids: [soup.id, cake.id], requestId: 'cs_x' });
+        // The worker stopped after removing everything but before caching the answer.
+        localStore['trash_req_cs_x'] = { at: Date.now(), operationId: first.operationId };
+        const retry = await makeService().service.deleteItems({ ids: [soup.id, cake.id], requestId: 'cs_x' });
+        expect(retry.ok).toBe(true);
+        expect(retry.removedRoots).toBe(0);
+        expect(retry.operationId).toBe(first.operationId);
+    });
+
     it('still reports success when recording the outcome fails after removal', async () => {
         const { soup } = seedRecipes();
         const { service } = makeService();

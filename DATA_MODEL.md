@@ -1,6 +1,6 @@
 # Data model
 
-_Last updated: 2026-11-10T17:21:42+00:00 (Ask AI chats kept on this device, the Ask AI model choice, Redo on change sets)._
+_Last updated: 2026-11-11T04:23:23+00:00 (usage statistics keys; the open Ask AI chat is now per tab; "Connect a Folder")._
 
 All data is local to the browser profile. None of the 1.7.0 `cs*`, `bridge_*` or `connector_link`
 keys has the legacy metadata shape (`tests/change_sets.test.ts`), and backups never include them
@@ -78,8 +78,13 @@ Trash.
 | Key | Owner (writer) | Shape | Notes |
 |---|---|---|---|
 | `analytics_sid` | page or worker | number (seconds) | D27. Session number for usage statistics. |
-| `ask_ai_current` | page | chat id | D24. The chat that is open, so a reload continues it. |
 | `ask_ai_chat` | page | `{ items, history }` | 1.7.0 only. Moved into `ask_ai_chats` the first time the next version opens, then removed. |
+
+## Page sessionStorage (one tab)
+
+| Key | Owner (writer) | Shape | Notes |
+|---|---|---|---|
+| `ask_ai_current` | page | chat id | D24. The chat open in this tab, so a reload continues it. Per tab since 1.8.0 (was `chrome.storage.session`), so two tabs never overwrite each other's chat. |
 
 ## Memory only (service worker)
 
@@ -113,7 +118,7 @@ Trash.
 
 - `thumbnails`: legacy preview records from early versions; migrated lazily to
   `thumb_<url>` on read and removed by the Trash asset sweep.
-- `handles`: the File System Access folder handle for "Choose storage folder".
+- `handles`: the File System Access folder handle for "Connect a Folder".
 
 ## Backup files
 

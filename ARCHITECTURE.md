@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-11T02:41:14+00:00 (usage statistics through the relay's /events, D27, 1.8.0)._
+_Last updated: 2026-11-11T04:23:23+00:00 (1.8.0 audit: capture batch clean-up, connector reconnect grace, per-tab Ask AI chat)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has two small servers of its own:
 the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0) and for
@@ -173,7 +173,10 @@ our change (the folder we moved it to, the name we gave it) and otherwise leaves
 `captureManager.capture()` → resize and compress to WebP → `thumb_<url>` (and the
 connected folder, if any) → `storageIndex.patch()` → `THUMBNAIL_UPDATED` broadcast. Failed
 navigations get a generated error image. The storage id is always the original bookmark
-URL, even after redirects.
+URL, even after redirects. Closing the capture window stops the batch (nothing is written for
+the rest), an extension call every 20 s keeps the worker alive through long load waits and
+capture delays, and the window and batch state are always cleaned up in one `finally` (1.8.0).
+Previews are made only through `BATCH_CAPTURE` (one link is a batch of one).
 
 ## Page data flow
 
@@ -310,7 +313,8 @@ Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
   (`src/components/AskAIPreviews.tsx`, rows from `src/lib/agent/previews.ts`) or the chats list.
   Both share one `useAskAI` state at App level.
 - **Chats** (`src/lib/agent/chat_store.ts`): an index plus one record per chat in
-  `chrome.storage.local`, 50 at most; the open chat's id in `chrome.storage.session`.
+  `chrome.storage.local`, 50 at most; the open chat's id in the tab's `sessionStorage` (1.8.0), so
+  two tabs never write the same chat.
 - **Model picker** (`src/lib/agent/models.ts`): lists the key's chat models (speech, image,
   embedding and similar ids filtered out; OpenRouter limited to models that take tools) and keeps
   Ask AI's own choice per provider in `ask_ai_model`. The system prompt names the model and provider.
@@ -338,7 +342,9 @@ Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
   `linkId` (16 random bytes) and `secret` (32 bytes) in `connector_link`. The worker opens
   `wss://<origin>/link?id=<linkId>` and sends `hello {linkId, secret}`; pings every 20 s keep
   the socket and the worker alive, a socket silent for 60 s is closed, and an alarm retries every
-  minute. Each `request` frame is handed to the bridge as a `remote` request.
+  minute. Each `request` frame is handed to the bridge as a `remote` request; its answer goes out
+  on whichever socket is live, and the Worker keeps requests in flight for 5 s after a drop so an
+  answer sent after a reconnect still reaches the AI app (1.8.0).
 - **Wire contract** (`src/lib/bridge/connector.ts`): frame types, id formats, keepalive and the
   30 s request timeout, shared by the extension and the Worker.
 - **Sign-in**: the Connect page shows a standing 6-digit code (the invite, memory only; it changes

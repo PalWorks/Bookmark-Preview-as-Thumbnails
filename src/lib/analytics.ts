@@ -125,7 +125,6 @@ export async function flush(endpoint = ANALYTICS_ENDPOINT): Promise<void> {
 
 /** Message types from the extension's pages that count as using a feature (SW side). */
 const MESSAGE_EVENTS: Record<string, string> = {
-    CAPTURE_THUMBNAIL: 'preview_single',
     BATCH_CAPTURE: 'preview_batch',
     AUTO_TAG: 'auto_tag_run',
     AI_SEARCH: 'smart_search',

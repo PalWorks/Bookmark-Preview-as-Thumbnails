@@ -9,6 +9,8 @@ export function useClipboard(
     refreshCurrentFolder: (folderId: string) => void,
     /** Cut and Paste finished: the page shows the result with Undo. */
     onMoved?: (result: MoveResult, targetId: string) => void,
+    /** Copy and Paste finished, or failed part-way. */
+    onCopied?: (ok: boolean, title: string) => void,
 ) {
     const [clipboard, setClipboard] = useState<{
         mode: 'cut' | 'copy';
@@ -54,9 +56,17 @@ export function useClipboard(
         } else if (clipboard.mode === 'copy') {
             // Sequential, parents first: children keep their order (a parallel
             // create would shuffle them).
-            await createSubtree(toSavedNode(clipboard.node), targetParentId);
+            const title = clipboard.node.title || 'Untitled';
+            let ok = true;
+            try {
+                await createSubtree(toSavedNode(clipboard.node), targetParentId);
+            } catch (err) {
+                console.error('[Paste] copy failed', err);
+                ok = false;
+            }
             refreshTree();
             refreshCurrentFolder(selectedFolderId);
+            onCopied?.(ok, title);
         }
     };
 

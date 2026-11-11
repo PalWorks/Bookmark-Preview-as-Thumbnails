@@ -172,7 +172,7 @@ export const AgentsView: React.FC<Props> = ({ api, connector, roots, hiddenFolde
                                         {confirmNewAddress ? (
                                             <div className="inline-banner" role="alert">
                                                 <span>Make a new address? Apps connected with the old one stop working and must be added again.</span>
-                                                <button type="button" className="btn btn--danger" onClick={() => { void connector.newAddress().then(() => { setConfirmNewAddress(false); toast('New address made.'); }); }}>Make a new address</button>
+                                                <button type="button" className="btn btn--danger" onClick={() => { void connector.newAddress().then(ok => { setConfirmNewAddress(false); if (ok) toast('New address made.'); else toast("Couldn't make a new address. Check your connection and try again.", 'error'); }); }}>Make a new address</button>
                                                 <button type="button" className="btn btn--secondary" onClick={() => setConfirmNewAddress(false)}>Keep it</button>
                                             </div>
                                         ) : (
@@ -222,7 +222,7 @@ export const AgentsView: React.FC<Props> = ({ api, connector, roots, hiddenFolde
                                                 <div className="trash-row-actions">
                                                     <ModeSelect id={`mode-${c.id}`} label={`What ${c.name} may do`} value={c.mode} onChange={(m) => { void api.updateClient(c.id, { mode: m }); }} />
                                                     <button type="button" className="btn btn--secondary" onClick={() => setEditing({ id: c.id, name: c.name, chosen: new Set(c.folderIds), strip: c.stripQuery })}>Folders</button>
-                                                    <button type="button" className="btn btn--text btn--danger-text" onClick={() => { void api.removeClient(c.id).then(() => toast(`Removed ${c.name}. It can no longer connect.`)); }}>Remove</button>
+                                                    <button type="button" className="btn btn--text btn--danger-text" onClick={() => { void api.removeClient(c.id).then(ok => { if (ok) toast(`Removed ${c.name}. It can no longer connect.`); else toast(`Couldn't remove ${c.name}. Try again.`, 'error'); }); }}>Remove</button>
                                                 </div>
                                             </div>
                                         </li>
@@ -231,7 +231,7 @@ export const AgentsView: React.FC<Props> = ({ api, connector, roots, hiddenFolde
                                 {confirmRemoveAll ? (
                                     <div className="inline-banner" role="alert">
                                         <span>Remove every connected app? Each would have to connect again.</span>
-                                        <button type="button" className="btn btn--danger" onClick={() => { void api.removeAll().then(() => { setConfirmRemoveAll(false); toast('All removed.'); }); }}>Remove all</button>
+                                        <button type="button" className="btn btn--danger" onClick={() => { void api.removeAll().then(ok => { setConfirmRemoveAll(false); if (ok) toast('All removed.'); else toast("Couldn't remove them all. Try again.", 'error'); }); }}>Remove all</button>
                                         <button type="button" className="btn btn--secondary" onClick={() => setConfirmRemoveAll(false)}>Keep them</button>
                                     </div>
                                 ) : (
@@ -277,7 +277,7 @@ export const AgentsView: React.FC<Props> = ({ api, connector, roots, hiddenFolde
                     footer={(
                         <div className="modal-actions">
                             <button type="button" className="btn btn--secondary" onClick={() => setEditing(null)}>Cancel</button>
-                            <button type="button" className="btn btn--primary btn--grow" onClick={() => { void api.updateClient(editing.id, { folderIds: [...editing.chosen], stripQuery: editing.strip }).then(() => { setEditing(null); toast('Saved.'); }); }}>Save</button>
+                            <button type="button" className="btn btn--primary btn--grow" onClick={() => { void api.updateClient(editing.id, { folderIds: [...editing.chosen], stripQuery: editing.strip }).then(ok => { if (ok) { setEditing(null); toast('Saved.'); } else toast("Couldn't save. Try again.", 'error'); }); }}>Save</button>
                         </div>
                     )}
                 >

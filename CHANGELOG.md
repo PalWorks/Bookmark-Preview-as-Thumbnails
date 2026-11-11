@@ -30,6 +30,45 @@ under 1.7.1 as well.
 
 - Privacy policy, the website's privacy page and its "No tracking" claim describe usage
   statistics and how to turn them off.
+- The website lists Ask AI, Trash with Undo and bulk organising among its features.
+- "Choose storage folder" in Settings is now **Connect a Folder**, the name used everywhere else.
+
+### Fixed
+
+From a full audit before release (2026-11-11T04:23:23+00:00):
+
+- **Ask AI never sends to Trash without your OK**, even when the AI wraps its changes in a code
+  fence or a sentence. Before, such a change set skipped the approval card. Chat cards also show
+  what those changes did.
+- Closing the preview window during **Generate Preview** stops the batch. Before, every remaining
+  bookmark got an error image in place of its preview.
+- A long page load or capture delay no longer lets Chrome stop the background worker mid-batch,
+  and a batch that fails to start no longer leaves the button stuck.
+- Finishing an AI change set after an interruption, or days later, still links its items to
+  Trash, so Undo brings them back.
+- A backup with an over-long preview id is skipped item by item instead of stopping the import.
+- Links shared with an AI lose any user name and password when query strings are hidden, and a
+  folder inside a hidden folder is never shared.
+- **Ask AI on phones:** "Set up an AI provider", "Use Claude or ChatGPT instead" and "All AI
+  changes" close the panel and open the page; the panel sits above the selection bar.
+- Ask AI picks up a provider saved while the panel is open, without reopening it.
+- Each tab keeps its own open chat, so two tabs no longer overwrite each other's messages.
+- A tag filter no longer follows you into other folders. An empty view under a filter says so
+  and offers **Show all**.
+- The Connect page reports a failed remove or save instead of claiming success, and polls the
+  browser only while it is open.
+- An AI change set that no longer exists shows a message instead of loading forever.
+- Saving Provider Settings shows an error if it fails. Pasting a copied folder confirms it, or
+  says what failed.
+- Accessibility: every Provider Settings field has a name, the key button says Show or Hide key,
+  tap targets on the AI Tools pages and the Back button are at least 40px on touch screens, and
+  the welcome dialog is a proper dialog that follows the dark theme.
+- Error messages name **AI Tools > Provider Settings** instead of the old "AI settings".
+- Usage statistics: the switch shows the saved choice before it can be changed, and import and
+  view-mode events count real changes only.
+- **Connector (Worker):** a request in flight when the browser's connection drops is answered
+  once it reconnects, instead of failing as "not connected" for a change that was applied; IPv4
+  addresses written as IPv6 are limited as IPv4.
 
 ## [1.7.1] - 2026-11-10 (with helper 1.7.2 on npm; release prepared 2026-11-10T20:02:43+00:00; submitted, then replaced in review by 1.8.0)
 

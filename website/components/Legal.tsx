@@ -5,7 +5,7 @@ export const PrivacyPolicy: React.FC = () => (
   <div className="max-w-4xl mx-auto py-24 px-4">
     <h1 className="text-4xl font-bold text-slate-900 mb-8">Privacy Policy</h1>
     <div className="prose prose-slate max-w-none text-slate-600 space-y-6">
-      <p>Last updated: 10 November 2026 (version 1.7.0)</p>
+      <p>Last updated: 11 November 2026 (version 1.8.0)</p>
 
       <h3 className="text-xl font-bold text-slate-900">1. Overview</h3>
       <p>Visual Bookmark Manager with Thumbnail Previews ("the Extension") keeps your data on your device. We never receive your bookmarks, thumbnails or settings. From version 1.8.0 the Extension sends anonymous usage statistics, which you can turn off (section 4a). The other data that can leave your device is described in sections 3 to 5: what you send to a cloud AI provider you turn on yourself (including Ask AI), feedback you choose to send us, and bookmarks you choose to share with Claude, ChatGPT, another AI or a coding agent. If you turn on the Claude and ChatGPT connector, that data passes through a relay we run, which stores none of it.</p>

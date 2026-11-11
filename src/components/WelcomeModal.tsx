@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LayoutGrid, Play, ShieldCheck, Moon, X } from 'lucide-react';
 import './WelcomeModal.css';
 
@@ -11,6 +11,7 @@ interface WelcomeModalProps {
 
 export const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose, theme, onSetTheme }) => {
     const [step, setStep] = useState(0);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
     const steps = [
         {
@@ -26,7 +27,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose, theme, onSe
         {
             icon: <ShieldCheck size={40} />,
             title: "Your Data, Your Control",
-            desc: "All data is stored locally. Use the Settings menu to Backup your data or Connect a Folder for unlimited storage."
+            desc: "All data is stored locally. Use the Settings menu to back up your data or Connect a Folder for unlimited storage."
         },
         {
             icon: <Moon size={40} />,
@@ -50,16 +51,27 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose, theme, onSe
         }
     };
 
-    // Dismiss on Escape, like any standard modal.
+    // Focus moves into the dialog when it opens, so keyboard and screen reader users start here.
+    useEffect(() => { dialogRef.current?.querySelector<HTMLElement>('.btn-primary')?.focus(); }, []);
+
+    // Dismiss on Escape, like any standard modal; Tab stays inside the dialog.
     useEffect(() => {
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') { onClose(); return; }
+            if (e.key !== 'Tab' || !dialogRef.current) return;
+            const items = [...dialogRef.current.querySelectorAll<HTMLElement>('button')];
+            if (!items.length) return;
+            const first = items[0], last = items[items.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
     }, [onClose]);
 
     return (
         <div className="welcome-overlay">
-            <div className="welcome-modal">
+            <div className="welcome-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="welcome-title">
                 <button className="welcome-close" onClick={onClose} title="Close" aria-label="Close">
                     <X size={20} />
                 </button>
@@ -67,7 +79,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose, theme, onSe
                     <div className="welcome-icon-wrapper">
                         {steps[step].icon}
                     </div>
-                    <h2 className="welcome-title">{steps[step].title}</h2>
+                    <h2 className="welcome-title" id="welcome-title">{steps[step].title}</h2>
                     <p className="welcome-desc">{steps[step].desc}</p>
 
                     {/* Theme Chooser UI */}
@@ -75,18 +87,21 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose, theme, onSe
                         <div className="theme-options">
                             <button
                                 className={`theme-option-btn ${theme === 'light' ? 'active' : ''}`}
+                                aria-pressed={theme === 'light'}
                                 onClick={() => onSetTheme('light')}
                             >
                                 Light
                             </button>
                             <button
                                 className={`theme-option-btn ${theme === 'dark' ? 'active' : ''}`}
+                                aria-pressed={theme === 'dark'}
                                 onClick={() => onSetTheme('dark')}
                             >
                                 Dark
                             </button>
                             <button
                                 className={`theme-option-btn ${theme === 'system' ? 'active' : ''}`}
+                                aria-pressed={theme === 'system'}
                                 onClick={() => onSetTheme('system')}
                             >
                                 System
@@ -96,7 +111,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose, theme, onSe
                 </div>
 
                 <div className="welcome-footer">
-                    <div className="step-indicators">
+                    <div className="step-indicators" aria-label={`Step ${step + 1} of ${steps.length}`} role="img">
                         {steps.map((_, index) => (
                             <div
                                 key={index}

@@ -80,11 +80,25 @@ test('without a socket, and when the socket drops, relay answers NOT_CONNECTED',
     assert.equal(none.ok, false);
     assert.equal((none as any).error.code, 'NOT_CONNECTED');
     assert.match((none as any).error.message, /Open Chrome on your computer/);
+    obj.reconnectGraceMs = 10;
     const ws = await connect();
     const p = obj.relay({ v: 1, id: 2, type: 'search', body: {} }, 'AI app');
     ws.closed = { code: 1006 };
     await obj.webSocketClose(ws as any, 1006);
     assert.equal(((await p) as any).error.code, 'NOT_CONNECTED');
+});
+
+test('a request in flight when the socket drops is answered on the new socket', async () => {
+    const { obj, connect } = setup();
+    obj.reconnectGraceMs = 1_000;
+    const a = await connect();
+    const p = obj.relay({ v: 1, id: 3, type: 'apply_changes', body: {} }, 'AI app');
+    const rid = a.sent.at(-1).rid;
+    a.closed = { code: 1006 };
+    await obj.webSocketClose(a as any, 1006);
+    const b = await connect();
+    await obj.webSocketMessage(b as any, JSON.stringify({ type: 'response', rid, res: { v: 1, id: 3, ok: true, body: { applied: true } } }));
+    assert.deepEqual(await p, { v: 1, id: 3, ok: true, body: { applied: true } });
 });
 
 test('authorization codes work once, and not after 2 minutes', async () => {
@@ -121,4 +135,11 @@ test('60 MCP requests a minute per link', async () => {
     assert.equal(await obj.takeMcpSlot(), false);
     t = 60_000;
     assert.equal(await obj.takeMcpSlot(), true);
+});
+
+test('networkOf: IPv4 as itself, IPv4-mapped IPv6 as the IPv4, IPv6 as its /64', async () => {
+    const { networkOf } = await import('../src/limiter.ts');
+    assert.equal(networkOf('203.0.113.7'), '203.0.113.7');
+    assert.equal(networkOf('::ffff:203.0.113.7'), '203.0.113.7');
+    assert.equal(networkOf('2001:db8:1:2:3:4:5:6'), '2001:db8:1:2::/64');
 });

@@ -184,6 +184,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
     const [keyVisible, setKeyVisible] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [saveError, setSaveError] = useState('');
 
     // ── API-key validation / model discovery ──────────────────────────────────
     const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
@@ -439,6 +440,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
 
     const handleSave = async () => {
         setSaving(true);
+        setSaveError('');
         try {
             await saveAISettings(
                 { mode, cloud: { provider, model, customUrl: customUrl || undefined } },
@@ -448,6 +450,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
             );
             setSaved(true);
             setTimeout(() => { if (!mountedRef.current) return; setSaved(false); onSave(); }, 900);
+        } catch (err) {
+            console.error('[AI settings] save failed', err);
+            setSaveError("Couldn't save your settings. Try again; if it keeps failing, reload this page.");
         } finally {
             setSaving(false);
         }
@@ -721,7 +726,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                 <span className="ai-chip ai-chip--blue">Private</span>
                                 <span className="ai-chip ai-chip--gray">No setup</span>
                             </div>
-                            <p className="ai-card-desc">Runs entirely on your device — no API key needed</p>
+                            <p className="ai-card-desc">Runs entirely on your device. No API key needed.</p>
                         </div>
 
                         <div
@@ -749,9 +754,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                     {mode === 'builtin' && (
                         <div className="chrome-ai-panel">
                             <div className="chrome-ai-features">
-                                <span className="chrome-ai-feature"><strong>🔒 Private</strong> — On-device processing</span>
-                                <span className="chrome-ai-feature"><strong>⚡ Free</strong> — No API key needed</span>
-                                <span className="chrome-ai-feature"><strong>🔌 Offline</strong> — Works without internet</span>
+                                <span className="chrome-ai-feature"><strong>🔒 Private:</strong> on-device processing</span>
+                                <span className="chrome-ai-feature"><strong>⚡ Free:</strong> no API key needed</span>
+                                <span className="chrome-ai-feature"><strong>🔌 Offline:</strong> works without internet</span>
                             </div>
 
                             {builtinStatus === 'checking' && (
@@ -817,8 +822,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                     {mode === 'cloud' && (
                         <div className="ai-cloud-form">
                             <div className="ai-form-row">
-                                <label className="ai-form-label">Provider</label>
+                                <label className="ai-form-label" htmlFor="ai-provider">Provider</label>
                                 <select
+                                    id="ai-provider"
                                     className="ai-form-select"
                                     value={provider}
                                     onChange={e => handleProviderChange(e.target.value as AIProvider)}
@@ -830,8 +836,9 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                             </div>
 
                             <div className="ai-form-row">
-                                <label className="ai-form-label">Model Name</label>
+                                <label className="ai-form-label" htmlFor="ai-model">Model Name</label>
                                 <input
+                                    id="ai-model"
                                     className="ai-form-input"
                                     value={model}
                                     onChange={e => setModel(e.target.value)}
@@ -842,10 +849,13 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
 
                             {needsCustomUrl && (
                                 <div className="ai-form-row">
-                                    <label className="ai-form-label">
+                                    <label className="ai-form-label" htmlFor="ai-base-url">
                                         {provider === 'ollama' ? 'Ollama Base URL' : 'Custom Endpoint Base URL'}
                                     </label>
                                     <input
+                                        id="ai-base-url"
+                                        type="url"
+                                        inputMode="url"
                                         className="ai-form-input"
                                         value={customUrl}
                                         onChange={e => setCustomUrl(e.target.value)}
@@ -861,11 +871,12 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
 
                             {(currentMeta?.requiresKey || needsCustomUrl) && (
                                 <div className="ai-form-row">
-                                    <label className="ai-form-label">
+                                    <label className="ai-form-label" htmlFor="ai-api-key">
                                         {currentMeta?.requiresKey ? 'API Key' : 'API Key (optional)'}
                                     </label>
                                     <div className="ai-key-wrapper">
                                         <input
+                                            id="ai-api-key"
                                             className="ai-form-input ai-key-input"
                                             type={keyVisible ? 'text' : 'password'}
                                             value={apiKey}
@@ -881,6 +892,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                             autoComplete="off"
                                         />
                                         <button className="ai-key-eye" type="button"
+                                            aria-label={keyVisible ? 'Hide key' : 'Show key'} aria-pressed={keyVisible}
                                             onClick={() => setKeyVisible(v => !v)}>
                                             {keyVisible ? <EyeOff size={15} /> : <Eye size={15} />}
                                         </button>
@@ -894,7 +906,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                         <span className="ai-form-hint">
                                             {currentMeta?.requiresKey
                                                 ? 'Stored encrypted on your device. Never sent anywhere except your chosen provider.'
-                                                : 'Optional — most local servers (Ollama, LM Studio) need no key. If yours requires one, it is stored encrypted and sent only to your endpoint.'}
+                                                : 'Optional: most local servers (Ollama, LM Studio) need no key. If yours requires one, it is stored encrypted and sent only to your endpoint.'}
                                         </span>
                                     ) : null}
                                 </div>
@@ -936,6 +948,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         >
                             {saved ? <><CheckCircle2 size={15} /> Saved!</> : saving ? 'Saving…' : 'Save Settings'}
                         </button>
+                        {saveError && <span className="ai-key-feedback ai-key-feedback--invalid" role="alert">{saveError}</span>}
                     </div>
                 </>
             )}
@@ -949,7 +962,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                             <p className="ai-feature-desc">
                                 Let AI categorise your bookmarks into topic tags
                                 {activeProvider && <> using <strong className="ai-provider-inline">{activeProvider}</strong></>}.
-                                {' '}Add, edit or delete tags by hand any time — changes save instantly.
+                                {' '}Add, edit or delete tags by hand any time; changes save instantly.
                             </p>
                         </div>
 
@@ -977,7 +990,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                             placeholder="e.g. Tamil Video, Tutorial, Crash Course"
                                         />
                                         <span className="ai-form-hint">
-                                            The AI prefers these when they fit and matches their specificity — useful for finer
+                                            The AI prefers these when they fit and matches their specificity, which helps with finer
                                             categories than the defaults (e.g. “Tamil Video” instead of “Video”). It can still use
                                             other tags. Leave blank for general tagging.
                                         </span>
@@ -1006,7 +1019,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                     <div className="ai-tag-toolbar">
                         {isTagging ? (
                             <button className="ai-scan-btn ai-scan-btn--stop" onClick={stopTagging}>
-                                <StopCircle size={15} /> Stop — {tagProgress.done}/{tagProgress.total}
+                                <StopCircle size={15} /> Stop ({tagProgress.done}/{tagProgress.total})
                             </button>
                         ) : (
                             <button
@@ -1023,6 +1036,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                             value={tagFolderId}
                             onChange={e => setTagFolderId(e.target.value)}
                             title="Limit Auto-Tag to a folder"
+                            aria-label="Limit Auto-Tag to a folder"
                         >
                             <option value={ALL_FOLDERS_ID}>All bookmarks ({tagRows.length})</option>
                             {folderOptions.map(f => (
@@ -1040,6 +1054,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                             className="ai-form-input ai-tag-filter"
                             value={tagFilter}
                             onChange={e => setTagFilter(e.target.value)}
+                            aria-label="Filter tagged bookmarks"
                             placeholder="Filter by title, URL, folder or tag…"
                         />
                     </div>
@@ -1091,6 +1106,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                                                             list="ai-tag-options"
                                                             maxLength={50}
                                                             autoFocus
+                                                            aria-label="New tag"
                                                             placeholder="tag…"
                                                             onKeyDown={e => {
                                                                 if (e.key === 'Enter') handleAddTag(row, (e.target as HTMLInputElement).value);
@@ -1131,6 +1147,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                             <select
                                 className="ai-inline-select"
                                 value={searchFolderId}
+                                aria-label="Folder to search"
                                 onChange={e => { searchScopeAuto.current = false; setSearchFolderId(e.target.value); }}
                             >
                                 <option value={ALL_FOLDERS_ID}>All bookmarks ({allBookmarks.length})</option>
@@ -1145,7 +1162,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         </p>
                         <span className="ai-form-hint">
                             {searchScopeBookmarks.length} bookmark{searchScopeBookmarks.length !== 1 ? 's' : ''} in scope
-                            {searchScopeBookmarks.length > searchCap ? ` — only the first ${searchCap} are searched.` : '.'}
+                            {searchScopeBookmarks.length > searchCap ? `; only the first ${searchCap} are searched.` : '.'}
                         </span>
                     </div>
 
@@ -1155,6 +1172,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && !isSearching && handleSearch()}
+                            aria-label="Describe what you are looking for"
                             placeholder='e.g. "developer tools", "finance articles", "AI resources"'
                         />
                         <button
@@ -1214,7 +1232,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         <div className="ai-feature-title">🧹 Duplicate Finder</div>
                         <p className="ai-feature-desc">
                             Scans all your bookmarks across every folder and finds URLs that appear more than once.
-                            No AI needed — runs entirely in your browser.
+                            No AI needed. Runs entirely in your browser.
                         </p>
                     </div>
 
@@ -1251,17 +1269,18 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         )}
                         {scanDone && !isScanning && duplicates.length > 0 && (
                             <div className="ai-keep-toggle">
-                                <span className="ai-keep-toggle-label">Currently highlighting:</span>
+                                <span className="ai-keep-toggle-label">Keep on merge:</span>
                                 {(['oldest', 'newest'] as const).map(p => (
                                     <button
                                         key={p}
                                         className={`ai-keep-toggle-btn ${keepPolicy === p ? 'ai-keep-toggle-btn--active' : ''}`}
+                                        aria-pressed={keepPolicy === p}
                                         onClick={() => setKeepPolicy(p)}
                                     >
                                         {p === 'oldest' ? 'Oldest' : 'Newest'}
                                     </button>
                                 ))}
-                                <span className="ai-keep-toggle-hint">— kept on merge; the rest are deleted.</span>
+                                <span className="ai-keep-toggle-hint">The others go to Trash.</span>
                             </div>
                         )}
                     </div>
@@ -1270,7 +1289,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({ onSave, onBack, 
                         <div className="ai-dup-results">
                             <div className="ai-results-meta">
                                 {duplicates.length === 0
-                                    ? '✓ No duplicates found — your bookmark collection is clean!'
+                                    ? '✓ No duplicates found. Your bookmark collection is clean!'
                                     : `Found ${duplicates.length} group${duplicates.length !== 1 ? 's' : ''} of duplicates.`}
                             </div>
                             {duplicates.map(group => {

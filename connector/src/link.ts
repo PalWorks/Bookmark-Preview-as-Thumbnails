@@ -83,6 +83,13 @@ const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { sta
 export class LinkObject {
     private state: LinkState;
     private pending = new Map<string, Pending>();
+    /**
+     * After the browser's socket drops, requests in flight wait this long for it to come back
+     * (the extension reconnects after 2 s) and answer on the new socket. Failing them at once
+     * told the AI app "not connected" for changes that were in fact applied.
+     */
+    reconnectGraceMs = 5_000;
+    private graceTimer: ReturnType<typeof setTimeout> | null = null;
     now: () => number = () => Date.now();
 
     constructor(state: LinkState) {
@@ -201,7 +208,8 @@ export class LinkObject {
                 }
             }
         }
-        this.failPending();
+        // Requests still in flight stay pending: the browser answers them on this socket.
+        clearTimeout(this.graceTimer);
         ws.serializeAttachment({ linkId: att.linkId, authed: true } satisfies Attachment);
         ws.send(JSON.stringify({ type: 'ready' } satisfies LinkFromWorker));
     }
@@ -214,7 +222,10 @@ export class LinkObject {
             /* already closed */
         }
         if (wasLive && !this.state.getWebSockets().some((o) => o !== ws && (o.deserializeAttachment() as Attachment | null)?.authed)) {
-            this.failPending();
+            clearTimeout(this.graceTimer);
+            this.graceTimer = setTimeout(() => {
+                if (!this.liveSocket()) this.failPending();
+            }, this.reconnectGraceMs);
         }
     }
 
