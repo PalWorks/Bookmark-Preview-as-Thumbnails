@@ -29,7 +29,7 @@ describe('P1-1 regression — SW listener must return true synchronously', () =>
             _sender: unknown,
             _sendResponse: () => void,
         ): boolean => {
-            if (msg.type === 'CAPTURE_THUMBNAIL') {
+            if (msg.type === 'BATCH_CAPTURE') {
                 // Launch async work (does NOT await)
                 Promise.resolve().then(_sendResponse);
                 return true; // <-- synchronous, not a Promise
@@ -37,10 +37,10 @@ describe('P1-1 regression — SW listener must return true synchronously', () =>
             return false;
         };
 
-        const resultForCapture = syncListener({ type: 'CAPTURE_THUMBNAIL' }, null, () => { });
+        const resultForCapture = syncListener({ type: 'BATCH_CAPTURE' }, null, () => { });
         expect(resultForCapture).toBe(true); // channel stays open
 
-        const resultForOther = syncListener({ type: 'PING' }, null, () => { });
+        const resultForOther = syncListener({ type: 'UNKNOWN_MESSAGE' }, null, () => { });
         expect(resultForOther).toBe(false);
     });
 
@@ -51,13 +51,13 @@ describe('P1-1 regression — SW listener must return true synchronously', () =>
             _sender: unknown,
             _sendResponse: () => void,
         ) => {
-            if (msg.type === 'CAPTURE_THUMBNAIL') {
+            if (msg.type === 'BATCH_CAPTURE') {
                 await Promise.resolve();
                 _sendResponse();
             }
         };
 
-        const result = asyncListener({ type: 'CAPTURE_THUMBNAIL' }, null, () => { });
+        const result = asyncListener({ type: 'BATCH_CAPTURE' }, null, () => { });
         // The return value is a Promise, which is neither `true` nor `false`
         expect(result).toBeInstanceOf(Promise);
         // Chrome interprets a non-true return as "channel can close" → sendResponse arrives too late

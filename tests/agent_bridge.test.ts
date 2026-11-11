@@ -328,6 +328,17 @@ describe('agent bridge', () => {
         void f;
     });
 
+    it('F2: a request with an expired token is told why', async () => {
+        const s = setup();
+        fakeBookmarks.seed('1', 'Work');
+        await s.bridge.cancelPrompt(false);
+        await s.bridge.openInvite();
+        const code = (await s.bridge.state()).invite!.code;
+        const token = (await s.remote('pair', { pairingId: 'q'.repeat(20), client: 'Claude', code })).body!.token as string;
+        s.clock.t += 91 * 24 * 60 * 60 * 1000;
+        expect((await s.remote('list_folders', {}, token)).error?.message).toMatch(/90 days/);
+    });
+
     it('F2: an online connection unused for 90 days is removed and its token stops working', async () => {
         const s = setup();
         fakeBookmarks.seed('1', 'Work');
@@ -338,8 +349,10 @@ describe('agent bridge', () => {
         s.clock.t += 89 * 24 * 60 * 60 * 1000;
         expect((await s.remote('list_folders', {}, token)).ok).toBe(true);
         s.clock.t += 91 * 24 * 60 * 60 * 1000;
-        expect((await s.remote('list_folders', {}, token)).error?.code).toBe('NOT_PAIRED');
+        // The Connect page stops listing it as soon as it has expired, before any request.
         expect((await s.bridge.state()).clients.filter(c => c.name === 'Claude')).toHaveLength(0);
+        const late = await s.remote('list_folders', {}, token);
+        expect(late.error?.code).toBe('NOT_PAIRED');
     });
 
     it('D20: the online connector pairs with the standing code on the Connect page, with the folders and mode chosen there', async () => {

@@ -584,6 +584,8 @@
 
 /* Touch screens: every control in this page is at least 40px to tap (owner's mobile rules). */
 @media (pointer: coarse) {
+    /* Room for the 40px show/hide key button, so the end of the key stays visible. */
+    .ai-key-input { padding-right: 52px; }
     .ai-key-eye,
     .ai-tag-chip-x,
     .ai-tag-add-btn,

@@ -347,7 +347,7 @@ async function mcpPost(request: Request, env: Env, origin: string, linkId: strin
     if (text === null) return json({ jsonrpc: '2.0', id: null, error: { code: -32600, message: `Request larger than ${MAX_REQUEST_BYTES / 1024} KB.` } }, 413, CORS);
     const out = await callLink<McpOutcome & { rateLimited?: boolean }>(env, linkId, '/mcp', { token: m[1], text });
     if (out.rateLimited) {
-        return json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Too many requests: at most 60 a minute. Wait a minute, then try again.' } }, 429, { ...CORS, 'Retry-After': '60' });
+        return json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Too many requests. Wait a minute, then try again.' } }, 429, { ...CORS, 'Retry-After': '60' });
     }
     if (out.unauthorized) return json(out.body, 401, { ...CORS, 'WWW-Authenticate': wwwAuthenticate(origin, linkId, 'invalid_token') });
     if (out.status === 202) return new Response(null, { status: 202, headers: CORS });

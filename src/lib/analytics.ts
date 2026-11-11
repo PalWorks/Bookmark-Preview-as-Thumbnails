@@ -112,7 +112,7 @@ export async function flush(endpoint = ANALYTICS_ENDPOINT): Promise<void> {
             cid: await installId(),
             sid: await sessionId(),
             v: chrome.runtime.getManifest().version,
-            // A development copy: the relay keeps its events out of the reports.
+            // A development copy: the relay marks its events as test traffic.
             ...(chrome.runtime.id !== STORE_EXTENSION_ID ? { dev: true } : {}),
             events: batch.map(e => ({ n: e.n, p: e.p, ago: Math.max(0, now - e.t) })),
         });

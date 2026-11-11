@@ -15,7 +15,7 @@ const TABS: Array<{ id: AIToolsTab; label: string; Icon: typeof Bot }> = [
     { id: 'search', label: 'Smart Search', Icon: Search },
     { id: 'duplicates', label: 'Duplicate Finder', Icon: Copy },
     { id: 'connect', label: 'Connect Claude or ChatGPT', Icon: Plug },
-    { id: 'changes', label: 'AI changes', Icon: Clock },
+    { id: 'changes', label: 'AI Changes', Icon: Clock },
 ];
 
 // Arrow keys move to the next tab and open it. Each tab is its own view, so the bar is
@@ -30,6 +30,8 @@ export const AIToolsTabs: React.FC<{ active: AIToolsTab; onSelect: (t: AIToolsTa
         barRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
     }, [active]);
     const onKeyDown = (e: React.KeyboardEvent) => {
+        // Alt+Left is the browser's Back; leave key combinations alone.
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
         const i = TABS.findIndex(t => t.id === active);
         const go = (n: number) => { e.preventDefault(); focusAfterSwitch = true; onSelect(TABS[(n + TABS.length) % TABS.length].id); };
         switch (e.key) {

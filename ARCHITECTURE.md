@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-11-11T05:30:59+00:00 (connector token budgets, remote token expiry, keyboard menus)._
+_Last updated: 2026-11-11T06:01:16+00:00 (second audit: answers kept across a reconnect, docs brought in line)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has two small servers of its own:
 the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0) and for
@@ -236,7 +236,8 @@ to the provider the user configures (see PRIVACY.md).
   backups, gone on uninstall. `analytics_sid` is a number per browser session in
   `chrome.storage.session`. PostHog gets `$process_person_profile: false`, so no person profiles.
 - **Development copies.** Any id other than the store id sends `dev: true`; GA4 gets
-  `debug_mode` (DebugView only) and PostHog the `dev` property, so test traffic stays out of reports.
+  `debug_mode` (DebugView; kept out of reports while GA4's Developer traffic filter is active) and
+  PostHog the `dev` property, so reports can filter test traffic out.
 - **Failures.** Statistics are best effort: a failed send is dropped and never retried, and never
   touches the feature that called `track()`.
 
@@ -342,9 +343,10 @@ Design: [docs/designs/agent-bridge.md](docs/designs/agent-bridge.md) and
   `linkId` (16 random bytes) and `secret` (32 bytes) in `connector_link`. The worker opens
   `wss://<origin>/link?id=<linkId>` and sends `hello {linkId, secret}`; pings every 20 s keep
   the socket and the worker alive, a socket silent for 60 s is closed, and an alarm retries every
-  minute. Each `request` frame is handed to the bridge as a `remote` request; its answer goes out
-  on whichever socket is live, and the Worker keeps requests in flight for 5 s after a drop so an
-  answer sent after a reconnect still reaches the AI app (1.8.0).
+  minute. Each `request` frame is handed to the bridge as a `remote` request. Its answer goes out
+  on the live socket; an answer finished while no socket was ready waits (up to 30 s) and goes out
+  once the next socket says ready (1.8.1). The Worker keeps requests in flight for 5 s after a drop,
+  so such an answer still reaches the AI app.
 - **Wire contract** (`src/lib/bridge/connector.ts`): frame types, id formats, keepalive and the
   30 s request timeout, shared by the extension and the Worker.
 - **Sign-in**: the Connect page shows a standing 6-digit code (the invite, memory only; it changes

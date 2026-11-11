@@ -30,7 +30,7 @@ describe('AI changes in the App', { timeout: 20000 }, () => {
         const a = fakeBookmarks.seed('1', 'Alpha', 'https://alpha.example/');
         const b = fakeBookmarks.seed('1', 'Beta', 'https://beta.example/');
         render(<App />);
-        await openMenuItem(/AI changes/);
+        await openMenuItem(/AI Changes/);
         fireEvent.click(await screen.findByRole('button', { name: /Import changes/ }));
         const answer = JSON.stringify({ title: 'Tidy', ops: [
             { op: 'create_folder', tempId: 'new:1', parentId: '1', title: 'Greek' },
@@ -46,7 +46,7 @@ describe('AI changes in the App', { timeout: 20000 }, () => {
         const renames = screen.getByRole('region', { name: 'Renames' });
         fireEvent.click(within(renames).getByRole('checkbox'));
         fireEvent.click(screen.getByRole('button', { name: 'Apply 2 changes' }));
-        await screen.findByText('Applied as one step. You can undo it from AI changes.');
+        await screen.findByText('Applied as one step. You can undo it from AI Changes.');
         expect(fakeBookmarks.titlesIn('1')).toEqual(['Beta', 'Greek']);
 
         fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
@@ -58,7 +58,7 @@ describe('AI changes in the App', { timeout: 20000 }, () => {
         connectTrash();
         const a = fakeBookmarks.seed('1', 'Alpha', 'https://alpha.example/');
         render(<App />);
-        await openMenuItem(/AI changes/);
+        await openMenuItem(/AI Changes/);
         fireEvent.click(await screen.findByRole('button', { name: /Import changes/ }));
         fireEvent.change(await screen.findByLabelText("The AI's answer"), { target: { value: JSON.stringify({ ops: [
             { op: 'create_folder', tempId: 'new:1', parentId: '1', title: 'Greek' },
@@ -76,7 +76,7 @@ describe('AI changes in the App', { timeout: 20000 }, () => {
         connectTrash();
         fakeBookmarks.seed('1', 'Alpha', 'https://alpha.example/');
         render(<App />);
-        await openMenuItem(/AI changes/);
+        await openMenuItem(/AI Changes/);
         fireEvent.click(await screen.findByRole('button', { name: /Import changes/ }));
         fireEvent.change(await screen.findByLabelText("The AI's answer"), { target: { value: '{"ops":[{"op":"rename","id":"999","title":"x"}]}' } });
         fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
@@ -92,7 +92,7 @@ describe('AI changes in the App', { timeout: 20000 }, () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
         render(<App />);
-        await openMenuItem(/AI changes/);
+        await openMenuItem(/AI Changes/);
         fireEvent.click(await screen.findByRole('button', { name: 'Other ways: copy and paste' }));
         const dialog = await screen.findByRole('dialog');
         const boxes = within(dialog).getAllByRole('checkbox');

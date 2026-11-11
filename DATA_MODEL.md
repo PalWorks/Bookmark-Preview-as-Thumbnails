@@ -1,6 +1,6 @@
 # Data model
 
-_Last updated: 2026-11-11T04:23:23+00:00 (usage statistics keys; the open Ask AI chat is now per tab; "Connect a Folder")._
+_Last updated: 2026-11-11T06:01:16+00:00 (second audit: answers kept across a reconnect, docs brought in line)._
 
 All data is local to the browser profile. None of the 1.7.0 `cs*`, `bridge_*` or `connector_link`
 keys has the legacy metadata shape (`tests/change_sets.test.ts`), and backups never include them
@@ -36,7 +36,7 @@ goes to the relay in `worker/` when the user presses Send, and the relay keeps n
 | `csj_<setId>_<n>` | worker only | `{ k, n, kind, state, before, after, reason?, createdId?, intentAt?, url?, trashOperationId?, trashEntryId?, idMap? }` | One journal item per change, written before the change runs. At most 50 journals are kept; older sets keep their row without Undo. |
 | `cssnap_<snapshotId>` | worker only | `{ folderIds, createdAt }` | Folders an "Organise with an AI" export shared; an answer that names this snapshot may touch only them. Removed after 7 days. |
 | `bridge_settings` | worker only (`src/sw/agent_bridge.ts`) | `{ enabled, profileId }` | 1.7.0. Coding agents switch and a random 8-character profile id. |
-| `bridge_clients` | worker only | `{ [clientId]: { id, name, tokenHash, pairedAt, lastUsedAt?, folderIds, stripQuery, mode: 'read' \| 'propose' \| 'change', transport?: 'local' \| 'remote' } }` | Paired coding agents (`local`) and Claude or ChatGPT connections (`remote`, D20). Only the SHA-256 of each token is stored. `mode`: `read` looks only, `propose` makes changes wait in AI changes, `change` applies at once with Undo (the default for new pairings, D20). A missing `transport` means `local`. "Make a new address" removes every `remote` client. |
+| `bridge_clients` | worker only | `{ [clientId]: { id, name, tokenHash, pairedAt, lastUsedAt?, folderIds, stripQuery, mode: 'read' \| 'propose' \| 'change', transport?: 'local' \| 'remote' } }` | Paired coding agents (`local`) and Claude or ChatGPT connections (`remote`, D20). Only the SHA-256 of each token is stored. `mode`: `read` looks only, `propose` makes changes wait in AI changes, `change` applies at once with Undo (the default for new pairings, D20). A missing `transport` means `local`. "Make a new address" removes every `remote` client. A `remote` client unused for 90 days (`lastUsedAt`, else `pairedAt`) is removed (1.8.1). |
 | `bridge_idem` | worker only | `{ ["clientId|key"]: { setId, hash, at } }` | Idempotency keys for `apply_changes` and `propose_changes`, 24 h. |
 | `ask_ai_chats` | page (`src/lib/agent/chat_store.ts`) | `[{ id, title, createdAt, updatedAt }]` | D24. The list of Ask AI chats, newest first, at most 50 (the least recently used goes first). Never synced, never in backups. |
 | `ask_ai_chat_<id>` | page | `{ items, history }` | D24. One chat: the rows the panel shows (each with its time `at`) and the messages sent to the provider, last 200 of each. Rows keep display data only: bookmark refs keep http(s) links only. Deleted with the chat, with "Delete all chats", or when it falls off the 50. |

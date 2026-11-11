@@ -8,7 +8,7 @@
 // Storage: connector_link {enabled, linkId, secret, origin?}. Never in backups.
 
 import {
-    CONNECTOR_ORIGIN, LINK_PING_MS, LINK_IDLE_MS, connectorMcpUrl, connectorSocketUrl,
+    CONNECTOR_ORIGIN, LINK_PING_MS, LINK_IDLE_MS, LINK_REQUEST_TIMEOUT_MS, connectorMcpUrl, connectorSocketUrl,
     type LinkFromBrowser, type LinkFromWorker,
 } from '../lib/bridge/connector';
 import { PROTOCOL_VERSION, type ClientResponse } from '../lib/bridge/protocol';
@@ -75,6 +75,27 @@ export function createRemoteLink(deps: RemoteLinkDeps) {
         try { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); } catch { /* closing */ }
     }
 
+    /**
+     * Answers finished while no socket was ready (the link dropped mid-request). The Worker keeps
+     * such a request waiting for up to its 30 s timeout, so they go out on the next socket once it
+     * says ready; older ones are dropped (F15).
+     */
+    let unsent: Array<{ frame: LinkFromBrowser; at: number }> = [];
+
+    function answer(frame: LinkFromBrowser): void {
+        if (status === 'connected' && ws?.readyState === WebSocket.OPEN) {
+            try { ws.send(JSON.stringify(frame)); return; } catch { /* closing: keep it below */ }
+        }
+        unsent.push({ frame, at: Date.now() });
+        if (unsent.length > 50) unsent = unsent.slice(-50);
+    }
+
+    function flushUnsent(): void {
+        const fresh = unsent.filter(u => Date.now() - u.at < LINK_REQUEST_TIMEOUT_MS);
+        unsent = [];
+        for (const u of fresh) answer(u.frame);
+    }
+
     function stopTimers(): void {
         if (pingTimer) clearInterval(pingTimer);
         if (retryTimer) clearTimeout(retryTimer);
@@ -133,6 +154,7 @@ export function createRemoteLink(deps: RemoteLinkDeps) {
             switch (m?.type) {
                 case 'ready':
                     status = 'connected'; lastError = undefined; backoff = 2000; changed();
+                    flushUnsent();
                     return;
                 case 'refused':
                     status = 'error'; lastError = String(m.reason).slice(0, 200); changed();
@@ -142,7 +164,7 @@ export function createRemoteLink(deps: RemoteLinkDeps) {
                     return;
                 case 'request': {
                     const rid = String(m.rid).slice(0, 64);
-                    void deps.handle(m.req).then(res => send({ type: 'response', rid, res }));
+                    void deps.handle(m.req).then(res => answer({ type: 'response', rid, res }));
                     return;
                 }
             }
@@ -162,6 +184,7 @@ export function createRemoteLink(deps: RemoteLinkDeps) {
 
     function disconnect(): void {
         gen++;
+        unsent = [];
         wanted = false;
         status = 'off';
         stopTimers();
@@ -178,7 +201,7 @@ export function createRemoteLink(deps: RemoteLinkDeps) {
     async function setEnabled(on: boolean): Promise<ConnectorState> {
         const r = await record();
         await chrome.storage.local.set({ [CONNECTOR_KEY]: { ...r, enabled: on } });
-        if (!on) { wanted = false; gen++; }
+        if (!on) { wanted = false; gen++; unsent = []; }
         if (on) {
             backoff = 2000;
             await connect();

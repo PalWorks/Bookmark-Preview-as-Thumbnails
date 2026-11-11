@@ -7,8 +7,8 @@
  * Every value is checked again here, whatever the extension sent: event names and keys are
  * short identifiers, values are numbers, booleans or short words without spaces or slashes,
  * so no link, title, search or chat text can pass. The sender's address is not forwarded;
- * only its country (from Cloudflare) goes on. Events from development copies are marked so
- * they stay out of the reports.
+ * only its country (from Cloudflare) goes on. Events from development copies are marked as test
+ * traffic (GA4 debug_mode, PostHog `dev`), so reports can filter them out.
  */
 
 export interface EventsEnv {

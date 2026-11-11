@@ -208,6 +208,24 @@ describe('StorageIndex.patch', () => {
         expect(localStore[`meta_${URL_A}`]).toMatchObject({ rating: 4, tags: ['Dev'] });
     });
 
+    it('writes once when nothing else changed the record, even though Chrome returns keys sorted', async () => {
+        const index = new StorageIndex();
+        const local = chrome.storage.local as unknown as { set: { mockImplementation: (fn: (i: Record<string, unknown>) => Promise<void>) => void; mock: { calls: unknown[] } } };
+        let writes = 0;
+        local.set.mockImplementation(async (items: Record<string, unknown>) => {
+            writes++;
+            // Like Chrome: values come back with their keys in alphabetical order.
+            for (const [k, v] of Object.entries(items)) {
+                localStore[k] = v && typeof v === 'object' && !Array.isArray(v)
+                    ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([x], [y]) => x.localeCompare(y)))
+                    : v;
+            }
+        });
+        await index.patch(URL_A, { rating: 3 });
+        expect(writes).toBe(1);
+        expect(localStore[`meta_${URL_A}`]).toMatchObject({ rating: 3 });
+    });
+
     it('continues the queue after a failed write', async () => {
         const index = new StorageIndex();
         const setSpy = chrome.storage.local.set as unknown as { mockImplementationOnce: (fn: () => Promise<void>) => void };
