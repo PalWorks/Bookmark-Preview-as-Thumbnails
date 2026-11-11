@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-11T04:23:23+00:00 (pre-release audit of 1.8.0 fixed; rows 27 and 28 added for what it left open)._
+> _Last updated: 2026-11-11T04:31:04+00:00 (1.7.1 live; 1.8.0 submitted with User activity declared; audit rows 27 and 28 open)._
 
 ## 0. North star: every open item, one row each
 
@@ -27,8 +27,8 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 | 18 | §3.2 | P2 | **Done** | L | M | 2026-11-11 | 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents; D18 to D20) is live on the Web Store at 100% (store API, 2026-11-10T20:02:43+00:00). | Post-release checks fold into row 21. |
-| 26 | §3.1 | P1 | **In progress** | S | H | 2026-11-11 | 1.8.0 adds usage statistics (D27): anonymous feature events through our relay to GA4 (stream `G-Y7EQS9EYQB`) and PostHog EU (project 344404), on by default, off in Settings. The relay is deployed with both keys and checked (204 from our origin, 403 otherwise, PostHog test event accepted). 1.8.0 replaces the 1.7.1 submission, so it carries row 21. The owner tested it; a full pre-release audit (2026-11-11T04:23:23+00:00) fixed one high finding (Ask AI Trash approval, SECURITY F12) and about twenty smaller ones, and the connector Worker is redeployed with its two fixes. | Tag `v1.8.0`, upload, tick **User activity** in the store's Privacy practices (PRIVACY_DETAILS 4a), submit. After approval: PLAYBOOK step 8. |
-| 21 | §3.1 | P2 | **In progress** | S | M | 2026-11-11 | 1.7.1 (AI Tools page D23, provider fixes D21, palworks.ai addresses D22, Ask AI side panel and chats D24, open-folder context D26, security fixes) was tagged and sent to the Web Store; helper 1.7.2 (D25) is on npm (`latest`, 2026-11-11). | Ships inside 1.8.0 (row 26), which replaces this submission. |
+| 26 | §3.1 | P1 | **In progress** | S | H | 2026-11-11 | 1.8.0 adds usage statistics (D27): anonymous feature events through our relay to GA4 (stream `G-Y7EQS9EYQB`) and PostHog EU (project 344404), on by default, off in Settings. The relay is deployed with both keys and checked (204 from our origin, 403 otherwise, PostHog test event accepted). The owner tested it; a full pre-release audit (2026-11-11T04:23:23+00:00) fixed one high finding (Ask AI Trash approval, SECURITY F12) and about twenty smaller ones, and the connector Worker is redeployed with its two fixes. | Tagged `v1.8.0`, uploaded, **User activity** ticked in the store's Privacy practices, submitted 2026-11-11T04:31:04+00:00 (store API: PENDING_REVIEW, automatic publishing). After approval: PLAYBOOK step 8. |
+| 21 | §3.1 | P2 | **Done** | S | M | 2026-11-11 | 1.7.1 (AI Tools page D23, provider fixes D21, palworks.ai addresses D22, Ask AI side panel and chats D24, open-folder context D26, security fixes) is live on the Web Store at 100% (store API, 2026-11-11); helper 1.7.2 (D25) is on npm (`latest`). | PLAYBOOK step 8 together with 1.8.0 (row 26). |
 | 25 | §3.3 | P2 | **Done** | S | M | 2026-11-11 | Security review F3 and F7 decided by the owner: F3 accepted (Workers stay on the shared Cloudflare account); F7 fixed in the helper (D25). | Shipped: helper 1.7.2 is `latest` on npm (2026-11-11). |
 | 27 | §3.3 | P3 | **Open** | S | L | 2026-11-11 | 1.8.0 audit, left open: in split incognito the two workers each queue `meta_*` writes, so a rating and an Auto-Tag on one link at the same moment can lose one (SECURITY F17); only `StorageIndex.clear` and `remove` and a few exports are used by tests alone. | Route incognito `META_PATCH` to the regular worker, or document; prune test-only code when next touched. |
 | 28 | §3.2 | P3 | **Open** | M | M | 2026-11-11 | 1.8.0 audit, left open: the Settings, Filter and Sort menus and the AI Tools tabs lack arrow-key navigation; Settings menu labels mix Title Case and sentence case. | Share `ContextMenu`'s keyboard logic with the top bar menus; add tabpanel roles and arrow keys; pick one label case and update the store listing text with it. |
@@ -97,20 +97,20 @@ Priority, Size and Impact are separate columns because they answer separate ques
 | Undo for rename and Cut and Paste | 1.5.0 (live; confirmed through the store API 2026-11-09) |
 | Settings menu rework, in-built feedback form (relay in `worker/`), html2canvas-pro capture | 1.6.0 (live 2026-11-09) |
 | Ask AI, Connect Claude or ChatGPT, coding agents, AI changes with Undo | 1.7.0 (live 2026-11-10) |
-| One AI Tools page, Ask AI side panel with saved chats and the open folder, provider and security fixes | 1.7.1 (ships in 1.8.0) |
-| Anonymous usage statistics with an off switch (D27) | 1.8.0 (prepared 2026-11-11) |
+| One AI Tools page, Ask AI side panel with saved chats and the open folder, provider and security fixes | 1.7.1 (live 2026-11-11) |
+| Anonymous usage statistics with an off switch (D27), pre-release audit fixes | 1.8.0 (in review since 2026-11-11) |
 
 ## 2. Next up
 
-### 2.1 Status: 1.8.0 ready on `main`, owner testing before upload (updated 2026-11-11T02:41:14+00:00)
+### 2.1 Status: 1.8.0 in Web Store review, 1.7.1 live (updated 2026-11-11T04:31:04+00:00)
 
-1.7.0 is live at 100%. 1.7.1 was submitted on 2026-11-10 and was still in review when the owner
-asked for usage statistics (D27) and for finished work to ship promptly. 1.8.0 adds them and
-replaces the 1.7.1 submission, so one review covers both (row 26). The relay side is live: the
+1.7.0 and 1.7.1 are live at 100% (1.7.1 passed review before 1.8.0 was uploaded). 1.8.0 adds
+usage statistics (D27) and the fixes from a full pre-release audit (SECURITY F12 to F17), and was
+submitted on 2026-11-11T04:31:04+00:00 with automatic publishing (row 26). The relay side is live: the
 feedback Worker's `/events` forwards to GA4 stream `G-Y7EQS9EYQB` (property "Bookmarks as
 Thumbnails Website") and PostHog EU project 344404, both keys held as Worker secrets. Helper
-1.7.2 is `latest` on npm. Before submitting, the store's Privacy practices need **User
-activity** ticked (PRIVACY_DETAILS 4a).
+1.7.2 is `latest` on npm. The store's Privacy practices now tick **User activity**
+(PRIVACY_DETAILS 4a). The connector Worker was redeployed from `main` with the audit's two fixes.
 
 The 1.7.1 status, kept for reference:
 
@@ -165,9 +165,9 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
-| 26 | Release 1.8.0: usage statistics (GA4 and PostHog through our relay), with everything from 1.7.1 | §3.1 | **In progress**: owner testing `dist/`, then upload | S | H |
+| 26 | Release 1.8.0: usage statistics (GA4 and PostHog through our relay), with everything from 1.7.1 | §3.1 | **In progress**: in Web Store review | S | H |
 | 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Done**: live at 100% | L | M |
-| 21 | Release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **In progress**: ships inside 1.8.0 (row 26) | S | M |
+| 21 | Release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **Done**: live at 100% | S | M |
 | 25 | Security decisions: Cloudflare account (F3), helper detection (F7) | §3.3 | **Done**: F3 accepted, F7 fixed (D25) | S | M |
 | 27 | Incognito metadata write race; test-only code | §3.3 | **Open** | S | L |
 | 28 | Keyboard navigation in top bar menus and AI Tools tabs; one label case | §3.2 | **Open** | M | M |

@@ -10,7 +10,7 @@ connect Claude or ChatGPT, or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-11T04:23:23+00:00 (1.8.0: usage statistics, on by default and off in Settings; pre-release audit fixes)._
+_Last updated: 2026-11-11T04:31:04+00:00 (1.7.1 live; 1.8.0 with usage statistics and audit fixes in Web Store review)._
 
 ## Contents
 
@@ -257,10 +257,10 @@ settings are ever changed. Steps, the permission gate and rollback:
 
 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents;
 [docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is live on the Chrome Web Store.
-1.8.0 (anonymous usage statistics with an off switch) is ready on `main` and replaces the 1.7.1
-submission (one AI Tools page, Ask AI beside the bookmarks with saved chats and the open folder
-as context, provider fixes, security fixes) that was in Web Store review; coding agents use
-`bookmarks-thumbnails-mcp@1.7.2`. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
+1.7.1 (one AI Tools page, Ask AI beside the bookmarks with saved chats and the open folder as
+context, provider fixes, security fixes) is live too. 1.8.0 (anonymous usage statistics with an
+off switch, and the fixes from a full pre-release audit) is in Web Store review; coding agents
+use `bookmarks-thumbnails-mcp@1.7.2`. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
 changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
