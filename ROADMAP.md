@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-11T06:00:38+00:00 (section 0 holds open rows only; ledger pending first; status names 1.8.1, row 29)._
+> _Last updated: 2026-11-11T06:23:47+00:00 (1.8.0 live; 1.8.1 submitted; GA4 developer filter and custom dimensions)._
 
 ## 0. North star: every open item, one row each
 
@@ -21,12 +21,11 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 |---|---|---|---|---|---|---|---|---|
 | 8 | §3.3 | P3 | **Open** | S | L | 2026-11-08 | Older CSS still hard-codes colours, so themes are duplicated per selector. | Move App.css, TopBar.css and ThumbnailTile.css onto the tokens in `src/popup/index.css`. |
 | 13 | §3.2 | P3 | **Open** | L | M | 2026-11-08 | Trash only sees deletes that happen while Chrome runs on this device; changes made while it was closed, or on a device without the extension, are not recoverable. | Spike: periodic tree snapshots on the daily alarm, diffed between runs (1.4.0 review, approach C). Compare storage cost with the event-based Trash first. |
-| 26 | §3.1 | P1 | **In progress** | S | H | 2026-11-11 | 1.8.0 adds usage statistics (D27): anonymous feature events through our relay to GA4 (stream `G-Y7EQS9EYQB`) and PostHog EU (project 344404), on by default, off in Settings. The relay is deployed with both keys and checked (204 from our origin, 403 otherwise, PostHog test event accepted). The owner tested it; a full pre-release audit (2026-11-11T04:23:23+00:00) fixed one high finding (Ask AI Trash approval, SECURITY F12) and about twenty smaller ones, and the connector Worker is redeployed with its two fixes. | Tagged `v1.8.0`, uploaded, **User activity** ticked in the store's Privacy practices, submitted 2026-11-11T04:31:04+00:00 (store API: PENDING_REVIEW, automatic publishing). After approval: PLAYBOOK step 8. |
 | 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is live on the Web Store at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00); submitted 2026-11-09T13:56:04+00:00. The Privacy tab now declares personally identifiable information (the optional reply address) and personal communications (the feedback message). | Folded into the single PLAYBOOK step 8 run with 1.8.0 (row 26). Row 10 and the website feature list are done. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
 | 11 | §3.2 | P3 | **Decision** | M | M | 2026-11-08 | The extension is a separate tab; Ctrl+Shift+O still opens Chrome's manager. | Evaluate `chrome_url_overrides.bookmarks`: check the Web Store single-purpose policy and Chrome's prompt on an unpacked build first. |
 | 12 | §3.1 | P1 | **Waiting** | S | H | 2026-11-08 | 1.5.0 (which carries 1.3.0 and 1.4.0) is live on the Chrome Web Store (confirmed through the store API on 2026-11-09). The first submission was rejected on 2026-11-08 for excessive keywords; the resubmission passed. | Run PLAYBOOK release step 8 (store install on a clean profile, update from an older version) once, together with 1.8.0 (row 26); it also closes rows 12 and 17. Then the promo video link (row 16). |
-| 29 | §3.1 | P2 | **Waiting** | S | M | 2026-11-11 | 1.8.1 (rows 24, 27, 28: remote token expiry, metadata writes across workers, keyboard menus, Title Case labels) is merged and versioned on `main`; the connector part is deployed. Uploading now would cancel the 1.8.0 review. | Once 1.8.0 is published: tag `v1.8.1`, `npm run zip`, upload and submit; check the store listing for the renamed labels. |
+| 29 | §3.1 | P2 | **In progress** | S | M | 2026-11-11 | 1.8.1 (rows 24, 27, 28: remote token expiry, metadata writes across workers, keyboard menus, Title Case labels) is merged and versioned on `main`; the connector part is deployed. Uploading now would cancel the 1.8.0 review. | Tagged `v1.8.1`, uploaded and submitted 2026-11-11T06:23:47+00:00 (store API: PENDING_REVIEW, automatic publishing). Store listing has none of the renamed labels. Left: the store's test instructions still say \"(AI settings)\" and `bookmarks-thumbnails-mcp@1.7.0`; the dashboard kept that field read-only to automation, so the owner edits it by hand. After approval: PLAYBOOK step 8. |
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 
@@ -92,11 +91,11 @@ Priority, Size and Impact are separate columns because they answer separate ques
 | Settings menu rework, in-built feedback form (relay in `worker/`), html2canvas-pro capture | 1.6.0 (live 2026-11-09) |
 | Ask AI, Connect Claude or ChatGPT, coding agents, AI changes with Undo | 1.7.0 (live 2026-11-10) |
 | One AI Tools page, Ask AI side panel with saved chats and the open folder, provider and security fixes | 1.7.1 (live 2026-11-11) |
-| Anonymous usage statistics with an off switch (D27), pre-release audit fixes | 1.8.0 (in review since 2026-11-11) |
+| Anonymous usage statistics with an off switch (D27), pre-release audit fixes | 1.8.0 (live 2026-11-11) |
 
 ## 2. Next up
 
-### 2.1 Status: 1.8.0 in Web Store review, 1.7.1 live, 1.8.1 versioned on `main` and not yet uploaded (updated 2026-11-11T06:00:38+00:00)
+### 2.1 Status: 1.8.0 live, 1.8.1 in Web Store review (updated 2026-11-11T06:23:47+00:00)
 
 1.7.0 and 1.7.1 are live at 100% (1.7.1 passed review before 1.8.0 was uploaded). 1.8.0 adds
 usage statistics (D27) and the fixes from a full pre-release audit (SECURITY F12 to F17), and was
@@ -106,9 +105,10 @@ Thumbnails Website") and PostHog EU project 344404, both keys held as Worker sec
 1.7.2 is `latest` on npm. The store's Privacy practices now tick **User activity**
 (PRIVACY_DETAILS 4a). The connector Worker was redeployed from `main` with the audit's two fixes.
 
-`main` is version 1.8.1 (row 29): rows 24, 27 and 28 plus a second strict audit. Its connector
-part (token budgets, reconnect grace) is live; the extension part waits for 1.8.0 to be
-published, because uploading now would cancel that review.
+1.8.0 passed review and is live at 100%. 1.8.1 (row 29: rows 24, 27 and 28 plus a second strict
+audit) was submitted on 2026-11-11T06:23:47+00:00 with automatic publishing; its connector part is live already.
+The GA4 property now has an Active Developer traffic filter and 11 event-scoped custom
+dimensions for the event parameters (2026-11-11).
 
 The 1.7.1 status, kept for reference:
 
@@ -162,14 +162,14 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 |---|---|---|---|---|---|
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
-| 26 | Release 1.8.0: usage statistics (GA4 and PostHog through our relay), with everything from 1.7.1 | §3.1 | **In progress**: in Web Store review | S | H |
 | 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **In progress**: live; release step 8 left | S | M |
 | 16 | Refresh store screenshots | §3.1 | **In progress**: promo video link left | S | M |
 | 11 | Open this UI from Chrome's bookmark manager shortcut | §3.2 | **Decision** | M | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
-| 29 | Release 1.8.1 (rows 24, 27, 28) | §3.1 | **Waiting**: for 1.8.0 to be published | S | M |
+| 29 | Release 1.8.1 (rows 24, 27, 28, second audit) | §3.1 | **In progress**: in Web Store review | S | M |
 | 14 | Folder prefs across devices | §3.2 | **Deferred** | M | L |
 | 15 | Undo history beyond the toast | §3.2 | **Deferred** | M | L |
+| 26 | Release 1.8.0: usage statistics (GA4 and PostHog through our relay), with everything from 1.7.1 | §3.1 | **Done** 2026-11-11 (live at 100%) | Was S | H |
 | 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Done**: live at 100% | L | M |
 | 21 | Release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **Done**: live at 100% | S | M |
 | 25 | Security decisions: Cloudflare account (F3), helper detection (F7) | §3.3 | **Done**: F3 accepted, F7 fixed (D25) | S | M |

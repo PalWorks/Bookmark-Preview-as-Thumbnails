@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.8.1] - not yet uploaded (prepared 2026-11-11T05:35:36+00:00; uploads once 1.8.0 is published, since uploading now would cancel its review)
+## [1.8.1] - 2026-11-11 (prepared 2026-11-11T05:35:36+00:00; submitted to the Web Store 2026-11-11T06:23:47+00:00, in review)
 
 The connector part is live already.
 
@@ -52,7 +52,7 @@ The connector part is live already.
   shares the smaller budget; a removed token is forgotten; rate counters are always cleaned up;
   the "too many requests" message no longer names a fixed number.
 
-## [1.8.0] - 2026-11-11 (release prepared 2026-11-11T02:41:14+00:00; submitted to the Web Store 2026-11-11T04:31:04+00:00, in review)
+## [1.8.0] - 2026-11-11 (release prepared 2026-11-11T02:41:14+00:00; submitted 2026-11-11T04:31:04+00:00; live at 100% on 2026-11-11)
 
 ### Added
 

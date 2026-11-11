@@ -10,7 +10,7 @@ connect Claude or ChatGPT, or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-11T06:01:16+00:00 (1.8.0 in Web Store review; 1.8.1 on main after a second audit)._
+_Last updated: 2026-11-11T06:23:48+00:00 (1.8.0 live; 1.8.1 in Web Store review)._
 
 ## Contents
 
@@ -259,8 +259,8 @@ settings are ever changed. Steps, the permission gate and rollback:
 [docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is live on the Chrome Web Store.
 1.7.1 (one AI Tools page, Ask AI beside the bookmarks with saved chats and the open folder as
 context, provider fixes, security fixes) is live too. 1.8.0 (anonymous usage statistics with an
-off switch, and the fixes from a full pre-release audit) is in Web Store review, and 1.8.1
-(keyboard menus, 90-day expiry for online connections) is ready on `main` for after it; coding agents
+off switch, and the fixes from a full pre-release audit) is live, and 1.8.1 (keyboard menus,
+90-day expiry for online connections, a second audit's fixes) is in Web Store review; coding agents
 use `bookmarks-thumbnails-mcp@1.7.2`. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
 changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 

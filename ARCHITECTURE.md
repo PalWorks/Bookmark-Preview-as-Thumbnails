@@ -236,7 +236,7 @@ to the provider the user configures (see PRIVACY.md).
   backups, gone on uninstall. `analytics_sid` is a number per browser session in
   `chrome.storage.session`. PostHog gets `$process_person_profile: false`, so no person profiles.
 - **Development copies.** Any id other than the store id sends `dev: true`; GA4 gets
-  `debug_mode` (DebugView; kept out of reports while GA4's Developer traffic filter is active) and
+  `debug_mode` (DebugView; kept out of reports by GA4's Developer traffic filter, Active) and
   PostHog the `dev` property, so reports can filter test traffic out.
 - **Failures.** Statistics are best effort: a failed send is dropped and never retried, and never
   touches the feature that called `track()`.

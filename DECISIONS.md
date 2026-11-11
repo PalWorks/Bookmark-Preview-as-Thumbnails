@@ -24,8 +24,8 @@ switch, and the privacy texts say so plainly.
   no person profiles.
 - **Off switch:** Settings > Share Usage Statistics (synced). Off means nothing is sent;
   Incognito windows never send. Development copies are marked as test traffic: GA4 `debug_mode`
-  (shown in DebugView; kept out of reports only while the property's Developer traffic filter
-  is active) and `dev` in PostHog (filter it out in insights).
+  (shown in DebugView; kept out of reports by the property's Developer traffic filter, Active
+  since 2026-11-11) and `dev` in PostHog (filter it out in insights).
 - **Events:** feature messages the service worker already receives (previews, Auto-Tag, Smart
   Search, connector and coding agents on or off, AI change undo, redo, approve and discard,
   Trash, Ask AI tool calls) plus page events (opened, panel, view mode, search started, Ask AI
