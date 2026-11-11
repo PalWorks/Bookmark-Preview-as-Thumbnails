@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-11T05:30:59+00:00 (rows 24, 27 and 28 done on main; 1.8.1 waits for 1.8.0 to be published)._
+> _Last updated: 2026-11-11T05:38:26+00:00 (row 29: 1.8.1 ready, waits for 1.8.0)._
 
 ## 0. North star: every open item, one row each
 
@@ -27,6 +27,7 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 | 18 | §3.2 | P2 | **Done** | L | M | 2026-11-11 | 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents; D18 to D20) is live on the Web Store at 100% (store API, 2026-11-10T20:02:43+00:00). | Post-release checks fold into row 21. |
+| 29 | §3.1 | P2 | **Waiting** | S | M | 2026-11-11 | 1.8.1 (rows 24, 27, 28: remote token expiry, metadata writes across workers, keyboard menus, Title Case labels) is merged and versioned on `main`; the connector part is deployed. Uploading now would cancel the 1.8.0 review. | Once 1.8.0 is published: tag `v1.8.1`, `npm run zip`, upload and submit; check the store listing for the renamed labels. |
 | 26 | §3.1 | P1 | **In progress** | S | H | 2026-11-11 | 1.8.0 adds usage statistics (D27): anonymous feature events through our relay to GA4 (stream `G-Y7EQS9EYQB`) and PostHog EU (project 344404), on by default, off in Settings. The relay is deployed with both keys and checked (204 from our origin, 403 otherwise, PostHog test event accepted). The owner tested it; a full pre-release audit (2026-11-11T04:23:23+00:00) fixed one high finding (Ask AI Trash approval, SECURITY F12) and about twenty smaller ones, and the connector Worker is redeployed with its two fixes. | Tagged `v1.8.0`, uploaded, **User activity** ticked in the store's Privacy practices, submitted 2026-11-11T04:31:04+00:00 (store API: PENDING_REVIEW, automatic publishing). After approval: PLAYBOOK step 8. |
 | 21 | §3.1 | P2 | **Done** | S | M | 2026-11-11 | 1.7.1 (AI Tools page D23, provider fixes D21, palworks.ai addresses D22, Ask AI side panel and chats D24, open-folder context D26, security fixes) is live on the Web Store at 100% (store API, 2026-11-11); helper 1.7.2 (D25) is on npm (`latest`). | PLAYBOOK step 8 together with 1.8.0 (row 26). |
 | 25 | §3.3 | P2 | **Done** | S | M | 2026-11-11 | Security review F3 and F7 decided by the owner: F3 accepted (Workers stay on the shared Cloudflare account); F7 fixed in the helper (D25). | Shipped: helper 1.7.2 is `latest` on npm (2026-11-11). |
@@ -165,6 +166,7 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
+| 29 | Release 1.8.1 (rows 24, 27, 28) | §3.1 | **Waiting**: for 1.8.0 to be published | S | M |
 | 26 | Release 1.8.0: usage statistics (GA4 and PostHog through our relay), with everything from 1.7.1 | §3.1 | **In progress**: in Web Store review | S | H |
 | 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Done**: live at 100% | L | M |
 | 21 | Release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **Done**: live at 100% | S | M |
