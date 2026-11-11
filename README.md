@@ -10,7 +10,7 @@ connect Claude or ChatGPT, or send us feedback.
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-install-4285F4.svg)](https://chromewebstore.google.com/detail/bookmarks-as-thumbnails/eedekafhclngkhhkcocblnllkbodgnhj)
 
-_Last updated: 2026-11-10T17:21:42+00:00 (Ask AI side panel, chats, model picker, Trash approval, Undo and Redo, security fixes)._
+_Last updated: 2026-11-11T02:41:14+00:00 (1.8.0: usage statistics, on by default and off in Settings)._
 
 ## Contents
 
@@ -36,10 +36,12 @@ how they look, not by their titles. This extension opens a full-page view of you
 grid (or list) of screenshots, captured in the background, with folders, search, sorting and
 filters. It is for anyone who keeps many bookmarks and wants to find and tidy them quickly.
 
-Everything stays in your browser profile. The optional AI features run on Chrome's built-in
-on-device model by default, or with your own API key. Two things talk to servers of ours: the
-in-built feedback form, only when you press Send, and the Claude and ChatGPT connector, only
-while you have it switched on (it relays requests and stores none of your bookmarks); see
+Your bookmarks stay in your browser profile. The optional AI features run on Chrome's built-in
+on-device model by default, or with your own API key. Three things talk to servers of ours: the
+in-built feedback form, only when you press Send; the Claude and ChatGPT connector, only
+while you have it switched on (it relays requests and stores none of your bookmarks); and
+anonymous usage statistics (1.8.0), which say which features are used and never carry a link,
+title, folder name, search or chat text, and which you can turn off in Settings; see
 [PRIVACY.md](PRIVACY.md).
 
 ## Features
@@ -92,6 +94,9 @@ while you have it switched on (it relays requests and stores none of your bookma
 - **AI changes** (1.7.0): every change an AI made or suggested, with one-click Undo; suggestions
   are reviewed with tick boxes and applied as one step. Without a key or connector, "Other ways:
   copy and paste" shares chosen folders as text for any AI and takes its answer back for review.
+- **Usage statistics** (1.8.0): anonymous counts of which features are used, so the product
+  follows real use. On by default; **Settings > Share usage statistics** turns them off, and
+  incognito windows never send them. They go through our relay to Google Analytics and PostHog.
 - **Light, dark and system themes**; works from 360px wide up; keyboard and screen reader support.
 
 ## Architecture
@@ -103,12 +108,12 @@ Three browser contexts, plus two small relays of ours (feedback, and the Claude 
 | Service worker | `src/sw.ts`, `src/sw/trash.ts`, `src/sw/folder_prefs.ts` | Message router, capture pool, AI batches, update migration, Trash coordinator and folder prefs (single writers) |
 | Extension page | `index.html` → `src/popup/` | React UI; behaviour in hooks, `App.tsx` only composes |
 | Content script | `src/content/capture.ts` | Page-side capture helper |
-| Feedback relay (server) | `worker/` | Cloudflare Worker that emails a sent feedback form to support through Resend; holds the only key (D16) |
+| Feedback relay (server) | `worker/` | Cloudflare Worker that emails a sent feedback form to support through Resend (D16), and passes usage statistics to Google Analytics and PostHog (`/events`, D27); holds every key |
 | Online connector (server) | `connector/` | Cloudflare Worker: remote MCP server with OAuth 2.1 that relays Claude and ChatGPT tool calls to the browser over a WebSocket; stores no bookmark data (D20) |
 | Coding-agent helper (local) | `bridge/` | npm package: native host, MCP server and CLI for coding agents on the same computer |
 
 Data lives in `chrome.storage.local` (previews `thumb_<url>`, metadata `meta_<url>`, Trash
-`trash_*`, folder prefs `fpref_*`), `chrome.storage.sync` (settings) and IndexedDB (legacy previews, folder handle).
+`trash_*`, folder prefs `fpref_*`, the usage statistics install id `analytics_cid`), `chrome.storage.sync` (settings) and IndexedDB (legacy previews, folder handle).
 Details: [ARCHITECTURE.md](ARCHITECTURE.md), [DATA_MODEL.md](DATA_MODEL.md),
 [DECISIONS.md](DECISIONS.md).
 
@@ -197,6 +202,7 @@ src/
   lib/bridge/tools.ts   the shared tool list
   lib/agent/llm.ts      Ask AI's tool-calling loop (OpenAI-compatible, Anthropic, Gemini)
   lib/ai_provider_rules.ts  provider rules shared by Auto-Tag, Smart Search and Ask AI
+  lib/analytics.ts      usage statistics: events, opt-out, batching (D27)
   lib/                  shared modules (storage, trash_store, bookmark_tree, AI, backup, utils)
   popup/                React app: App.tsx, hooks/, components/ (Provider Settings and AI tabs, tiles)
   components/           TopBar, Sidebar, MainContent, TrashView, AIToolsTabs, AskAIView, AgentsView, ...
@@ -207,7 +213,7 @@ scripts/check-bundle.mjs  post-build checks
 scripts/e2e/smoke.mjs     npm run e2e: real-Chrome smoke test
 scripts/e2e/bridge.mjs    real Chrome + coding-agent helper + CLI
 scripts/e2e/connector.mjs real Chrome + connector Worker (wrangler dev) + an MCP client
-worker/                 feedback relay (Cloudflare Worker, Resend); see worker/README.md
+worker/                 feedback and usage statistics relay (Cloudflare Worker); see worker/README.md
 bridge/                 coding-agent helper: native host, MCP server, CLI (npm package)
 connector/              online connector for Claude and ChatGPT (Cloudflare Worker); see connector/README.md
 website/                marketing site (GitHub Pages)
@@ -223,14 +229,14 @@ npm run build && npm run check:bundle
 npm run e2e        # real Chrome, headless, throwaway profile
 ```
 
-475 tests cover migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
+481 tests cover usage statistics (value checks, opt-out, incognito, batching), migration, metadata merges and the metadata allowlist, API key binding, provider rules (request shape, budgets, empty replies, out-of-credit, retries, retired defaults), Trash
 (delete, restore, crash recovery, expiry, asset sweep, deletes made outside the extension),
 folder prefs, selection and bulk move, list columns, the feedback form, AI change sets (validation,
 apply, Undo, recovery), the bridge (modes, apply and undo), Ask AI, the connector link, the
 reactive bookmark tree, backups, and the whole app in jsdom. `npm run e2e` checks the core flows
 in a real Chrome; `scripts/e2e/bridge.mjs` runs Chrome, the helper and the CLI together (18
 checks); `scripts/e2e/connector.mjs` runs Chrome, the connector Worker under `wrangler dev` and an
-MCP client through sign-in, tools, Undo and revocation (15 checks). The feedback relay has 32
+MCP client through sign-in, tools, Undo and revocation (15 checks). The feedback relay has 34
 tests of its own, the helper package 11 (`bridge/test/`) and the connector 36 (`cd connector &&
 npm test`). See [TESTING.md](TESTING.md).
 
@@ -251,9 +257,10 @@ settings are ever changed. Steps, the permission gate and rollback:
 
 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents;
 [docs/designs/ai-assistant.md](docs/designs/ai-assistant.md)) is live on the Chrome Web Store.
-1.7.1 (one AI Tools page, Ask AI beside the bookmarks with saved chats and the open folder as
-context, provider fixes, security fixes) is in Web Store review, with
-`bookmarks-thumbnails-mcp@1.7.2` for coding agents. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
+1.8.0 (anonymous usage statistics with an off switch) is ready on `main` and replaces the 1.7.1
+submission (one AI Tools page, Ask AI beside the bookmarks with saved chats and the open folder
+as context, provider fixes, security fixes) that was in Web Store review; coding agents use
+`bookmarks-thumbnails-mcp@1.7.2`. Later: Edge, Brave and Windows for coding agents, and a safety net that also recovers
 changes made while Chrome was closed. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing

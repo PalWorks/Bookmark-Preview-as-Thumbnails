@@ -1,9 +1,10 @@
 # Architecture
 
-_Last updated: 2026-11-10T17:21:42+00:00 (Ask AI side panel, chats on the device, model picker, Trash approval, Redo, sender check)._
+_Last updated: 2026-11-11T02:41:14+00:00 (usage statistics through the relay's /events, D27, 1.8.0)._
 
 Bookmarks as Thumbnails is a Chrome Manifest V3 extension. It has two small servers of its own:
-the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0), and the
+the feedback relay in `worker/`, used when someone sends the feedback form (1.6.0) and for
+anonymous usage statistics (1.8.0, unless the user turns them off), and the
 online connector in `connector/`, used only while the user has "Let Claude and ChatGPT organise
 my bookmarks" on (1.7.0). Everything else runs in three browser contexts and stores data in
 `chrome.storage`. Storage keys and
@@ -40,6 +41,7 @@ are in [DECISIONS.md](DECISIONS.md).
  Content script (content-script.js): page-side capture helper injected into capture tabs.
 
  Feedback form (page, src/lib/feedback.ts) ── POST /feedback, only on Send ──▶ worker/ relay ──▶ Resend ──▶ support@
+ track() (page or worker, src/lib/analytics.ts) ── POST /events, batched ──▶ worker/ relay ──▶ GA4 + PostHog EU
 ```
 
 - **Service worker** (`src/sw.ts`): message router, capture orchestration, AI batch
@@ -205,8 +207,35 @@ online connector (`connector/`, `https://bookmarks-connector.palworks.ai`; the o
 `bookmarks-thumbnails-connector.sunmooncal.workers.dev` address stays on for 1.7.0) is described under "Online connector" below. The
 feedback relay in `worker/` (Cloudflare Worker, `https://bookmarks-feedback.palworks.ai`; the old workers.dev address stays on for 1.6.0 and 1.7.0),
 called only when the user sends the feedback form (`src/lib/feedback.ts`, D16). It emails
-support@palworks.ai through Resend. Optional AI calls (Auto-Tag, Smart Search, Ask AI) go only
+support@palworks.ai through Resend. The same Worker's `/events` takes usage statistics (below).
+Optional AI calls (Auto-Tag, Smart Search, Ask AI) go only
 to the provider the user configures (see PRIVACY.md).
+
+## Usage statistics (1.8.0, D27)
+
+```
+ page or worker ── track(name, params) ──▶ safeParams: numbers, booleans, short words only
+                                           queue (2 s debounce, max 20 per batch)
+                    flush() ── usage_stats off or incognito? drop ──▶ POST /events (keepalive)
+                    body: { cid: analytics_cid, sid: analytics_sid, v, dev?, events: [{n, p, ago}] }
+
+ worker/src/events.ts  origin check, EVENTS_BURST limit, cleanBatch (same checks again), 204,
+                       then in the background: GA4 Measurement Protocol (G-Y7EQS9EYQB) and
+                       PostHog /batch/ (EU, project 344404). Country from Cloudflare; no IP; no storage.
+```
+
+- **Where events come from.** The service worker counts feature messages it receives
+  (`eventForMessage`: previews, Auto-Tag, Smart Search, AI changes, Trash, connector, coding
+  agents, Ask AI tools) and install or update. Pages count opening the app or panel, search,
+  view mode, Ask AI messages (provider type and whether a folder was attached), backups and
+  feedback. One `track()` per user action; nothing is counted in a loop.
+- **Identity.** `analytics_cid` is a random UUID in `chrome.storage.local`: not synced, not in
+  backups, gone on uninstall. `analytics_sid` is a number per browser session in
+  `chrome.storage.session`. PostHog gets `$process_person_profile: false`, so no person profiles.
+- **Development copies.** Any id other than the store id sends `dev: true`; GA4 gets
+  `debug_mode` (DebugView only) and PostHog the `dev` property, so test traffic stays out of reports.
+- **Failures.** Statistics are best effort: a failed send is dropped and never retried, and never
+  touches the feature that called `track()`.
 
 ## AI changes (1.7.0)
 

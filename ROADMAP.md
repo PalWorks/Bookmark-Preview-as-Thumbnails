@@ -10,7 +10,7 @@
 >
 > Timestamps are ISO 8601 to the second, with the offset (UTC, this is a public repository).
 >
-> _Last updated: 2026-11-10T20:02:43+00:00 (1.7.0 live; 1.7.1 released to review, helper 1.7.2)._
+> _Last updated: 2026-11-11T02:41:14+00:00 (row 26: release 1.8.0 with usage statistics, replacing 1.7.1 in review; helper 1.7.2 on npm)._
 
 ## 0. North star: every open item, one row each
 
@@ -27,8 +27,9 @@ Grouped by state (Open, Decision, Waiting, Blocked, Deferred, Recurring), then b
 | 14 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Folder colours and hidden-from-search are per device (folder ids differ between devices, D12). | Comes back if users ask for them to follow sync; would need a stable folder identity across devices. |
 | 15 | §3.2 | P3 | **Deferred** | M | L | 2026-11-08 | Undo for rename and move lasts as long as its toast (D15); there is no history of earlier edits. | Comes back if users ask to undo older edits: a persisted journal in the worker with a history view (the original row 6 plan). |
 | 18 | §3.2 | P2 | **Done** | L | M | 2026-11-11 | 1.7.0 (Ask AI, Connect Claude or ChatGPT, coding agents; D18 to D20) is live on the Web Store at 100% (store API, 2026-11-10T20:02:43+00:00). | Post-release checks fold into row 21. |
-| 21 | §3.1 | P2 | **In progress** | S | M | 2026-11-11 | 1.7.1 (AI Tools page D23, provider fixes D21, palworks.ai addresses D22, Ask AI side panel and chats D24, open-folder context D26, security fixes) is tagged and sent to the Web Store; helper 1.7.2 (D25) goes to npm with it. | After approval: PLAYBOOK step 8; owner publishes helper 1.7.2 if not yet done. |
-| 25 | §3.3 | P2 | **Done** | S | M | 2026-11-11 | Security review F3 and F7 decided by the owner: F3 accepted (Workers stay on the shared Cloudflare account); F7 fixed in the helper (D25). | Ships with the next helper release (1.7.2 on npm, needs the owner's OK). |
+| 26 | §3.1 | P1 | **In progress** | S | H | 2026-11-11 | 1.8.0 adds usage statistics (D27): anonymous feature events through our relay to GA4 (stream `G-Y7EQS9EYQB`) and PostHog EU (project 344404), on by default, off in Settings. The relay is deployed with both keys and checked (204 from our origin, 403 otherwise, PostHog test event accepted). 1.8.0 replaces the 1.7.1 submission, so it carries row 21. | Owner tests the `dist/` build in the test browser; then tag `v1.8.0`, upload, tick **User activity** in the store's Privacy practices (PRIVACY_DETAILS 4a), submit. After approval: PLAYBOOK step 8. |
+| 21 | §3.1 | P2 | **In progress** | S | M | 2026-11-11 | 1.7.1 (AI Tools page D23, provider fixes D21, palworks.ai addresses D22, Ask AI side panel and chats D24, open-folder context D26, security fixes) was tagged and sent to the Web Store; helper 1.7.2 (D25) is on npm (`latest`, 2026-11-11). | Ships inside 1.8.0 (row 26), which replaces this submission. |
+| 25 | §3.3 | P2 | **Done** | S | M | 2026-11-11 | Security review F3 and F7 decided by the owner: F3 accepted (Workers stay on the shared Cloudflare account); F7 fixed in the helper (D25). | Shipped: helper 1.7.2 is `latest` on npm (2026-11-11). |
 | 24 | §3.3 | P3 | **Open** | S | M | 2026-11-10 | Security review F2 and F6: connector tokens never expire; failed tokens use up a link's per-minute budget. | Expire a token after 90 days unused; count failed tokens separately in the link's Durable Object. Needs a Worker deploy. |
 | 17 | §3.1 | P2 | **In progress** | S | M | 2026-11-09 | 1.6.0 (settings menu rework, in-built feedback form via the `worker/` relay) is live on the Web Store at 100% (confirmed through the store API at 2026-11-09T16:13:49+00:00); submitted 2026-11-09T13:56:04+00:00. The Privacy tab now declares personally identifiable information (the optional reply address) and personal communications (the feedback message). | PLAYBOOK release step 8 (store install on a clean profile, update from 1.5.0), then rows 10 and 16 and the website feature list. |
 | 16 | §3.1 | P3 | **In progress** | S | M | 2026-11-09 | Five new 1280x800 screenshots of 1.5.0 on a demo library were approved by the owner and are in the listing (submitted with the 1.5.0 resubmission). A 63 s promo video is made. | The owner uploads the video to YouTube; then add its URL as the listing's Global promo video. |
@@ -93,10 +94,23 @@ Priority, Size and Impact are separate columns because they answer separate ques
 | Deletes made outside the extension in Trash, folder colours, hidden from search, multi-select with bulk delete/move/open, list columns and ratings | 1.4.0 (not released on its own; ships in 1.5.0) |
 | Undo for rename and Cut and Paste | 1.5.0 (live; confirmed through the store API 2026-11-09) |
 | Settings menu rework, in-built feedback form (relay in `worker/`), html2canvas-pro capture | 1.6.0 (live 2026-11-09) |
+| Ask AI, Connect Claude or ChatGPT, coding agents, AI changes with Undo | 1.7.0 (live 2026-11-10) |
+| One AI Tools page, Ask AI side panel with saved chats and the open folder, provider and security fixes | 1.7.1 (ships in 1.8.0) |
+| Anonymous usage statistics with an off switch (D27) | 1.8.0 (prepared 2026-11-11) |
 
 ## 2. Next up
 
-### 2.1 Status: 1.7.0 in Web Store review, next release on `main` (updated 2026-11-10T11:40:58+00:00)
+### 2.1 Status: 1.8.0 ready on `main`, owner testing before upload (updated 2026-11-11T02:41:14+00:00)
+
+1.7.0 is live at 100%. 1.7.1 was submitted on 2026-11-10 and was still in review when the owner
+asked for usage statistics (D27) and for finished work to ship promptly. 1.8.0 adds them and
+replaces the 1.7.1 submission, so one review covers both (row 26). The relay side is live: the
+feedback Worker's `/events` forwards to GA4 stream `G-Y7EQS9EYQB` (property "Bookmarks as
+Thumbnails Website") and PostHog EU project 344404, both keys held as Worker secrets. Helper
+1.7.2 is `latest` on npm. Before submitting, the store's Privacy practices need **User
+activity** ticked (PRIVACY_DETAILS 4a).
+
+The 1.7.1 status, kept for reference:
 
 Since the 1.7.0 submission, `main` gained the next release (row 21): one **AI Tools** page that
 replaces four menu items (D23, PR #19), the provider rules from the owner's ai-provider-kit
@@ -149,8 +163,9 @@ repeat §0 in one line; §0 holds the problem and solution. Closed rows keep onl
 | 8 | Migrate older CSS to design tokens | §3.3 | **Open** | S | L |
 | 13 | Recover changes made while Chrome was closed (snapshots) | §3.2 | **Open** | L | M |
 | 12 | Release 1.5.0 (with 1.3.0 and 1.4.0) to the Web Store | §3.1 | **Waiting**: live; post-release checks together with 1.6.0 | S | H |
+| 26 | Release 1.8.0: usage statistics (GA4 and PostHog through our relay), with everything from 1.7.1 | §3.1 | **In progress**: owner testing `dist/`, then upload | S | H |
 | 18 | Ask AI, Connect Claude or ChatGPT, coding agents (1.7.0) | §3.2 | **Done**: live at 100% | L | M |
-| 21 | Release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **In progress**: in Web Store review | S | M |
+| 21 | Release 1.7.1: AI Tools page, Ask AI side panel and chats, provider fixes, security fixes, palworks.ai addresses | §3.1 | **In progress**: ships inside 1.8.0 (row 26) | S | M |
 | 25 | Security decisions: Cloudflare account (F3), helper detection (F7) | §3.3 | **Done**: F3 accepted, F7 fixed (D25) | S | M |
 | 24 | Connector token expiry and failed-token budget (F2, F6) | §3.3 | **Open** | S | M |
 | 17 | Release 1.6.0 (menu rework, feedback form) | §3.1 | **In progress**: live; release step 8 left | S | M |

@@ -1,7 +1,8 @@
 # Feedback worker
 
 Relays the extension's in-built feedback form (Settings > Submit Feedback, 1.6.0) to email via
-Resend. Adapted from the Gmail Labels as Tabs relay.
+Resend, and the extension's anonymous usage statistics (1.8.0, D27) to Google Analytics and
+PostHog. Adapted from the Gmail Labels as Tabs relay.
 
 The extension cannot call Resend directly: a published extension is a zip anyone can unpack, so
 an API key inside it is a public key. This Worker holds the key instead (D16 in
@@ -55,6 +56,11 @@ copies are sent with GA4 debug mode and `dev: true` in PostHog. Nothing is store
 `GA4_API_SECRET` or `POSTHOG_KEY` that service is skipped. A rate-limit binding
 (`EVENTS_BURST`) allows 60 batches a minute per network.
 
+Where the data lands (set up 2026-11-11): GA4 property "Bookmarks as Thumbnails Website", web
+stream "Chrome extension" (`G-Y7EQS9EYQB`, which also holds the Measurement Protocol secret
+"bookmarks-feedback worker"); PostHog EU Cloud, project 344404 (the relay sends no client IP;
+turning on "Discard client IP data" there is a second guard). Both keys are Worker secrets, set 2026-11-11 and checked with a test event each.
+
 ## Setup
 
 ```bash
@@ -62,7 +68,7 @@ npm install
 npx wrangler secret put RESEND_API_KEY                 # send-only key scoped to palworks.ai
 openssl rand -base64 48 | npx wrangler secret put IP_HASH_SECRET
 npx wrangler secret put GA4_API_SECRET                 # GA4 stream G-Y7EQS9EYQB, Measurement Protocol secret
-npx wrangler secret put POSTHOG_KEY                    # PostHog project API key (phc_...)
+npx wrangler secret put POSTHOG_KEY < key-file         # PostHog EU project 344404, project API key (phc_...)
 npx --yes node@22.18 --test test/index.test.ts && npm run typecheck
 npx wrangler deploy
 ```
