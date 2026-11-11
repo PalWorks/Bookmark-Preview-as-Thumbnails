@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Ready on `main` (2026-11-11T05:30:59+00:00); ships as 1.8.1 once 1.8.0 is published (uploading now would cancel
-its review). The connector part is live already.
+## [1.8.1] - not yet uploaded (prepared 2026-11-11T05:35:36+00:00; uploads once 1.8.0 is published, since uploading now would cancel its review)
+
+The connector part is live already.
 
 ### Added
 
