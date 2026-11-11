@@ -66,8 +66,9 @@ GA4 setup for these events (2026-11-11): a **Developer traffic** data filter, Ac
 from development copies (`debug_mode`) appear in DebugView and never in reports; and 11
 event-scoped custom dimensions for the parameters: `panel`, `open`, `surface`, `provider`,
 `folder`, `kind`, `mode`, `previous`, `count`, `tool`, `ext_version`. A new parameter needs its
-own custom dimension (Admin > Custom definitions) before it shows in reports. In PostHog, filter
-`dev = true` out in insights (Settings > "Filter out internal and test users").
+own custom dimension (Admin > Custom definitions) before it shows in reports. In PostHog, the
+project's "Filter out internal and test users" holds `dev` doesn't equal `true` and is on for new
+insights (2026-11-11), so development copies are hidden there too.
 
 ## Setup
 
